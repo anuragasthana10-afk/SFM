@@ -12,12 +12,14 @@ public sealed class ZohoBooksClient
     private readonly HttpClient _httpClient;
     private readonly ZohoBooksOptions _options;
     private readonly ReferenceStore _referenceStore;
+    private readonly ZohoTokenProvider _tokenProvider;
 
-    public ZohoBooksClient(HttpClient httpClient, ZohoBooksOptions options, ReferenceStore referenceStore)
+    public ZohoBooksClient(HttpClient httpClient, ZohoBooksOptions options, ReferenceStore referenceStore, ZohoTokenProvider tokenProvider)
     {
         _httpClient = httpClient;
         _options = options;
         _referenceStore = referenceStore;
+        _tokenProvider = tokenProvider;
     }
 
     public async Task SyncInventoryItemsAsync(IEnumerable<InventoryItem> items, CancellationToken cancellationToken = default)
@@ -238,23 +240,24 @@ public sealed class ZohoBooksClient
 
     private async Task<JsonElement> GetAsync(string path, CancellationToken cancellationToken)
     {
-        using var request = CreateRequest(HttpMethod.Get, path);
+        using var request = await CreateRequestAsync(HttpMethod.Get, path, cancellationToken);
         var response = await _httpClient.SendAsync(request, cancellationToken);
         return await EnsureSuccessAsync(response, cancellationToken);
     }
 
     private async Task<JsonElement> SendAsync(HttpMethod method, string path, object payload, CancellationToken cancellationToken)
     {
-        using var request = CreateRequest(method, path);
+        using var request = await CreateRequestAsync(method, path, cancellationToken);
         request.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
         var response = await _httpClient.SendAsync(request, cancellationToken);
         return await EnsureSuccessAsync(response, cancellationToken);
     }
 
-    private HttpRequestMessage CreateRequest(HttpMethod method, string path)
+    private async Task<HttpRequestMessage> CreateRequestAsync(HttpMethod method, string path, CancellationToken cancellationToken)
     {
         var request = new HttpRequestMessage(method, $"{_options.BaseUrl}/{path}");
-        request.Headers.Authorization = new AuthenticationHeaderValue("Zoho-oauthtoken", _options.AccessToken);
+        var accessToken = await _tokenProvider.GetAccessTokenAsync(cancellationToken);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Zoho-oauthtoken", accessToken);
         request.Headers.Add("X-com-zoho-books-organizationid", _options.OrganizationId);
         return request;
     }

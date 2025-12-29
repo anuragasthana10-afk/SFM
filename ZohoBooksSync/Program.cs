@@ -5,9 +5,9 @@ using ZohoBooksSync.Services;
 
 var options = ZohoBooksOptions.FromEnvironment();
 
-if (string.IsNullOrWhiteSpace(options.OrganizationId) || string.IsNullOrWhiteSpace(options.AccessToken))
+if (string.IsNullOrWhiteSpace(options.OrganizationId))
 {
-    Console.WriteLine("Configure ZOHO_BOOKS_ORGANIZATION_ID and ZOHO_BOOKS_ACCESS_TOKEN to run the sync.");
+    Console.WriteLine("Configure ZOHO_BOOKS_ORGANIZATION_ID to run the sync.");
     return;
 }
 
@@ -15,7 +15,8 @@ var referenceStore = new ReferenceStore(options.DataStorePath);
 await referenceStore.LoadAsync();
 
 using var httpClient = new HttpClient();
-var zohoClient = new ZohoBooksClient(httpClient, options, referenceStore);
+var tokenProvider = new ZohoTokenProvider(httpClient, options);
+var zohoClient = new ZohoBooksClient(httpClient, options, referenceStore, tokenProvider);
 
 var inventoryItems = new List<InventoryItem>
 {
