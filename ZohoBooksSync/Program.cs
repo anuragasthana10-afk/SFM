@@ -66,6 +66,7 @@ await zohoClient.SyncContactsAsync(contacts);
 await zohoClient.SyncInvoicesAsync(invoices);
 
 await zohoClient.UpdateInventoryItemsAsync(inventoryItems);
+await zohoClient.UpdateContactsAsync(contacts);
 await zohoClient.UpdateInvoicesAsync(invoices);
 
 var payments = await zohoClient.PullPaymentsAsync(new[] { "invoice-100" });

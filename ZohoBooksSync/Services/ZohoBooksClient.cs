@@ -125,6 +125,27 @@ public sealed class ZohoBooksClient
         }
     }
 
+    public async Task UpdateContactsAsync(IEnumerable<Contact> contacts, CancellationToken cancellationToken = default)
+    {
+        foreach (var contact in contacts)
+        {
+            var remoteId = _referenceStore.GetContactId(contact.LocalId);
+            if (string.IsNullOrWhiteSpace(remoteId))
+            {
+                continue;
+            }
+
+            var payload = new
+            {
+                contact_name = contact.Name,
+                email = contact.Email,
+                phone = contact.Phone
+            };
+
+            await PutAsync($"contacts/{remoteId}", payload, cancellationToken);
+        }
+    }
+
     public async Task UpdateInvoicesAsync(IEnumerable<Invoice> invoices, CancellationToken cancellationToken = default)
     {
         foreach (var invoice in invoices)
