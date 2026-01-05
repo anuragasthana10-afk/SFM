@@ -101,6 +101,7 @@ public sealed class ZohoBooksClient
             {
                 customer_id = contactId,
                 date = invoice.InvoiceDate.ToString("yyyy-MM-dd"),
+                currency_code = invoice.CurrencyCode,
                 line_items = lineItems,
                 notes = invoice.Notes
             };
@@ -175,6 +176,7 @@ public sealed class ZohoBooksClient
             {
                 customer_id = contactId,
                 date = invoice.InvoiceDate.ToString("yyyy-MM-dd"),
+                currency_code = invoice.CurrencyCode,
                 line_items = lineItems,
                 notes = invoice.Notes
             };

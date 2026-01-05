@@ -6,6 +6,7 @@ public sealed class Invoice
     public required string ContactLocalId { get; init; }
     public required DateTime InvoiceDate { get; init; }
     public required IReadOnlyList<InvoiceLineItem> LineItems { get; init; }
+    public string? CurrencyCode { get; init; }
     public string? Notes { get; init; }
 }
 
