@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
 using ZohoBooksSync.Configuration;
+using ZohoBooksSync.Persistence;
 
 namespace ZohoBooksSync.Services;
 
@@ -8,13 +9,16 @@ public sealed class ZohoTokenProvider
 {
     private readonly HttpClient _httpClient;
     private readonly ZohoBooksOptions _options;
+    private readonly TokenStore _tokenStore;
     private string? _cachedAccessToken;
     private DateTimeOffset _expiresAt;
+    private TokenStore.TokenData? _tokenData;
 
-    public ZohoTokenProvider(HttpClient httpClient, ZohoBooksOptions options)
+    public ZohoTokenProvider(HttpClient httpClient, ZohoBooksOptions options, TokenStore tokenStore)
     {
         _httpClient = httpClient;
         _options = options;
+        _tokenStore = tokenStore;
     }
 
     public async Task<string> GetAccessTokenAsync(CancellationToken cancellationToken = default)
@@ -24,29 +28,31 @@ public sealed class ZohoTokenProvider
             return _cachedAccessToken;
         }
 
-        if (!string.IsNullOrWhiteSpace(_options.AccessToken))
+        var tokenData = await GetTokenDataAsync(cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(tokenData.AccessToken))
         {
-            _cachedAccessToken = _options.AccessToken;
+            _cachedAccessToken = tokenData.AccessToken;
             _expiresAt = DateTimeOffset.UtcNow.AddMinutes(50);
             return _cachedAccessToken;
         }
 
-        if (string.IsNullOrWhiteSpace(_options.RefreshToken)
-            || string.IsNullOrWhiteSpace(_options.ClientId)
-            || string.IsNullOrWhiteSpace(_options.ClientSecret))
+        if (string.IsNullOrWhiteSpace(tokenData.RefreshToken)
+            || string.IsNullOrWhiteSpace(tokenData.ClientId)
+            || string.IsNullOrWhiteSpace(tokenData.ClientSecret))
         {
             throw new InvalidOperationException("Missing Zoho OAuth credentials. Provide access token or refresh token flow values.");
         }
 
         var form = new Dictionary<string, string>
         {
-            ["refresh_token"] = _options.RefreshToken,
-            ["client_id"] = _options.ClientId,
-            ["client_secret"] = _options.ClientSecret,
+            ["refresh_token"] = tokenData.RefreshToken,
+            ["client_id"] = tokenData.ClientId,
+            ["client_secret"] = tokenData.ClientSecret,
             ["grant_type"] = "refresh_token"
         };
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, _options.TokenEndpoint)
+        using var request = new HttpRequestMessage(HttpMethod.Post, tokenData.TokenEndpoint)
         {
             Content = new FormUrlEncodedContent(form)
         };
@@ -73,6 +79,42 @@ public sealed class ZohoTokenProvider
 
         _cachedAccessToken = token;
         _expiresAt = DateTimeOffset.UtcNow.AddSeconds(expiresIn - 60);
+        _tokenData = tokenData with { AccessToken = token };
+        await _tokenStore.UpdateAccessTokenAsync(token, cancellationToken);
         return _cachedAccessToken;
+    }
+
+    private async Task<TokenStore.TokenData> GetTokenDataAsync(CancellationToken cancellationToken)
+    {
+        if (_tokenData is not null)
+        {
+            return _tokenData;
+        }
+
+        var existing = await _tokenStore.GetAsync(cancellationToken);
+        if (existing is not null)
+        {
+            _tokenData = existing;
+            return existing;
+        }
+
+        var seeded = new TokenStore.TokenData(
+            _options.AccessToken,
+            _options.RefreshToken,
+            _options.ClientId,
+            _options.ClientSecret,
+            _options.TokenEndpoint);
+
+        if (!string.IsNullOrWhiteSpace(seeded.AccessToken)
+            || !string.IsNullOrWhiteSpace(seeded.RefreshToken)
+            || !string.IsNullOrWhiteSpace(seeded.ClientId)
+            || !string.IsNullOrWhiteSpace(seeded.ClientSecret)
+            || !string.IsNullOrWhiteSpace(seeded.TokenEndpoint))
+        {
+            await _tokenStore.UpsertAsync(seeded, cancellationToken);
+        }
+
+        _tokenData = seeded;
+        return seeded;
     }
 }

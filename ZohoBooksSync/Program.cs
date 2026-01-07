@@ -21,8 +21,11 @@ if (string.IsNullOrWhiteSpace(connectionOptions.SqlConnectionString))
 var referenceStore = new ReferenceStore(connectionOptions.SqlConnectionString);
 await referenceStore.InitializeAsync();
 
+var tokenStore = new TokenStore(connectionOptions.SqlConnectionString);
+await tokenStore.InitializeAsync();
+
 using var httpClient = new HttpClient();
-var tokenProvider = new ZohoTokenProvider(httpClient, options);
+var tokenProvider = new ZohoTokenProvider(httpClient, options, tokenStore);
 var zohoClient = new ZohoBooksClient(httpClient, options, connectionOptions, referenceStore, tokenProvider);
 
 var inventoryItems = new List<InventoryItem>
