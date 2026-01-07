@@ -8,8 +8,8 @@ public sealed class ReferenceStore
     private const string ContactsCategory = "Contacts";
     private const string InvoicesCategory = "Invoices";
     private const string ReportingTagOptionsCategory = "ReportingTagOptions";
-    private const string SyncLogTable = "SyncOperationLog";
-    private const string ReferenceTable = "ReferenceStore";
+    private const string SyncLogTable = "ZohoBooks_SyncOperationLog";
+    private const string ReferenceTable = "ZohoBooks_ReferenceStore";
 
     private readonly string _connectionString;
 
@@ -20,19 +20,19 @@ public sealed class ReferenceStore
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
-        const string sql = """
-            IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'ReferenceStore')
+        var sql = $"""
+            IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = '{ReferenceTable}')
             BEGIN
-                CREATE TABLE ReferenceStore (
+                CREATE TABLE {ReferenceTable} (
                     Category NVARCHAR(64) NOT NULL,
                     LocalKey NVARCHAR(256) NOT NULL,
                     RemoteId NVARCHAR(256) NOT NULL,
-                    CONSTRAINT PK_ReferenceStore PRIMARY KEY (Category, LocalKey)
+                    CONSTRAINT PK_ZohoBooks_ReferenceStore PRIMARY KEY (Category, LocalKey)
                 );
             END
-            IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'SyncOperationLog')
+            IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = '{SyncLogTable}')
             BEGIN
-                CREATE TABLE SyncOperationLog (
+                CREATE TABLE {SyncLogTable} (
                     Id INT IDENTITY(1,1) PRIMARY KEY,
                     EntityType NVARCHAR(64) NOT NULL,
                     LocalKey NVARCHAR(256) NOT NULL,
@@ -120,9 +120,9 @@ public sealed class ReferenceStore
 
     private async Task<string?> GetReferenceIdAsync(string category, string localKey, CancellationToken cancellationToken)
     {
-        const string sql = """
+        var sql = $"""
             SELECT RemoteId
-            FROM ReferenceStore
+            FROM {ReferenceTable}
             WHERE Category = @Category AND LocalKey = @LocalKey;
             """;
 
@@ -152,7 +152,7 @@ public sealed class ReferenceStore
 
         var sql = $"""
             SELECT LocalKey, RemoteId
-            FROM ReferenceStore
+            FROM {ReferenceTable}
             WHERE Category = @Category AND LocalKey IN ({string.Join(", ", parameters)});
             """;
 
@@ -177,8 +177,8 @@ public sealed class ReferenceStore
 
     private async Task SetReferenceIdAsync(string category, string localKey, string remoteId, CancellationToken cancellationToken)
     {
-        const string sql = """
-            MERGE ReferenceStore AS target
+        var sql = $"""
+            MERGE {ReferenceTable} AS target
             USING (SELECT @Category AS Category, @LocalKey AS LocalKey, @RemoteId AS RemoteId) AS source
             ON target.Category = source.Category AND target.LocalKey = source.LocalKey
             WHEN MATCHED THEN

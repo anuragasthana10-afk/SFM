@@ -4,7 +4,7 @@ namespace ZohoBooksSync.Persistence;
 
 public sealed class TokenStore
 {
-    private const string TokenTable = "ZohoTokenStore";
+    private const string TokenTable = "ZohoBooks_TokenStore";
     private readonly string _connectionString;
 
     public TokenStore(string connectionString)
