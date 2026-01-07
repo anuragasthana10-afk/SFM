@@ -143,7 +143,10 @@ public sealed class ZohoBooksClient
                     : throw new InvalidOperationException($"Missing item reference for {item.ItemLocalId}."),
                 name = item.Description,
                 rate = item.Rate,
-                quantity = item.Quantity
+                quantity = item.Quantity,
+                tax_id = item.TaxId,
+                tax_name = item.TaxName,
+                tax_percentage = item.TaxPercentage
             });
 
             try
@@ -156,7 +159,10 @@ public sealed class ZohoBooksClient
                     currency_code = invoice.CurrencyCode,
                     line_items = lineItems,
                     reporting_tag_details = reportingTagDetails,
-                    notes = invoice.Notes
+                    notes = invoice.Notes,
+                    tax_id = invoice.TaxId,
+                    tax_name = invoice.TaxName,
+                    tax_percentage = invoice.TaxPercentage
                 };
 
                 var response = await PostAsync("invoices", payload, cancellationToken);
@@ -258,7 +264,10 @@ public sealed class ZohoBooksClient
                     : throw new InvalidOperationException($"Missing item reference for {item.ItemLocalId}."),
                 name = item.Description,
                 rate = item.Rate,
-                quantity = item.Quantity
+                quantity = item.Quantity,
+                tax_id = item.TaxId,
+                tax_name = item.TaxName,
+                tax_percentage = item.TaxPercentage
             });
 
             try
@@ -271,7 +280,10 @@ public sealed class ZohoBooksClient
                     currency_code = invoice.CurrencyCode,
                     line_items = lineItems,
                     reporting_tag_details = reportingTagDetails,
-                    notes = invoice.Notes
+                    notes = invoice.Notes,
+                    tax_id = invoice.TaxId,
+                    tax_name = invoice.TaxName,
+                    tax_percentage = invoice.TaxPercentage
                 };
 
                 await PutAsync($"invoices/{remoteId}", payload, cancellationToken);

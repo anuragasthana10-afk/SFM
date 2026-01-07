@@ -73,6 +73,8 @@ namespace ZohoBooksSync
                         CurrencyCode = "USD",
                         Jurisdiction = "US",
                         RelationshipManager = "Taylor Reed",
+                        TaxName = "Sales Tax",
+                        TaxPercentage = 7.5m,
                         Notes = "Thanks for your business.",
                         LineItems = new List<InvoiceLineItem>
                         {
@@ -81,7 +83,9 @@ namespace ZohoBooksSync
                                 ItemLocalId = 100,
                                 Description = "Widget",
                                 Rate = 49.99m,
-                                Quantity = 2
+                                Quantity = 2,
+                                TaxName = "Sales Tax",
+                                TaxPercentage = 7.5m
                             }
                         }
                     }

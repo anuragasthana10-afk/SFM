@@ -10,6 +10,9 @@ namespace ZohoBooksSync.Models
         public string Jurisdiction { get; set; }
         public string RelationshipManager { get; set; }
         public string Notes { get; set; }
+        public string TaxId { get; set; }
+        public string TaxName { get; set; }
+        public decimal? TaxPercentage { get; set; }
     }
 
     public sealed class InvoiceLineItem
@@ -18,5 +21,8 @@ namespace ZohoBooksSync.Models
         public string Description { get; set; }
         public decimal Rate { get; set; }
         public int Quantity { get; set; }
+        public string TaxId { get; set; }
+        public string TaxName { get; set; }
+        public decimal? TaxPercentage { get; set; }
     }
 }
