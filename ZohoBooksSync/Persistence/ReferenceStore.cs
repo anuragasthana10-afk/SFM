@@ -24,9 +24,9 @@ public sealed class ReferenceStore
             IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = '{ReferenceTable}')
             BEGIN
                 CREATE TABLE {ReferenceTable} (
-                    Category NVARCHAR(64) NOT NULL,
+                    Category NVARCHAR(30) NOT NULL,
                     LocalKey INT NOT NULL,
-                    RemoteId NVARCHAR(256) NOT NULL,
+                    RemoteId NVARCHAR(100) NOT NULL,
                     CONSTRAINT PK_ZohoBooks_ReferenceStore PRIMARY KEY (Category, LocalKey)
                 );
             END
@@ -34,12 +34,12 @@ public sealed class ReferenceStore
             BEGIN
                 CREATE TABLE {SyncLogTable} (
                     Id INT IDENTITY(1,1) PRIMARY KEY,
-                    EntityType NVARCHAR(64) NOT NULL,
+                    EntityType NVARCHAR(32) NOT NULL,
                     LocalKey INT NOT NULL,
-                    LocalKeyText NVARCHAR(256) NULL,
+                    LocalKeyText NVARCHAR(128) NULL,
                     Operation NVARCHAR(128) NOT NULL,
                     Success BIT NOT NULL,
-                    RemoteId NVARCHAR(256) NULL,
+                    RemoteId NVARCHAR(100) NULL,
                     ErrorMessage NVARCHAR(MAX) NULL,
                     OccurredAtUtc DATETIME2 NOT NULL
                 );
