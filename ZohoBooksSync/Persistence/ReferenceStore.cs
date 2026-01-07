@@ -8,6 +8,8 @@ public sealed class ReferenceStore
     private const string ContactsCategory = "Contacts";
     private const string InvoicesCategory = "Invoices";
     private const string ReportingTagOptionsCategory = "ReportingTagOptions";
+    private const string SyncLogTable = "SyncOperationLog";
+    private const string ReferenceTable = "ReferenceStore";
 
     private readonly string _connectionString;
 
@@ -26,6 +28,19 @@ public sealed class ReferenceStore
                     LocalKey NVARCHAR(256) NOT NULL,
                     RemoteId NVARCHAR(256) NOT NULL,
                     CONSTRAINT PK_ReferenceStore PRIMARY KEY (Category, LocalKey)
+                );
+            END
+            IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'SyncOperationLog')
+            BEGIN
+                CREATE TABLE SyncOperationLog (
+                    Id INT IDENTITY(1,1) PRIMARY KEY,
+                    EntityType NVARCHAR(64) NOT NULL,
+                    LocalKey NVARCHAR(256) NOT NULL,
+                    Operation NVARCHAR(128) NOT NULL,
+                    Success BIT NOT NULL,
+                    RemoteId NVARCHAR(256) NULL,
+                    ErrorMessage NVARCHAR(MAX) NULL,
+                    OccurredAtUtc DATETIME2 NOT NULL
                 );
             END
             """;
@@ -59,6 +74,49 @@ public sealed class ReferenceStore
 
     public Task SetReportingTagOptionIdAsync(string key, string remoteId, CancellationToken cancellationToken = default)
         => SetReferenceIdAsync(ReportingTagOptionsCategory, key, remoteId, cancellationToken);
+
+    public async Task LogSyncOperationAsync(
+        string entityType,
+        string localKey,
+        string operation,
+        bool success,
+        string? remoteId,
+        string? errorMessage,
+        CancellationToken cancellationToken = default)
+    {
+        var sql = $"""
+            INSERT INTO {SyncLogTable} (
+                EntityType,
+                LocalKey,
+                Operation,
+                Success,
+                RemoteId,
+                ErrorMessage,
+                OccurredAtUtc
+            )
+            VALUES (
+                @EntityType,
+                @LocalKey,
+                @Operation,
+                @Success,
+                @RemoteId,
+                @ErrorMessage,
+                @OccurredAtUtc
+            );
+            """;
+
+        await using var connection = new SqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new SqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@EntityType", entityType);
+        command.Parameters.AddWithValue("@LocalKey", localKey);
+        command.Parameters.AddWithValue("@Operation", operation);
+        command.Parameters.AddWithValue("@Success", success);
+        command.Parameters.AddWithValue("@RemoteId", string.IsNullOrWhiteSpace(remoteId) ? DBNull.Value : remoteId);
+        command.Parameters.AddWithValue("@ErrorMessage", string.IsNullOrWhiteSpace(errorMessage) ? DBNull.Value : errorMessage);
+        command.Parameters.AddWithValue("@OccurredAtUtc", DateTime.UtcNow);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
 
     private async Task<string?> GetReferenceIdAsync(string category, string localKey, CancellationToken cancellationToken)
     {

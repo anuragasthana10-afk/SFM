@@ -41,13 +41,32 @@ public sealed class ZohoBooksClient
                     quantity = item.Quantity
                 };
 
-                var response = await PostAsync("items", payload, cancellationToken);
-                var remoteId = ExtractId(response, "item", "item_id");
-                await _referenceStore.SetItemIdAsync(item.LocalId, remoteId, cancellationToken);
+                try
+                {
+                    var response = await PostAsync("items", payload, cancellationToken);
+                    var remoteId = ExtractId(response, "item", "item_id");
+                    await _referenceStore.SetItemIdAsync(item.LocalId, remoteId, cancellationToken);
+                    await _referenceStore.LogSyncOperationAsync("InventoryItem", item.LocalId, "Create", true, remoteId, null, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    await _referenceStore.LogSyncOperationAsync("InventoryItem", item.LocalId, "Create", false, null, ex.Message, cancellationToken);
+                    throw;
+                }
+
                 continue;
             }
 
-            await UpdateInventoryItemAsync(existingId, item, cancellationToken);
+            try
+            {
+                await UpdateInventoryItemAsync(existingId, item, cancellationToken);
+                await _referenceStore.LogSyncOperationAsync("InventoryItem", item.LocalId, "Update", true, existingId, null, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                await _referenceStore.LogSyncOperationAsync("InventoryItem", item.LocalId, "Update", false, existingId, ex.Message, cancellationToken);
+                throw;
+            }
         }
     }
 
@@ -70,9 +89,18 @@ public sealed class ZohoBooksClient
                 phone = contact.Phone
             };
 
-            var response = await PostAsync("contacts", payload, cancellationToken);
-            var remoteId = ExtractId(response, "contact", "contact_id");
-            await _referenceStore.SetContactIdAsync(contact.LocalId, remoteId, cancellationToken);
+            try
+            {
+                var response = await PostAsync("contacts", payload, cancellationToken);
+                var remoteId = ExtractId(response, "contact", "contact_id");
+                await _referenceStore.SetContactIdAsync(contact.LocalId, remoteId, cancellationToken);
+                await _referenceStore.LogSyncOperationAsync("Contact", contact.LocalId, "Create", true, remoteId, null, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                await _referenceStore.LogSyncOperationAsync("Contact", contact.LocalId, "Create", false, null, ex.Message, cancellationToken);
+                throw;
+            }
         }
     }
 
@@ -93,7 +121,9 @@ public sealed class ZohoBooksClient
 
             if (!contactIds.TryGetValue(invoice.ContactLocalId, out var contactId))
             {
-                throw new InvalidOperationException($"Missing contact reference for {invoice.ContactLocalId}.");
+                var message = $"Missing contact reference for {invoice.ContactLocalId}.";
+                await _referenceStore.LogSyncOperationAsync("Invoice", invoice.LocalId, "Create", false, null, message, cancellationToken);
+                throw new InvalidOperationException(message);
             }
 
             var lineItems = invoice.LineItems.Select(item => new
@@ -106,20 +136,29 @@ public sealed class ZohoBooksClient
                 quantity = item.Quantity
             });
 
-            var reportingTagDetails = await BuildReportingTagDetailsAsync(invoice, cancellationToken);
-            var payload = new
+            try
             {
-                customer_id = contactId,
-                date = invoice.InvoiceDate.ToString("yyyy-MM-dd"),
-                currency_code = invoice.CurrencyCode,
-                line_items = lineItems,
-                reporting_tag_details = reportingTagDetails,
-                notes = invoice.Notes
-            };
+                var reportingTagDetails = await BuildReportingTagDetailsAsync(invoice, cancellationToken);
+                var payload = new
+                {
+                    customer_id = contactId,
+                    date = invoice.InvoiceDate.ToString("yyyy-MM-dd"),
+                    currency_code = invoice.CurrencyCode,
+                    line_items = lineItems,
+                    reporting_tag_details = reportingTagDetails,
+                    notes = invoice.Notes
+                };
 
-            var response = await PostAsync("invoices", payload, cancellationToken);
-            var remoteId = ExtractId(response, "invoice", "invoice_id");
-            await _referenceStore.SetInvoiceIdAsync(invoice.LocalId, remoteId, cancellationToken);
+                var response = await PostAsync("invoices", payload, cancellationToken);
+                var remoteId = ExtractId(response, "invoice", "invoice_id");
+                await _referenceStore.SetInvoiceIdAsync(invoice.LocalId, remoteId, cancellationToken);
+                await _referenceStore.LogSyncOperationAsync("Invoice", invoice.LocalId, "Create", true, remoteId, null, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                await _referenceStore.LogSyncOperationAsync("Invoice", invoice.LocalId, "Create", false, null, ex.Message, cancellationToken);
+                throw;
+            }
         }
     }
 
@@ -135,7 +174,16 @@ public sealed class ZohoBooksClient
                 continue;
             }
 
-            await UpdateInventoryItemAsync(remoteId, item, cancellationToken);
+            try
+            {
+                await UpdateInventoryItemAsync(remoteId, item, cancellationToken);
+                await _referenceStore.LogSyncOperationAsync("InventoryItem", item.LocalId, "Update", true, remoteId, null, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                await _referenceStore.LogSyncOperationAsync("InventoryItem", item.LocalId, "Update", false, remoteId, ex.Message, cancellationToken);
+                throw;
+            }
         }
     }
 
@@ -158,7 +206,16 @@ public sealed class ZohoBooksClient
                 phone = contact.Phone
             };
 
-            await PutAsync($"contacts/{remoteId}", payload, cancellationToken);
+            try
+            {
+                await PutAsync($"contacts/{remoteId}", payload, cancellationToken);
+                await _referenceStore.LogSyncOperationAsync("Contact", contact.LocalId, "Update", true, remoteId, null, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                await _referenceStore.LogSyncOperationAsync("Contact", contact.LocalId, "Update", false, remoteId, ex.Message, cancellationToken);
+                throw;
+            }
         }
     }
 
@@ -179,7 +236,9 @@ public sealed class ZohoBooksClient
 
             if (!contactIds.TryGetValue(invoice.ContactLocalId, out var contactId))
             {
-                throw new InvalidOperationException($"Missing contact reference for {invoice.ContactLocalId}.");
+                var message = $"Missing contact reference for {invoice.ContactLocalId}.";
+                await _referenceStore.LogSyncOperationAsync("Invoice", invoice.LocalId, "Update", false, remoteId, message, cancellationToken);
+                throw new InvalidOperationException(message);
             }
 
             var lineItems = invoice.LineItems.Select(item => new
@@ -192,18 +251,27 @@ public sealed class ZohoBooksClient
                 quantity = item.Quantity
             });
 
-            var reportingTagDetails = await BuildReportingTagDetailsAsync(invoice, cancellationToken);
-            var payload = new
+            try
             {
-                customer_id = contactId,
-                date = invoice.InvoiceDate.ToString("yyyy-MM-dd"),
-                currency_code = invoice.CurrencyCode,
-                line_items = lineItems,
-                reporting_tag_details = reportingTagDetails,
-                notes = invoice.Notes
-            };
+                var reportingTagDetails = await BuildReportingTagDetailsAsync(invoice, cancellationToken);
+                var payload = new
+                {
+                    customer_id = contactId,
+                    date = invoice.InvoiceDate.ToString("yyyy-MM-dd"),
+                    currency_code = invoice.CurrencyCode,
+                    line_items = lineItems,
+                    reporting_tag_details = reportingTagDetails,
+                    notes = invoice.Notes
+                };
 
-            await PutAsync($"invoices/{remoteId}", payload, cancellationToken);
+                await PutAsync($"invoices/{remoteId}", payload, cancellationToken);
+                await _referenceStore.LogSyncOperationAsync("Invoice", invoice.LocalId, "Update", true, remoteId, null, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                await _referenceStore.LogSyncOperationAsync("Invoice", invoice.LocalId, "Update", false, remoteId, ex.Message, cancellationToken);
+                throw;
+            }
         }
     }
 
@@ -343,12 +411,21 @@ public sealed class ZohoBooksClient
             option_name = optionName
         };
 
-        var response = await PostAsync($"settings/reportingtags/{reportingTag.Id}/options", payload, cancellationToken);
-        var createdOptionId = ExtractId(response, "reporting_tag_option", "option_id");
-        _reportingTagOptionCache[optionKey] = createdOptionId;
-        await _referenceStore.SetReportingTagOptionIdAsync(optionKey, createdOptionId, cancellationToken);
-        reportingTag.OptionsByName[optionName] = createdOptionId;
-        return new ReportingTagOption(reportingTag.Id, createdOptionId);
+        try
+        {
+            var response = await PostAsync($"settings/reportingtags/{reportingTag.Id}/options", payload, cancellationToken);
+            var createdOptionId = ExtractId(response, "reporting_tag_option", "option_id");
+            _reportingTagOptionCache[optionKey] = createdOptionId;
+            await _referenceStore.SetReportingTagOptionIdAsync(optionKey, createdOptionId, cancellationToken);
+            await _referenceStore.LogSyncOperationAsync("ReportingTagOption", optionKey, "Create", true, createdOptionId, null, cancellationToken);
+            reportingTag.OptionsByName[optionName] = createdOptionId;
+            return new ReportingTagOption(reportingTag.Id, createdOptionId);
+        }
+        catch (Exception ex)
+        {
+            await _referenceStore.LogSyncOperationAsync("ReportingTagOption", optionKey, "Create", false, null, ex.Message, cancellationToken);
+            throw;
+        }
     }
 
     private async Task<ReportingTag> GetReportingTagAsync(string tagName, CancellationToken cancellationToken)
@@ -358,10 +435,23 @@ public sealed class ZohoBooksClient
             return cachedTag;
         }
 
-        var response = await GetAsync("settings/reportingtags", cancellationToken);
+        JsonElement response;
+        try
+        {
+            response = await GetAsync("settings/reportingtags", cancellationToken);
+            await _referenceStore.LogSyncOperationAsync("ReportingTag", tagName, "Fetch", true, null, null, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            await _referenceStore.LogSyncOperationAsync("ReportingTag", tagName, "Fetch", false, null, ex.Message, cancellationToken);
+            throw;
+        }
+
         if (!response.TryGetProperty("reporting_tags", out var tagsElement))
         {
-            throw new InvalidOperationException("Unable to load reporting tags from Zoho Books.");
+            var message = "Unable to load reporting tags from Zoho Books.";
+            await _referenceStore.LogSyncOperationAsync("ReportingTag", tagName, "Fetch", false, null, message, cancellationToken);
+            throw new InvalidOperationException(message);
         }
 
         foreach (var tagElement in tagsElement.EnumerateArray())
