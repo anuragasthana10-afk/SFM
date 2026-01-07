@@ -26,10 +26,10 @@ public sealed class ReferenceStore
             IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = '{ReferenceTable}')
             BEGIN
                 CREATE TABLE {ReferenceTable} (
-                    Category NVARCHAR(30) NOT NULL,
+                    EntityType NVARCHAR(32) NOT NULL,
                     LocalKey INT NOT NULL,
                     RemoteId NVARCHAR(100) NOT NULL,
-                    CONSTRAINT PK_ZohoBooks_ReferenceStore PRIMARY KEY (Category, LocalKey)
+                    CONSTRAINT PK_ZohoBooks_ReferenceStore PRIMARY KEY (EntityType, LocalKey)
                 );
             END
             IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = '{SyncLogTable}')
@@ -137,12 +137,12 @@ public sealed class ReferenceStore
         var sql = $@"
             SELECT RemoteId
             FROM {ReferenceTable}
-            WHERE Category = @Category AND LocalKey = @LocalKey;";
+            WHERE EntityType = @EntityType AND LocalKey = @LocalKey;";
 
         await EnsureConnectionOpenAsync(cancellationToken);
         using (var command = CreateCommand(sql))
         {
-            AddParameter(command, "@Category", category);
+            AddParameter(command, "@EntityType", category);
             AddParameter(command, "@LocalKey", localKey);
             var result = await command.ExecuteScalarAsync(cancellationToken);
             return result == null || result == DBNull.Value ? null : result.ToString();
@@ -167,12 +167,12 @@ public sealed class ReferenceStore
         var sql = $@"
             SELECT LocalKey, RemoteId
             FROM {ReferenceTable}
-            WHERE Category = @Category AND LocalKey IN ({string.Join(", ", parameters)});";
+            WHERE EntityType = @EntityType AND LocalKey IN ({string.Join(", ", parameters)});";
 
         await EnsureConnectionOpenAsync(cancellationToken);
         using (var command = CreateCommand(sql))
         {
-            AddParameter(command, "@Category", category);
+            AddParameter(command, "@EntityType", category);
             for (var i = 0; i < keys.Length; i++)
             {
                 AddParameter(command, parameters[i], keys[i]);
@@ -195,18 +195,18 @@ public sealed class ReferenceStore
     {
         var sql = $@"
             MERGE {ReferenceTable} AS target
-            USING (SELECT @Category AS Category, @LocalKey AS LocalKey, @RemoteId AS RemoteId) AS source
-            ON target.Category = source.Category AND target.LocalKey = source.LocalKey
+            USING (SELECT @EntityType AS EntityType, @LocalKey AS LocalKey, @RemoteId AS RemoteId) AS source
+            ON target.EntityType = source.EntityType AND target.LocalKey = source.LocalKey
             WHEN MATCHED THEN
                 UPDATE SET RemoteId = source.RemoteId
             WHEN NOT MATCHED THEN
-                INSERT (Category, LocalKey, RemoteId)
-                VALUES (source.Category, source.LocalKey, source.RemoteId);";
+                INSERT (EntityType, LocalKey, RemoteId)
+                VALUES (source.EntityType, source.LocalKey, source.RemoteId);";
 
         await EnsureConnectionOpenAsync(cancellationToken);
         using (var command = CreateCommand(sql))
         {
-            AddParameter(command, "@Category", category);
+            AddParameter(command, "@EntityType", category);
             AddParameter(command, "@LocalKey", localKey);
             AddParameter(command, "@RemoteId", remoteId);
             await command.ExecuteNonQueryAsync(cancellationToken);

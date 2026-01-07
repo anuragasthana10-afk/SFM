@@ -22,6 +22,7 @@ public sealed class TokenStore
                 CREATE TABLE {TokenTable} (
                     Id INT NOT NULL PRIMARY KEY,
                     AccessToken NVARCHAR(MAX) NULL,
+                    AccessTokenExpiresAtUtc DATETIME2 NULL,
                     RefreshToken NVARCHAR(MAX) NULL,
                     ClientId NVARCHAR(256) NULL,
                     ClientSecret NVARCHAR(MAX) NULL,
@@ -39,7 +40,7 @@ public sealed class TokenStore
     public async Task<TokenData> GetAsync(CancellationToken cancellationToken = default)
     {
         var sql = $@"
-            SELECT AccessToken, RefreshToken, ClientId, ClientSecret, TokenEndpoint
+            SELECT AccessToken, AccessTokenExpiresAtUtc, RefreshToken, ClientId, ClientSecret, TokenEndpoint
             FROM {TokenTable}
             WHERE Id = 1;";
 
@@ -55,10 +56,11 @@ public sealed class TokenStore
             return new TokenData
             {
                 AccessToken = reader.IsDBNull(0) ? string.Empty : reader.GetString(0),
-                RefreshToken = reader.IsDBNull(1) ? string.Empty : reader.GetString(1),
-                ClientId = reader.IsDBNull(2) ? string.Empty : reader.GetString(2),
-                ClientSecret = reader.IsDBNull(3) ? string.Empty : reader.GetString(3),
-                TokenEndpoint = reader.IsDBNull(4) ? string.Empty : reader.GetString(4)
+                AccessTokenExpiresAtUtc = reader.IsDBNull(1) ? (DateTime?)null : reader.GetDateTime(1),
+                RefreshToken = reader.IsDBNull(2) ? string.Empty : reader.GetString(2),
+                ClientId = reader.IsDBNull(3) ? string.Empty : reader.GetString(3),
+                ClientSecret = reader.IsDBNull(4) ? string.Empty : reader.GetString(4),
+                TokenEndpoint = reader.IsDBNull(5) ? string.Empty : reader.GetString(5)
             };
         }
     }
@@ -72,13 +74,14 @@ public sealed class TokenStore
             WHEN MATCHED THEN
                 UPDATE SET
                     AccessToken = @AccessToken,
+                    AccessTokenExpiresAtUtc = @AccessTokenExpiresAtUtc,
                     RefreshToken = @RefreshToken,
                     ClientId = @ClientId,
                     ClientSecret = @ClientSecret,
                     TokenEndpoint = @TokenEndpoint
             WHEN NOT MATCHED THEN
-                INSERT (Id, AccessToken, RefreshToken, ClientId, ClientSecret, TokenEndpoint)
-                VALUES (1, @AccessToken, @RefreshToken, @ClientId, @ClientSecret, @TokenEndpoint);";
+                INSERT (Id, AccessToken, AccessTokenExpiresAtUtc, RefreshToken, ClientId, ClientSecret, TokenEndpoint)
+                VALUES (1, @AccessToken, @AccessTokenExpiresAtUtc, @RefreshToken, @ClientId, @ClientSecret, @TokenEndpoint);";
 
         await EnsureConnectionOpenAsync(cancellationToken);
         using (var command = CreateCommand(sql))
@@ -88,17 +91,19 @@ public sealed class TokenStore
         }
     }
 
-    public async Task UpdateAccessTokenAsync(string accessToken, CancellationToken cancellationToken = default)
+    public async Task UpdateAccessTokenAsync(string accessToken, DateTime? expiresAtUtc, CancellationToken cancellationToken = default)
     {
         var sql = $@"
             UPDATE {TokenTable}
-            SET AccessToken = @AccessToken
+            SET AccessToken = @AccessToken,
+                AccessTokenExpiresAtUtc = @AccessTokenExpiresAtUtc
             WHERE Id = 1;";
 
         await EnsureConnectionOpenAsync(cancellationToken);
         using (var command = CreateCommand(sql))
         {
             AddParameter(command, "@AccessToken", accessToken);
+            AddParameter(command, "@AccessTokenExpiresAtUtc", expiresAtUtc.HasValue ? (object)expiresAtUtc.Value : DBNull.Value);
             await command.ExecuteNonQueryAsync(cancellationToken);
         }
     }
@@ -106,6 +111,7 @@ public sealed class TokenStore
     private static void AddTokenParameters(DbCommand command, TokenData data)
     {
         AddParameter(command, "@AccessToken", string.IsNullOrWhiteSpace(data.AccessToken) ? (object)DBNull.Value : data.AccessToken);
+        AddParameter(command, "@AccessTokenExpiresAtUtc", data.AccessTokenExpiresAtUtc.HasValue ? (object)data.AccessTokenExpiresAtUtc.Value : DBNull.Value);
         AddParameter(command, "@RefreshToken", string.IsNullOrWhiteSpace(data.RefreshToken) ? (object)DBNull.Value : data.RefreshToken);
         AddParameter(command, "@ClientId", string.IsNullOrWhiteSpace(data.ClientId) ? (object)DBNull.Value : data.ClientId);
         AddParameter(command, "@ClientSecret", string.IsNullOrWhiteSpace(data.ClientSecret) ? (object)DBNull.Value : data.ClientSecret);
@@ -138,6 +144,7 @@ public sealed class TokenStore
     public sealed class TokenData
     {
         public string AccessToken { get; set; }
+        public DateTime? AccessTokenExpiresAtUtc { get; set; }
         public string RefreshToken { get; set; }
         public string ClientId { get; set; }
         public string ClientSecret { get; set; }

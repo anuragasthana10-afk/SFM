@@ -13,7 +13,7 @@ public sealed class ZohoTokenProvider
     private readonly ZohoBooksOptions _options;
     private readonly TokenStore _tokenStore;
     private string _cachedAccessToken;
-    private DateTimeOffset _expiresAt;
+    private DateTime _expiresAtUtc;
     private TokenStore.TokenData _tokenData;
 
     public ZohoTokenProvider(HttpClient httpClient, ZohoBooksOptions options, TokenStore tokenStore)
@@ -26,17 +26,20 @@ public sealed class ZohoTokenProvider
 
     public async Task<string> GetAccessTokenAsync(CancellationToken cancellationToken = default)
     {
-        if (!string.IsNullOrWhiteSpace(_cachedAccessToken) && DateTimeOffset.UtcNow < _expiresAt)
+        if (!string.IsNullOrWhiteSpace(_cachedAccessToken) && DateTime.UtcNow < _expiresAtUtc)
         {
             return _cachedAccessToken;
         }
 
         var tokenData = await GetTokenDataAsync(cancellationToken);
+        var expiresAtUtc = tokenData.AccessTokenExpiresAtUtc;
 
-        if (!string.IsNullOrWhiteSpace(tokenData.AccessToken))
+        if (!string.IsNullOrWhiteSpace(tokenData.AccessToken)
+            && expiresAtUtc.HasValue
+            && DateTime.UtcNow < expiresAtUtc.Value)
         {
             _cachedAccessToken = tokenData.AccessToken;
-            _expiresAt = DateTimeOffset.UtcNow.AddMinutes(50);
+            _expiresAtUtc = expiresAtUtc.Value;
             return _cachedAccessToken;
         }
 
@@ -86,10 +89,11 @@ public sealed class ZohoTokenProvider
         }
 
         _cachedAccessToken = token;
-        _expiresAt = DateTimeOffset.UtcNow.AddSeconds(expiresIn - 60);
+        _expiresAtUtc = DateTime.UtcNow.AddSeconds(expiresIn - 60);
         tokenData.AccessToken = token;
+        tokenData.AccessTokenExpiresAtUtc = _expiresAtUtc;
         _tokenData = tokenData;
-        await _tokenStore.UpdateAccessTokenAsync(token, cancellationToken);
+        await _tokenStore.UpdateAccessTokenAsync(token, _expiresAtUtc, cancellationToken);
         return _cachedAccessToken;
     }
 
