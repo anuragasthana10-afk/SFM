@@ -98,16 +98,16 @@ public sealed class ZohoBooksClient
 
             try
             {
-                var response = await PostAsync("contacts", payload, cancellationToken);
-                var remoteId = ExtractId(response, "contact", "contact_id");
-                await _referenceStore.SetContactIdAsync(contact.LocalId, remoteId, cancellationToken);
-                await _referenceStore.LogSyncOperationAsync("Contact", contact.LocalId, "Create", true, remoteId, null, cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                await _referenceStore.LogSyncOperationAsync("Contact", contact.LocalId, "Create", false, null, ex.Message, cancellationToken);
-                throw;
-            }
+                    var response = await PostAsync("contacts", payload, cancellationToken);
+                    var remoteId = ExtractId(response, "contact", "contact_id");
+                    await _referenceStore.SetContactIdAsync(contact.LocalId, remoteId, cancellationToken);
+                    await _referenceStore.LogSyncOperationAsync("Contact", contact.LocalId, "Create", true, remoteId, null, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    await _referenceStore.LogSyncOperationAsync("Contact", contact.LocalId, "Create", false, null, ex.Message, cancellationToken);
+                    throw;
+                }
         }
     }
 
@@ -116,7 +116,7 @@ public sealed class ZohoBooksClient
         var invoiceList = invoices.ToList();
         var existingInvoices = await _referenceStore.GetInvoiceIdsAsync(invoiceList.Select(invoice => invoice.LocalId), cancellationToken);
         var contactIds = await _referenceStore.GetContactIdsAsync(invoiceList.Select(invoice => invoice.ContactLocalId), cancellationToken);
-        var itemLocalIds = invoiceList.SelectMany(invoice => invoice.LineItems.Select(item => item.ItemLocalId)).Distinct(StringComparer.OrdinalIgnoreCase);
+        var itemLocalIds = invoiceList.SelectMany(invoice => invoice.LineItems.Select(item => item.ItemLocalId)).Distinct();
         var itemIds = await _referenceStore.GetItemIdsAsync(itemLocalIds, cancellationToken);
 
         foreach (var invoice in invoiceList)
@@ -231,7 +231,7 @@ public sealed class ZohoBooksClient
         var invoiceList = invoices.ToList();
         var existingInvoices = await _referenceStore.GetInvoiceIdsAsync(invoiceList.Select(invoice => invoice.LocalId), cancellationToken);
         var contactIds = await _referenceStore.GetContactIdsAsync(invoiceList.Select(invoice => invoice.ContactLocalId), cancellationToken);
-        var itemLocalIds = invoiceList.SelectMany(invoice => invoice.LineItems.Select(item => item.ItemLocalId)).Distinct(StringComparer.OrdinalIgnoreCase);
+        var itemLocalIds = invoiceList.SelectMany(invoice => invoice.LineItems.Select(item => item.ItemLocalId)).Distinct();
         var itemIds = await _referenceStore.GetItemIdsAsync(itemLocalIds, cancellationToken);
 
         foreach (var invoice in invoiceList)
@@ -282,7 +282,7 @@ public sealed class ZohoBooksClient
         }
     }
 
-    public async Task<IReadOnlyList<InvoicePayment>> PullPaymentsAsync(IEnumerable<string> invoiceLocalIds, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<InvoicePayment>> PullPaymentsAsync(IEnumerable<int> invoiceLocalIds, CancellationToken cancellationToken = default)
     {
         var results = new List<InvoicePayment>();
         var invoiceIdLookup = await _referenceStore.GetInvoiceIdsAsync(invoiceLocalIds, cancellationToken);
@@ -424,13 +424,13 @@ public sealed class ZohoBooksClient
             var createdOptionId = ExtractId(response, "reporting_tag_option", "option_id");
             _reportingTagOptionCache[optionKey] = createdOptionId;
             await _referenceStore.SetReportingTagOptionIdAsync(optionKey, createdOptionId, cancellationToken);
-            await _referenceStore.LogSyncOperationAsync("ReportingTagOption", optionKey, "Create", true, createdOptionId, null, cancellationToken);
+            await _referenceStore.LogSyncOperationAsync("ReportingTagOption", 0, "Create", true, createdOptionId, null, optionKey, cancellationToken);
             reportingTag.OptionsByName[optionName] = createdOptionId;
             return new ReportingTagOption(reportingTag.Id, createdOptionId);
         }
         catch (Exception ex)
         {
-            await _referenceStore.LogSyncOperationAsync("ReportingTagOption", optionKey, "Create", false, null, ex.Message, cancellationToken);
+            await _referenceStore.LogSyncOperationAsync("ReportingTagOption", 0, "Create", false, null, ex.Message, optionKey, cancellationToken);
             throw;
         }
     }
@@ -446,18 +446,18 @@ public sealed class ZohoBooksClient
         try
         {
             response = await GetAsync("settings/reportingtags", cancellationToken);
-            await _referenceStore.LogSyncOperationAsync("ReportingTag", tagName, "Fetch", true, null, null, cancellationToken);
+            await _referenceStore.LogSyncOperationAsync("ReportingTag", 0, "Fetch", true, null, null, tagName, cancellationToken);
         }
         catch (Exception ex)
         {
-            await _referenceStore.LogSyncOperationAsync("ReportingTag", tagName, "Fetch", false, null, ex.Message, cancellationToken);
+            await _referenceStore.LogSyncOperationAsync("ReportingTag", 0, "Fetch", false, null, ex.Message, tagName, cancellationToken);
             throw;
         }
 
         if (!response.TryGetProperty("reporting_tags", out var tagsElement))
         {
             var message = "Unable to load reporting tags from Zoho Books.";
-            await _referenceStore.LogSyncOperationAsync("ReportingTag", tagName, "Fetch", false, null, message, cancellationToken);
+            await _referenceStore.LogSyncOperationAsync("ReportingTag", 0, "Fetch", false, null, message, tagName, cancellationToken);
             throw new InvalidOperationException(message);
         }
 

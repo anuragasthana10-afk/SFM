@@ -7,9 +7,9 @@ public sealed class ReferenceStore
     private const string ItemsCategory = "Items";
     private const string ContactsCategory = "Contacts";
     private const string InvoicesCategory = "Invoices";
-    private const string ReportingTagOptionsCategory = "ReportingTagOptions";
     private const string SyncLogTable = "ZohoBooks_SyncOperationLog";
     private const string ReferenceTable = "ZohoBooks_ReferenceStore";
+    private const string ReportingTagOptionTable = "ZohoBooks_ReportingTagOptions";
 
     private readonly string _connectionString;
 
@@ -25,7 +25,7 @@ public sealed class ReferenceStore
             BEGIN
                 CREATE TABLE {ReferenceTable} (
                     Category NVARCHAR(64) NOT NULL,
-                    LocalKey NVARCHAR(256) NOT NULL,
+                    LocalKey INT NOT NULL,
                     RemoteId NVARCHAR(256) NOT NULL,
                     CONSTRAINT PK_ZohoBooks_ReferenceStore PRIMARY KEY (Category, LocalKey)
                 );
@@ -35,12 +35,20 @@ public sealed class ReferenceStore
                 CREATE TABLE {SyncLogTable} (
                     Id INT IDENTITY(1,1) PRIMARY KEY,
                     EntityType NVARCHAR(64) NOT NULL,
-                    LocalKey NVARCHAR(256) NOT NULL,
+                    LocalKey INT NOT NULL,
+                    LocalKeyText NVARCHAR(256) NULL,
                     Operation NVARCHAR(128) NOT NULL,
                     Success BIT NOT NULL,
                     RemoteId NVARCHAR(256) NULL,
                     ErrorMessage NVARCHAR(MAX) NULL,
                     OccurredAtUtc DATETIME2 NOT NULL
+                );
+            END
+            IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = '{ReportingTagOptionTable}')
+            BEGIN
+                CREATE TABLE {ReportingTagOptionTable} (
+                    OptionKey NVARCHAR(256) NOT NULL PRIMARY KEY,
+                    RemoteId NVARCHAR(256) NOT NULL
                 );
             END
             """;
@@ -51,43 +59,45 @@ public sealed class ReferenceStore
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    public Task<Dictionary<string, string>> GetItemIdsAsync(IEnumerable<string> localIds, CancellationToken cancellationToken = default)
+    public Task<Dictionary<int, string>> GetItemIdsAsync(IEnumerable<int> localIds, CancellationToken cancellationToken = default)
         => GetReferenceIdsAsync(ItemsCategory, localIds, cancellationToken);
 
-    public Task<Dictionary<string, string>> GetContactIdsAsync(IEnumerable<string> localIds, CancellationToken cancellationToken = default)
+    public Task<Dictionary<int, string>> GetContactIdsAsync(IEnumerable<int> localIds, CancellationToken cancellationToken = default)
         => GetReferenceIdsAsync(ContactsCategory, localIds, cancellationToken);
 
-    public Task<Dictionary<string, string>> GetInvoiceIdsAsync(IEnumerable<string> localIds, CancellationToken cancellationToken = default)
+    public Task<Dictionary<int, string>> GetInvoiceIdsAsync(IEnumerable<int> localIds, CancellationToken cancellationToken = default)
         => GetReferenceIdsAsync(InvoicesCategory, localIds, cancellationToken);
 
     public Task<string?> GetReportingTagOptionIdAsync(string key, CancellationToken cancellationToken = default)
-        => GetReferenceIdAsync(ReportingTagOptionsCategory, key, cancellationToken);
+        => GetReportingTagOptionIdInternalAsync(key, cancellationToken);
 
-    public Task SetItemIdAsync(string localId, string remoteId, CancellationToken cancellationToken = default)
+    public Task SetItemIdAsync(int localId, string remoteId, CancellationToken cancellationToken = default)
         => SetReferenceIdAsync(ItemsCategory, localId, remoteId, cancellationToken);
 
-    public Task SetContactIdAsync(string localId, string remoteId, CancellationToken cancellationToken = default)
+    public Task SetContactIdAsync(int localId, string remoteId, CancellationToken cancellationToken = default)
         => SetReferenceIdAsync(ContactsCategory, localId, remoteId, cancellationToken);
 
-    public Task SetInvoiceIdAsync(string localId, string remoteId, CancellationToken cancellationToken = default)
+    public Task SetInvoiceIdAsync(int localId, string remoteId, CancellationToken cancellationToken = default)
         => SetReferenceIdAsync(InvoicesCategory, localId, remoteId, cancellationToken);
 
     public Task SetReportingTagOptionIdAsync(string key, string remoteId, CancellationToken cancellationToken = default)
-        => SetReferenceIdAsync(ReportingTagOptionsCategory, key, remoteId, cancellationToken);
+        => SetReportingTagOptionIdInternalAsync(key, remoteId, cancellationToken);
 
     public async Task LogSyncOperationAsync(
         string entityType,
-        string localKey,
+        int localKey,
         string operation,
         bool success,
         string? remoteId,
         string? errorMessage,
+        string? localKeyText = null,
         CancellationToken cancellationToken = default)
     {
         var sql = $"""
             INSERT INTO {SyncLogTable} (
                 EntityType,
                 LocalKey,
+                LocalKeyText,
                 Operation,
                 Success,
                 RemoteId,
@@ -97,6 +107,7 @@ public sealed class ReferenceStore
             VALUES (
                 @EntityType,
                 @LocalKey,
+                @LocalKeyText,
                 @Operation,
                 @Success,
                 @RemoteId,
@@ -110,6 +121,7 @@ public sealed class ReferenceStore
         await using var command = new SqlCommand(sql, connection);
         command.Parameters.AddWithValue("@EntityType", entityType);
         command.Parameters.AddWithValue("@LocalKey", localKey);
+        command.Parameters.AddWithValue("@LocalKeyText", string.IsNullOrWhiteSpace(localKeyText) ? DBNull.Value : localKeyText);
         command.Parameters.AddWithValue("@Operation", operation);
         command.Parameters.AddWithValue("@Success", success);
         command.Parameters.AddWithValue("@RemoteId", string.IsNullOrWhiteSpace(remoteId) ? DBNull.Value : remoteId);
@@ -118,7 +130,7 @@ public sealed class ReferenceStore
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    private async Task<string?> GetReferenceIdAsync(string category, string localKey, CancellationToken cancellationToken)
+    private async Task<string?> GetReferenceIdAsync(string category, int localKey, CancellationToken cancellationToken)
     {
         var sql = $"""
             SELECT RemoteId
@@ -135,15 +147,15 @@ public sealed class ReferenceStore
         return result as string;
     }
 
-    private async Task<Dictionary<string, string>> GetReferenceIdsAsync(
+    private async Task<Dictionary<int, string>> GetReferenceIdsAsync(
         string category,
-        IEnumerable<string> localKeys,
+        IEnumerable<int> localKeys,
         CancellationToken cancellationToken)
     {
-        var keys = localKeys.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        var keys = localKeys.Distinct().ToArray();
         if (keys.Length == 0)
         {
-            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            return new Dictionary<int, string>();
         }
 
         var parameters = keys
@@ -165,17 +177,17 @@ public sealed class ReferenceStore
             command.Parameters.AddWithValue(parameters[i], keys[i]);
         }
 
-        var results = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var results = new Dictionary<int, string>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
         {
-            results[reader.GetString(0)] = reader.GetString(1);
+            results[reader.GetInt32(0)] = reader.GetString(1);
         }
 
         return results;
     }
 
-    private async Task SetReferenceIdAsync(string category, string localKey, string remoteId, CancellationToken cancellationToken)
+    private async Task SetReferenceIdAsync(string category, int localKey, string remoteId, CancellationToken cancellationToken)
     {
         var sql = $"""
             MERGE {ReferenceTable} AS target
@@ -193,6 +205,43 @@ public sealed class ReferenceStore
         await using var command = new SqlCommand(sql, connection);
         command.Parameters.AddWithValue("@Category", category);
         command.Parameters.AddWithValue("@LocalKey", localKey);
+        command.Parameters.AddWithValue("@RemoteId", remoteId);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private async Task<string?> GetReportingTagOptionIdInternalAsync(string optionKey, CancellationToken cancellationToken)
+    {
+        var sql = $"""
+            SELECT RemoteId
+            FROM {ReportingTagOptionTable}
+            WHERE OptionKey = @OptionKey;
+            """;
+
+        await using var connection = new SqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new SqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@OptionKey", optionKey);
+        var result = await command.ExecuteScalarAsync(cancellationToken);
+        return result as string;
+    }
+
+    private async Task SetReportingTagOptionIdInternalAsync(string optionKey, string remoteId, CancellationToken cancellationToken)
+    {
+        var sql = $"""
+            MERGE {ReportingTagOptionTable} AS target
+            USING (SELECT @OptionKey AS OptionKey, @RemoteId AS RemoteId) AS source
+            ON target.OptionKey = source.OptionKey
+            WHEN MATCHED THEN
+                UPDATE SET RemoteId = source.RemoteId
+            WHEN NOT MATCHED THEN
+                INSERT (OptionKey, RemoteId)
+                VALUES (source.OptionKey, source.RemoteId);
+            """;
+
+        await using var connection = new SqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new SqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@OptionKey", optionKey);
         command.Parameters.AddWithValue("@RemoteId", remoteId);
         await command.ExecuteNonQueryAsync(cancellationToken);
     }

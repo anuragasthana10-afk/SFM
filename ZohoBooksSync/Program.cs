@@ -32,7 +32,7 @@ var inventoryItems = new List<InventoryItem>
 {
     new()
     {
-        LocalId = "item-100",
+        LocalId = 100,
         Name = "Widget",
         Sku = "WIDGET-001",
         Rate = 49.99m,
@@ -44,7 +44,7 @@ var contacts = new List<Contact>
 {
     new()
     {
-        LocalId = "contact-100",
+        LocalId = 100,
         Name = "Acme Corp",
         Email = "billing@acme.test",
         Phone = "+1-555-0100"
@@ -55,8 +55,8 @@ var invoices = new List<Invoice>
 {
     new()
     {
-        LocalId = "invoice-100",
-        ContactLocalId = "contact-100",
+        LocalId = 100,
+        ContactLocalId = 100,
         InvoiceDate = DateTime.UtcNow.Date,
         CurrencyCode = "USD",
         Jurisdiction = "US",
@@ -66,7 +66,7 @@ var invoices = new List<Invoice>
         {
             new()
             {
-                ItemLocalId = "item-100",
+                ItemLocalId = 100,
                 Description = "Widget",
                 Rate = 49.99m,
                 Quantity = 2
@@ -83,7 +83,7 @@ await zohoClient.UpdateInventoryItemsAsync(inventoryItems);
 await zohoClient.UpdateContactsAsync(contacts);
 await zohoClient.UpdateInvoicesAsync(invoices);
 
-var payments = await zohoClient.PullPaymentsAsync(new[] { "invoice-100" });
+var payments = await zohoClient.PullPaymentsAsync(new[] { 100 });
 foreach (var payment in payments)
 {
     Console.WriteLine($"Payment {payment.PaymentId} for {payment.Amount} on {payment.Date:d}");
