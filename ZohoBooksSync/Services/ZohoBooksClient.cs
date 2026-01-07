@@ -14,6 +14,7 @@ public sealed class ZohoBooksClient
     private readonly ReferenceStore _referenceStore;
     private readonly ZohoTokenProvider _tokenProvider;
     private readonly Dictionary<string, ReportingTag> _reportingTags = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> _reportingTagOptionCache = new(StringComparer.OrdinalIgnoreCase);
 
     public ZohoBooksClient(HttpClient httpClient, ZohoBooksOptions options, ReferenceStore referenceStore, ZohoTokenProvider tokenProvider)
     {
@@ -25,10 +26,12 @@ public sealed class ZohoBooksClient
 
     public async Task SyncInventoryItemsAsync(IEnumerable<InventoryItem> items, CancellationToken cancellationToken = default)
     {
-        foreach (var item in items)
+        var itemList = items.ToList();
+        var existingItems = await _referenceStore.GetItemIdsAsync(itemList.Select(item => item.LocalId), cancellationToken);
+
+        foreach (var item in itemList)
         {
-            var existingId = _referenceStore.GetItemId(item.LocalId);
-            if (string.IsNullOrWhiteSpace(existingId))
+            if (!existingItems.TryGetValue(item.LocalId, out var existingId))
             {
                 var payload = new
                 {
@@ -40,22 +43,22 @@ public sealed class ZohoBooksClient
 
                 var response = await PostAsync("items", payload, cancellationToken);
                 var remoteId = ExtractId(response, "item", "item_id");
-                _referenceStore.SetItemId(item.LocalId, remoteId);
+                await _referenceStore.SetItemIdAsync(item.LocalId, remoteId, cancellationToken);
                 continue;
             }
 
             await UpdateInventoryItemAsync(existingId, item, cancellationToken);
         }
-
-        await _referenceStore.SaveAsync(cancellationToken);
     }
 
     public async Task SyncContactsAsync(IEnumerable<Contact> contacts, CancellationToken cancellationToken = default)
     {
-        foreach (var contact in contacts)
+        var contactList = contacts.ToList();
+        var existingContacts = await _referenceStore.GetContactIdsAsync(contactList.Select(contact => contact.LocalId), cancellationToken);
+
+        foreach (var contact in contactList)
         {
-            var existingId = _referenceStore.GetContactId(contact.LocalId);
-            if (!string.IsNullOrWhiteSpace(existingId))
+            if (existingContacts.ContainsKey(contact.LocalId))
             {
                 continue;
             }
@@ -69,30 +72,35 @@ public sealed class ZohoBooksClient
 
             var response = await PostAsync("contacts", payload, cancellationToken);
             var remoteId = ExtractId(response, "contact", "contact_id");
-            _referenceStore.SetContactId(contact.LocalId, remoteId);
+            await _referenceStore.SetContactIdAsync(contact.LocalId, remoteId, cancellationToken);
         }
-
-        await _referenceStore.SaveAsync(cancellationToken);
     }
 
     public async Task SyncInvoicesAsync(IEnumerable<Invoice> invoices, CancellationToken cancellationToken = default)
     {
-        foreach (var invoice in invoices)
+        var invoiceList = invoices.ToList();
+        var existingInvoices = await _referenceStore.GetInvoiceIdsAsync(invoiceList.Select(invoice => invoice.LocalId), cancellationToken);
+        var contactIds = await _referenceStore.GetContactIdsAsync(invoiceList.Select(invoice => invoice.ContactLocalId), cancellationToken);
+        var itemLocalIds = invoiceList.SelectMany(invoice => invoice.LineItems.Select(item => item.ItemLocalId)).Distinct(StringComparer.OrdinalIgnoreCase);
+        var itemIds = await _referenceStore.GetItemIdsAsync(itemLocalIds, cancellationToken);
+
+        foreach (var invoice in invoiceList)
         {
-            var existingId = _referenceStore.GetInvoiceId(invoice.LocalId);
-            if (!string.IsNullOrWhiteSpace(existingId))
+            if (existingInvoices.ContainsKey(invoice.LocalId))
             {
                 continue;
             }
 
-            var contactId = _referenceStore.GetContactId(invoice.ContactLocalId)
-                ?? throw new InvalidOperationException($"Missing contact reference for {invoice.ContactLocalId}.");
+            if (!contactIds.TryGetValue(invoice.ContactLocalId, out var contactId))
+            {
+                throw new InvalidOperationException($"Missing contact reference for {invoice.ContactLocalId}.");
+            }
 
             var lineItems = invoice.LineItems.Select(item => new
             {
-                item_id = _referenceStore.GetItemId(item.ItemLocalId)
-                    ?? throw new InvalidOperationException($"Missing item reference for {item.ItemLocalId}.")
-                ,
+                item_id = itemIds.TryGetValue(item.ItemLocalId, out var itemId)
+                    ? itemId
+                    : throw new InvalidOperationException($"Missing item reference for {item.ItemLocalId}."),
                 name = item.Description,
                 rate = item.Rate,
                 quantity = item.Quantity
@@ -111,18 +119,18 @@ public sealed class ZohoBooksClient
 
             var response = await PostAsync("invoices", payload, cancellationToken);
             var remoteId = ExtractId(response, "invoice", "invoice_id");
-            _referenceStore.SetInvoiceId(invoice.LocalId, remoteId);
+            await _referenceStore.SetInvoiceIdAsync(invoice.LocalId, remoteId, cancellationToken);
         }
-
-        await _referenceStore.SaveAsync(cancellationToken);
     }
 
     public async Task UpdateInventoryItemsAsync(IEnumerable<InventoryItem> items, CancellationToken cancellationToken = default)
     {
-        foreach (var item in items)
+        var itemList = items.ToList();
+        var existingItems = await _referenceStore.GetItemIdsAsync(itemList.Select(item => item.LocalId), cancellationToken);
+
+        foreach (var item in itemList)
         {
-            var remoteId = _referenceStore.GetItemId(item.LocalId);
-            if (string.IsNullOrWhiteSpace(remoteId))
+            if (!existingItems.TryGetValue(item.LocalId, out var remoteId))
             {
                 continue;
             }
@@ -133,10 +141,12 @@ public sealed class ZohoBooksClient
 
     public async Task UpdateContactsAsync(IEnumerable<Contact> contacts, CancellationToken cancellationToken = default)
     {
-        foreach (var contact in contacts)
+        var contactList = contacts.ToList();
+        var existingContacts = await _referenceStore.GetContactIdsAsync(contactList.Select(contact => contact.LocalId), cancellationToken);
+
+        foreach (var contact in contactList)
         {
-            var remoteId = _referenceStore.GetContactId(contact.LocalId);
-            if (string.IsNullOrWhiteSpace(remoteId))
+            if (!existingContacts.TryGetValue(contact.LocalId, out var remoteId))
             {
                 continue;
             }
@@ -154,22 +164,29 @@ public sealed class ZohoBooksClient
 
     public async Task UpdateInvoicesAsync(IEnumerable<Invoice> invoices, CancellationToken cancellationToken = default)
     {
-        foreach (var invoice in invoices)
+        var invoiceList = invoices.ToList();
+        var existingInvoices = await _referenceStore.GetInvoiceIdsAsync(invoiceList.Select(invoice => invoice.LocalId), cancellationToken);
+        var contactIds = await _referenceStore.GetContactIdsAsync(invoiceList.Select(invoice => invoice.ContactLocalId), cancellationToken);
+        var itemLocalIds = invoiceList.SelectMany(invoice => invoice.LineItems.Select(item => item.ItemLocalId)).Distinct(StringComparer.OrdinalIgnoreCase);
+        var itemIds = await _referenceStore.GetItemIdsAsync(itemLocalIds, cancellationToken);
+
+        foreach (var invoice in invoiceList)
         {
-            var remoteId = _referenceStore.GetInvoiceId(invoice.LocalId);
-            if (string.IsNullOrWhiteSpace(remoteId))
+            if (!existingInvoices.TryGetValue(invoice.LocalId, out var remoteId))
             {
                 continue;
             }
 
-            var contactId = _referenceStore.GetContactId(invoice.ContactLocalId)
-                ?? throw new InvalidOperationException($"Missing contact reference for {invoice.ContactLocalId}.");
+            if (!contactIds.TryGetValue(invoice.ContactLocalId, out var contactId))
+            {
+                throw new InvalidOperationException($"Missing contact reference for {invoice.ContactLocalId}.");
+            }
 
             var lineItems = invoice.LineItems.Select(item => new
             {
-                item_id = _referenceStore.GetItemId(item.ItemLocalId)
-                    ?? throw new InvalidOperationException($"Missing item reference for {item.ItemLocalId}.")
-                ,
+                item_id = itemIds.TryGetValue(item.ItemLocalId, out var itemId)
+                    ? itemId
+                    : throw new InvalidOperationException($"Missing item reference for {item.ItemLocalId}."),
                 name = item.Description,
                 rate = item.Rate,
                 quantity = item.Quantity
@@ -188,18 +205,16 @@ public sealed class ZohoBooksClient
 
             await PutAsync($"invoices/{remoteId}", payload, cancellationToken);
         }
-
-        await _referenceStore.SaveAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyList<InvoicePayment>> PullPaymentsAsync(IEnumerable<string> invoiceLocalIds, CancellationToken cancellationToken = default)
     {
         var results = new List<InvoicePayment>();
+        var invoiceIdLookup = await _referenceStore.GetInvoiceIdsAsync(invoiceLocalIds, cancellationToken);
 
         foreach (var localId in invoiceLocalIds)
         {
-            var invoiceId = _referenceStore.GetInvoiceId(localId);
-            if (string.IsNullOrWhiteSpace(invoiceId))
+            if (!invoiceIdLookup.TryGetValue(localId, out var invoiceId))
             {
                 continue;
             }
@@ -301,9 +316,16 @@ public sealed class ZohoBooksClient
     private async Task<ReportingTagOption> EnsureReportingTagOptionAsync(string tagName, string optionName, CancellationToken cancellationToken)
     {
         var optionKey = BuildReportingTagOptionKey(tagName, optionName);
-        var existingOptionId = _referenceStore.GetReportingTagOptionId(optionKey);
+        if (_reportingTagOptionCache.TryGetValue(optionKey, out var cachedOptionId))
+        {
+            var tag = await GetReportingTagAsync(tagName, cancellationToken);
+            return new ReportingTagOption(tag.Id, cachedOptionId);
+        }
+
+        var existingOptionId = await _referenceStore.GetReportingTagOptionIdAsync(optionKey, cancellationToken);
         if (!string.IsNullOrWhiteSpace(existingOptionId))
         {
+            _reportingTagOptionCache[optionKey] = existingOptionId;
             var tag = await GetReportingTagAsync(tagName, cancellationToken);
             return new ReportingTagOption(tag.Id, existingOptionId);
         }
@@ -311,7 +333,8 @@ public sealed class ZohoBooksClient
         var reportingTag = await GetReportingTagAsync(tagName, cancellationToken);
         if (reportingTag.OptionsByName.TryGetValue(optionName, out var remoteOptionId))
         {
-            _referenceStore.SetReportingTagOptionId(optionKey, remoteOptionId);
+            _reportingTagOptionCache[optionKey] = remoteOptionId;
+            await _referenceStore.SetReportingTagOptionIdAsync(optionKey, remoteOptionId, cancellationToken);
             return new ReportingTagOption(reportingTag.Id, remoteOptionId);
         }
 
@@ -322,7 +345,8 @@ public sealed class ZohoBooksClient
 
         var response = await PostAsync($"settings/reportingtags/{reportingTag.Id}/options", payload, cancellationToken);
         var createdOptionId = ExtractId(response, "reporting_tag_option", "option_id");
-        _referenceStore.SetReportingTagOptionId(optionKey, createdOptionId);
+        _reportingTagOptionCache[optionKey] = createdOptionId;
+        await _referenceStore.SetReportingTagOptionIdAsync(optionKey, createdOptionId, cancellationToken);
         reportingTag.OptionsByName[optionName] = createdOptionId;
         return new ReportingTagOption(reportingTag.Id, createdOptionId);
     }

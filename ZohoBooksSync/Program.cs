@@ -11,8 +11,14 @@ if (string.IsNullOrWhiteSpace(options.OrganizationId))
     return;
 }
 
-var referenceStore = new ReferenceStore(options.DataStorePath);
-await referenceStore.LoadAsync();
+if (string.IsNullOrWhiteSpace(options.SqlConnectionString))
+{
+    Console.WriteLine("Configure ZOHO_BOOKS_SQL_CONNECTION_STRING to run the sync.");
+    return;
+}
+
+var referenceStore = new ReferenceStore(options.SqlConnectionString);
+await referenceStore.InitializeAsync();
 
 using var httpClient = new HttpClient();
 var tokenProvider = new ZohoTokenProvider(httpClient, options);

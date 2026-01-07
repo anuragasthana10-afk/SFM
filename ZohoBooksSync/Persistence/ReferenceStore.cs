@@ -1,59 +1,141 @@
-using System.Text.Json;
+using Microsoft.Data.SqlClient;
 
 namespace ZohoBooksSync.Persistence;
 
 public sealed class ReferenceStore
 {
-    private readonly string _filePath;
-    private ReferenceData _data;
+    private const string ItemsCategory = "Items";
+    private const string ContactsCategory = "Contacts";
+    private const string InvoicesCategory = "Invoices";
+    private const string ReportingTagOptionsCategory = "ReportingTagOptions";
 
-    public ReferenceStore(string filePath)
+    private readonly string _connectionString;
+
+    public ReferenceStore(string connectionString)
     {
-        _filePath = filePath;
-        _data = new ReferenceData();
+        _connectionString = connectionString;
     }
 
-    public async Task LoadAsync(CancellationToken cancellationToken = default)
+    public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
-        if (!File.Exists(_filePath))
+        const string sql = """
+            IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'ReferenceStore')
+            BEGIN
+                CREATE TABLE ReferenceStore (
+                    Category NVARCHAR(64) NOT NULL,
+                    LocalKey NVARCHAR(256) NOT NULL,
+                    RemoteId NVARCHAR(256) NOT NULL,
+                    CONSTRAINT PK_ReferenceStore PRIMARY KEY (Category, LocalKey)
+                );
+            END
+            """;
+
+        await using var connection = new SqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new SqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public Task<Dictionary<string, string>> GetItemIdsAsync(IEnumerable<string> localIds, CancellationToken cancellationToken = default)
+        => GetReferenceIdsAsync(ItemsCategory, localIds, cancellationToken);
+
+    public Task<Dictionary<string, string>> GetContactIdsAsync(IEnumerable<string> localIds, CancellationToken cancellationToken = default)
+        => GetReferenceIdsAsync(ContactsCategory, localIds, cancellationToken);
+
+    public Task<Dictionary<string, string>> GetInvoiceIdsAsync(IEnumerable<string> localIds, CancellationToken cancellationToken = default)
+        => GetReferenceIdsAsync(InvoicesCategory, localIds, cancellationToken);
+
+    public Task<string?> GetReportingTagOptionIdAsync(string key, CancellationToken cancellationToken = default)
+        => GetReferenceIdAsync(ReportingTagOptionsCategory, key, cancellationToken);
+
+    public Task SetItemIdAsync(string localId, string remoteId, CancellationToken cancellationToken = default)
+        => SetReferenceIdAsync(ItemsCategory, localId, remoteId, cancellationToken);
+
+    public Task SetContactIdAsync(string localId, string remoteId, CancellationToken cancellationToken = default)
+        => SetReferenceIdAsync(ContactsCategory, localId, remoteId, cancellationToken);
+
+    public Task SetInvoiceIdAsync(string localId, string remoteId, CancellationToken cancellationToken = default)
+        => SetReferenceIdAsync(InvoicesCategory, localId, remoteId, cancellationToken);
+
+    public Task SetReportingTagOptionIdAsync(string key, string remoteId, CancellationToken cancellationToken = default)
+        => SetReferenceIdAsync(ReportingTagOptionsCategory, key, remoteId, cancellationToken);
+
+    private async Task<string?> GetReferenceIdAsync(string category, string localKey, CancellationToken cancellationToken)
+    {
+        const string sql = """
+            SELECT RemoteId
+            FROM ReferenceStore
+            WHERE Category = @Category AND LocalKey = @LocalKey;
+            """;
+
+        await using var connection = new SqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new SqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@Category", category);
+        command.Parameters.AddWithValue("@LocalKey", localKey);
+        var result = await command.ExecuteScalarAsync(cancellationToken);
+        return result as string;
+    }
+
+    private async Task<Dictionary<string, string>> GetReferenceIdsAsync(
+        string category,
+        IEnumerable<string> localKeys,
+        CancellationToken cancellationToken)
+    {
+        var keys = localKeys.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        if (keys.Length == 0)
         {
-            _data = new ReferenceData();
-            return;
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         }
 
-        await using var stream = File.OpenRead(_filePath);
-        var data = await JsonSerializer.DeserializeAsync<ReferenceData>(stream, cancellationToken: cancellationToken);
-        _data = data ?? new ReferenceData();
-    }
+        var parameters = keys
+            .Select((_, index) => $"@Key{index}")
+            .ToArray();
 
-    public async Task SaveAsync(CancellationToken cancellationToken = default)
-    {
-        var directory = Path.GetDirectoryName(_filePath);
-        if (!string.IsNullOrWhiteSpace(directory))
+        var sql = $"""
+            SELECT LocalKey, RemoteId
+            FROM ReferenceStore
+            WHERE Category = @Category AND LocalKey IN ({string.Join(", ", parameters)});
+            """;
+
+        await using var connection = new SqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new SqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@Category", category);
+        for (var i = 0; i < keys.Length; i++)
         {
-            Directory.CreateDirectory(directory);
+            command.Parameters.AddWithValue(parameters[i], keys[i]);
         }
 
-        await using var stream = File.Create(_filePath);
-        var options = new JsonSerializerOptions { WriteIndented = true };
-        await JsonSerializer.SerializeAsync(stream, _data, options, cancellationToken);
+        var results = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            results[reader.GetString(0)] = reader.GetString(1);
+        }
+
+        return results;
     }
 
-    public string? GetItemId(string localId) => _data.Items.GetValueOrDefault(localId);
-    public string? GetContactId(string localId) => _data.Contacts.GetValueOrDefault(localId);
-    public string? GetInvoiceId(string localId) => _data.Invoices.GetValueOrDefault(localId);
-    public string? GetReportingTagOptionId(string key) => _data.ReportingTagOptions.GetValueOrDefault(key);
-
-    public void SetItemId(string localId, string remoteId) => _data.Items[localId] = remoteId;
-    public void SetContactId(string localId, string remoteId) => _data.Contacts[localId] = remoteId;
-    public void SetInvoiceId(string localId, string remoteId) => _data.Invoices[localId] = remoteId;
-    public void SetReportingTagOptionId(string key, string remoteId) => _data.ReportingTagOptions[key] = remoteId;
-
-    private sealed class ReferenceData
+    private async Task SetReferenceIdAsync(string category, string localKey, string remoteId, CancellationToken cancellationToken)
     {
-        public Dictionary<string, string> Items { get; init; } = new();
-        public Dictionary<string, string> Contacts { get; init; } = new();
-        public Dictionary<string, string> Invoices { get; init; } = new();
-        public Dictionary<string, string> ReportingTagOptions { get; init; } = new();
+        const string sql = """
+            MERGE ReferenceStore AS target
+            USING (SELECT @Category AS Category, @LocalKey AS LocalKey, @RemoteId AS RemoteId) AS source
+            ON target.Category = source.Category AND target.LocalKey = source.LocalKey
+            WHEN MATCHED THEN
+                UPDATE SET RemoteId = source.RemoteId
+            WHEN NOT MATCHED THEN
+                INSERT (Category, LocalKey, RemoteId)
+                VALUES (source.Category, source.LocalKey, source.RemoteId);
+            """;
+
+        await using var connection = new SqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new SqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@Category", category);
+        command.Parameters.AddWithValue("@LocalKey", localKey);
+        command.Parameters.AddWithValue("@RemoteId", remoteId);
+        await command.ExecuteNonQueryAsync(cancellationToken);
     }
 }

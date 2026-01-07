@@ -9,7 +9,7 @@ public sealed class ZohoBooksOptions
     public string ClientId { get; init; } = string.Empty;
     public string ClientSecret { get; init; } = string.Empty;
     public string TokenEndpoint { get; init; } = "https://accounts.zoho.com/oauth/v2/token";
-    public string DataStorePath { get; init; } = "data/reference-store.json";
+    public string SqlConnectionString { get; init; } = string.Empty;
 
     public static ZohoBooksOptions FromEnvironment()
     {
@@ -29,8 +29,8 @@ public sealed class ZohoBooksOptions
                 ?? string.Empty,
             TokenEndpoint = Environment.GetEnvironmentVariable("ZOHO_BOOKS_TOKEN_ENDPOINT")
                 ?? "https://accounts.zoho.com/oauth/v2/token",
-            DataStorePath = Environment.GetEnvironmentVariable("ZOHO_BOOKS_REFERENCE_STORE")
-                ?? "data/reference-store.json"
+            SqlConnectionString = Environment.GetEnvironmentVariable("ZOHO_BOOKS_SQL_CONNECTION_STRING")
+                ?? string.Empty
         };
     }
 }
