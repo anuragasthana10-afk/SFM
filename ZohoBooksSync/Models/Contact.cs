@@ -1,9 +1,10 @@
-namespace ZohoBooksSync.Models;
-
-public sealed class Contact
+namespace ZohoBooksSync.Models
 {
-    public required int LocalId { get; init; }
-    public required string Name { get; init; }
-    public string? Email { get; init; }
-    public string? Phone { get; init; }
+    public sealed class Contact
+    {
+        public int LocalId { get; set; }
+        public string Name { get; set; }
+        public string Email { get; set; }
+        public string Phone { get; set; }
+    }
 }

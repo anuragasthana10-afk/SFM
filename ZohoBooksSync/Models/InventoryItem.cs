@@ -1,10 +1,11 @@
-namespace ZohoBooksSync.Models;
-
-public sealed class InventoryItem
+namespace ZohoBooksSync.Models
 {
-    public required int LocalId { get; init; }
-    public required string Name { get; init; }
-    public string? Sku { get; init; }
-    public decimal Rate { get; init; }
-    public int Quantity { get; init; }
+    public sealed class InventoryItem
+    {
+        public int LocalId { get; set; }
+        public string Name { get; set; }
+        public string Sku { get; set; }
+        public decimal Rate { get; set; }
+        public int Quantity { get; set; }
+    }
 }

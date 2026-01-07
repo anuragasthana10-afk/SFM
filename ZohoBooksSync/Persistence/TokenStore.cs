@@ -1,7 +1,7 @@
 using Microsoft.Data.SqlClient;
 
-namespace ZohoBooksSync.Persistence;
-
+namespace ZohoBooksSync.Persistence
+{
 public sealed class TokenStore
 {
     private const string TokenTable = "ZohoBooks_TokenStore";
@@ -14,7 +14,7 @@ public sealed class TokenStore
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
-        var sql = $"""
+        var sql = $@"
             IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = '{TokenTable}')
             BEGIN
                 CREATE TABLE {TokenTable} (
@@ -25,43 +25,51 @@ public sealed class TokenStore
                     ClientSecret NVARCHAR(MAX) NULL,
                     TokenEndpoint NVARCHAR(512) NULL
                 );
-            END
-            """;
+            END";
 
-        await using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
-        await using var command = new SqlCommand(sql, connection);
-        await command.ExecuteNonQueryAsync(cancellationToken);
+        using (var connection = new SqlConnection(_connectionString))
+        {
+            await connection.OpenAsync(cancellationToken);
+            using (var command = new SqlCommand(sql, connection))
+            {
+                await command.ExecuteNonQueryAsync(cancellationToken);
+            }
+        }
     }
 
-    public async Task<TokenData?> GetAsync(CancellationToken cancellationToken = default)
+    public async Task<TokenData> GetAsync(CancellationToken cancellationToken = default)
     {
-        var sql = $"""
+        var sql = $@"
             SELECT AccessToken, RefreshToken, ClientId, ClientSecret, TokenEndpoint
             FROM {TokenTable}
-            WHERE Id = 1;
-            """;
+            WHERE Id = 1;";
 
-        await using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
-        await using var command = new SqlCommand(sql, connection);
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        if (!await reader.ReadAsync(cancellationToken))
+        using (var connection = new SqlConnection(_connectionString))
         {
-            return null;
-        }
+            await connection.OpenAsync(cancellationToken);
+            using (var command = new SqlCommand(sql, connection))
+            using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+            {
+                if (!await reader.ReadAsync(cancellationToken))
+                {
+                    return null;
+                }
 
-        return new TokenData(
-            reader.IsDBNull(0) ? string.Empty : reader.GetString(0),
-            reader.IsDBNull(1) ? string.Empty : reader.GetString(1),
-            reader.IsDBNull(2) ? string.Empty : reader.GetString(2),
-            reader.IsDBNull(3) ? string.Empty : reader.GetString(3),
-            reader.IsDBNull(4) ? string.Empty : reader.GetString(4));
+                return new TokenData
+                {
+                    AccessToken = reader.IsDBNull(0) ? string.Empty : reader.GetString(0),
+                    RefreshToken = reader.IsDBNull(1) ? string.Empty : reader.GetString(1),
+                    ClientId = reader.IsDBNull(2) ? string.Empty : reader.GetString(2),
+                    ClientSecret = reader.IsDBNull(3) ? string.Empty : reader.GetString(3),
+                    TokenEndpoint = reader.IsDBNull(4) ? string.Empty : reader.GetString(4)
+                };
+            }
+        }
     }
 
     public async Task UpsertAsync(TokenData data, CancellationToken cancellationToken = default)
     {
-        var sql = $"""
+        var sql = $@"
             MERGE {TokenTable} AS target
             USING (SELECT 1 AS Id) AS source
             ON target.Id = source.Id
@@ -74,44 +82,53 @@ public sealed class TokenStore
                     TokenEndpoint = @TokenEndpoint
             WHEN NOT MATCHED THEN
                 INSERT (Id, AccessToken, RefreshToken, ClientId, ClientSecret, TokenEndpoint)
-                VALUES (1, @AccessToken, @RefreshToken, @ClientId, @ClientSecret, @TokenEndpoint);
-            """;
+                VALUES (1, @AccessToken, @RefreshToken, @ClientId, @ClientSecret, @TokenEndpoint);";
 
-        await using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
-        await using var command = new SqlCommand(sql, connection);
-        AddTokenParameters(command, data);
-        await command.ExecuteNonQueryAsync(cancellationToken);
+        using (var connection = new SqlConnection(_connectionString))
+        {
+            await connection.OpenAsync(cancellationToken);
+            using (var command = new SqlCommand(sql, connection))
+            {
+                AddTokenParameters(command, data);
+                await command.ExecuteNonQueryAsync(cancellationToken);
+            }
+        }
     }
 
     public async Task UpdateAccessTokenAsync(string accessToken, CancellationToken cancellationToken = default)
     {
-        var sql = $"""
+        var sql = $@"
             UPDATE {TokenTable}
             SET AccessToken = @AccessToken
-            WHERE Id = 1;
-            """;
+            WHERE Id = 1;";
 
-        await using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
-        await using var command = new SqlCommand(sql, connection);
-        command.Parameters.AddWithValue("@AccessToken", accessToken);
-        await command.ExecuteNonQueryAsync(cancellationToken);
+        using (var connection = new SqlConnection(_connectionString))
+        {
+            await connection.OpenAsync(cancellationToken);
+            using (var command = new SqlCommand(sql, connection))
+            {
+                command.Parameters.AddWithValue("@AccessToken", accessToken);
+                await command.ExecuteNonQueryAsync(cancellationToken);
+            }
+        }
     }
 
     private static void AddTokenParameters(SqlCommand command, TokenData data)
     {
-        command.Parameters.AddWithValue("@AccessToken", string.IsNullOrWhiteSpace(data.AccessToken) ? DBNull.Value : data.AccessToken);
-        command.Parameters.AddWithValue("@RefreshToken", string.IsNullOrWhiteSpace(data.RefreshToken) ? DBNull.Value : data.RefreshToken);
-        command.Parameters.AddWithValue("@ClientId", string.IsNullOrWhiteSpace(data.ClientId) ? DBNull.Value : data.ClientId);
-        command.Parameters.AddWithValue("@ClientSecret", string.IsNullOrWhiteSpace(data.ClientSecret) ? DBNull.Value : data.ClientSecret);
-        command.Parameters.AddWithValue("@TokenEndpoint", string.IsNullOrWhiteSpace(data.TokenEndpoint) ? DBNull.Value : data.TokenEndpoint);
+        command.Parameters.AddWithValue("@AccessToken", string.IsNullOrWhiteSpace(data.AccessToken) ? (object)DBNull.Value : data.AccessToken);
+        command.Parameters.AddWithValue("@RefreshToken", string.IsNullOrWhiteSpace(data.RefreshToken) ? (object)DBNull.Value : data.RefreshToken);
+        command.Parameters.AddWithValue("@ClientId", string.IsNullOrWhiteSpace(data.ClientId) ? (object)DBNull.Value : data.ClientId);
+        command.Parameters.AddWithValue("@ClientSecret", string.IsNullOrWhiteSpace(data.ClientSecret) ? (object)DBNull.Value : data.ClientSecret);
+        command.Parameters.AddWithValue("@TokenEndpoint", string.IsNullOrWhiteSpace(data.TokenEndpoint) ? (object)DBNull.Value : data.TokenEndpoint);
     }
 
-    public sealed record TokenData(
-        string AccessToken,
-        string RefreshToken,
-        string ClientId,
-        string ClientSecret,
-        string TokenEndpoint);
+    public sealed class TokenData
+    {
+        public string AccessToken { get; set; }
+        public string RefreshToken { get; set; }
+        public string ClientId { get; set; }
+        public string ClientSecret { get; set; }
+        public string TokenEndpoint { get; set; }
+    }
+}
 }

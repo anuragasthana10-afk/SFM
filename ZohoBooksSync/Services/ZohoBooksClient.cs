@@ -1,3 +1,6 @@
+using System.Collections.Generic;
+using System.Linq;
+using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
@@ -5,8 +8,8 @@ using ZohoBooksSync.Configuration;
 using ZohoBooksSync.Models;
 using ZohoBooksSync.Persistence;
 
-namespace ZohoBooksSync.Services;
-
+namespace ZohoBooksSync.Services
+{
 public sealed class ZohoBooksClient
 {
     private readonly HttpClient _httpClient;
@@ -14,8 +17,8 @@ public sealed class ZohoBooksClient
     private readonly ZohoBooksConnectionOptions _connectionOptions;
     private readonly ReferenceStore _referenceStore;
     private readonly ZohoTokenProvider _tokenProvider;
-    private readonly Dictionary<string, ReportingTag> _reportingTags = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, string> _reportingTagOptionCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, ReportingTag> _reportingTags = new Dictionary<string, ReportingTag>(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> _reportingTagOptionCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
     public ZohoBooksClient(
         HttpClient httpClient,
@@ -53,11 +56,11 @@ public sealed class ZohoBooksClient
                     var response = await PostAsync("items", payload, cancellationToken);
                     var remoteId = ExtractId(response, "item", "item_id");
                     await _referenceStore.SetItemIdAsync(item.LocalId, remoteId, cancellationToken);
-                    await _referenceStore.LogSyncOperationAsync("InventoryItem", item.LocalId, "Create", true, remoteId, null, cancellationToken);
+                    await _referenceStore.LogSyncOperationAsync("InventoryItem", item.LocalId, "Create", true, remoteId, null, null, cancellationToken);
                 }
                 catch (Exception ex)
                 {
-                    await _referenceStore.LogSyncOperationAsync("InventoryItem", item.LocalId, "Create", false, null, ex.Message, cancellationToken);
+                    await _referenceStore.LogSyncOperationAsync("InventoryItem", item.LocalId, "Create", false, null, ex.Message, null, cancellationToken);
                     throw;
                 }
 
@@ -67,11 +70,11 @@ public sealed class ZohoBooksClient
             try
             {
                 await UpdateInventoryItemAsync(existingId, item, cancellationToken);
-                await _referenceStore.LogSyncOperationAsync("InventoryItem", item.LocalId, "Update", true, existingId, null, cancellationToken);
+                await _referenceStore.LogSyncOperationAsync("InventoryItem", item.LocalId, "Update", true, existingId, null, null, cancellationToken);
             }
             catch (Exception ex)
             {
-                await _referenceStore.LogSyncOperationAsync("InventoryItem", item.LocalId, "Update", false, existingId, ex.Message, cancellationToken);
+                await _referenceStore.LogSyncOperationAsync("InventoryItem", item.LocalId, "Update", false, existingId, ex.Message, null, cancellationToken);
                 throw;
             }
         }
@@ -101,11 +104,11 @@ public sealed class ZohoBooksClient
                     var response = await PostAsync("contacts", payload, cancellationToken);
                     var remoteId = ExtractId(response, "contact", "contact_id");
                     await _referenceStore.SetContactIdAsync(contact.LocalId, remoteId, cancellationToken);
-                    await _referenceStore.LogSyncOperationAsync("Contact", contact.LocalId, "Create", true, remoteId, null, cancellationToken);
+                    await _referenceStore.LogSyncOperationAsync("Contact", contact.LocalId, "Create", true, remoteId, null, null, cancellationToken);
                 }
                 catch (Exception ex)
                 {
-                    await _referenceStore.LogSyncOperationAsync("Contact", contact.LocalId, "Create", false, null, ex.Message, cancellationToken);
+                    await _referenceStore.LogSyncOperationAsync("Contact", contact.LocalId, "Create", false, null, ex.Message, null, cancellationToken);
                     throw;
                 }
         }
@@ -129,7 +132,7 @@ public sealed class ZohoBooksClient
             if (!contactIds.TryGetValue(invoice.ContactLocalId, out var contactId))
             {
                 var message = $"Missing contact reference for {invoice.ContactLocalId}.";
-                await _referenceStore.LogSyncOperationAsync("Invoice", invoice.LocalId, "Create", false, null, message, cancellationToken);
+                await _referenceStore.LogSyncOperationAsync("Invoice", invoice.LocalId, "Create", false, null, message, null, cancellationToken);
                 throw new InvalidOperationException(message);
             }
 
@@ -159,11 +162,11 @@ public sealed class ZohoBooksClient
                 var response = await PostAsync("invoices", payload, cancellationToken);
                 var remoteId = ExtractId(response, "invoice", "invoice_id");
                 await _referenceStore.SetInvoiceIdAsync(invoice.LocalId, remoteId, cancellationToken);
-                await _referenceStore.LogSyncOperationAsync("Invoice", invoice.LocalId, "Create", true, remoteId, null, cancellationToken);
+                await _referenceStore.LogSyncOperationAsync("Invoice", invoice.LocalId, "Create", true, remoteId, null, null, cancellationToken);
             }
             catch (Exception ex)
             {
-                await _referenceStore.LogSyncOperationAsync("Invoice", invoice.LocalId, "Create", false, null, ex.Message, cancellationToken);
+                await _referenceStore.LogSyncOperationAsync("Invoice", invoice.LocalId, "Create", false, null, ex.Message, null, cancellationToken);
                 throw;
             }
         }
@@ -184,11 +187,11 @@ public sealed class ZohoBooksClient
             try
             {
                 await UpdateInventoryItemAsync(remoteId, item, cancellationToken);
-                await _referenceStore.LogSyncOperationAsync("InventoryItem", item.LocalId, "Update", true, remoteId, null, cancellationToken);
+                await _referenceStore.LogSyncOperationAsync("InventoryItem", item.LocalId, "Update", true, remoteId, null, null, cancellationToken);
             }
             catch (Exception ex)
             {
-                await _referenceStore.LogSyncOperationAsync("InventoryItem", item.LocalId, "Update", false, remoteId, ex.Message, cancellationToken);
+                await _referenceStore.LogSyncOperationAsync("InventoryItem", item.LocalId, "Update", false, remoteId, ex.Message, null, cancellationToken);
                 throw;
             }
         }
@@ -216,11 +219,11 @@ public sealed class ZohoBooksClient
             try
             {
                 await PutAsync($"contacts/{remoteId}", payload, cancellationToken);
-                await _referenceStore.LogSyncOperationAsync("Contact", contact.LocalId, "Update", true, remoteId, null, cancellationToken);
+                await _referenceStore.LogSyncOperationAsync("Contact", contact.LocalId, "Update", true, remoteId, null, null, cancellationToken);
             }
             catch (Exception ex)
             {
-                await _referenceStore.LogSyncOperationAsync("Contact", contact.LocalId, "Update", false, remoteId, ex.Message, cancellationToken);
+                await _referenceStore.LogSyncOperationAsync("Contact", contact.LocalId, "Update", false, remoteId, ex.Message, null, cancellationToken);
                 throw;
             }
         }
@@ -244,7 +247,7 @@ public sealed class ZohoBooksClient
             if (!contactIds.TryGetValue(invoice.ContactLocalId, out var contactId))
             {
                 var message = $"Missing contact reference for {invoice.ContactLocalId}.";
-                await _referenceStore.LogSyncOperationAsync("Invoice", invoice.LocalId, "Update", false, remoteId, message, cancellationToken);
+                await _referenceStore.LogSyncOperationAsync("Invoice", invoice.LocalId, "Update", false, remoteId, message, null, cancellationToken);
                 throw new InvalidOperationException(message);
             }
 
@@ -272,11 +275,11 @@ public sealed class ZohoBooksClient
                 };
 
                 await PutAsync($"invoices/{remoteId}", payload, cancellationToken);
-                await _referenceStore.LogSyncOperationAsync("Invoice", invoice.LocalId, "Update", true, remoteId, null, cancellationToken);
+                await _referenceStore.LogSyncOperationAsync("Invoice", invoice.LocalId, "Update", true, remoteId, null, null, cancellationToken);
             }
             catch (Exception ex)
             {
-                await _referenceStore.LogSyncOperationAsync("Invoice", invoice.LocalId, "Update", false, remoteId, ex.Message, cancellationToken);
+                await _referenceStore.LogSyncOperationAsync("Invoice", invoice.LocalId, "Update", false, remoteId, ex.Message, null, cancellationToken);
                 throw;
             }
         }
@@ -339,17 +342,21 @@ public sealed class ZohoBooksClient
 
     private async Task<JsonElement> GetAsync(string path, CancellationToken cancellationToken)
     {
-        using var request = await CreateRequestAsync(HttpMethod.Get, path, cancellationToken);
-        var response = await _httpClient.SendAsync(request, cancellationToken);
-        return await EnsureSuccessAsync(response, cancellationToken);
+        using (var request = await CreateRequestAsync(HttpMethod.Get, path, cancellationToken))
+        {
+            var response = await _httpClient.SendAsync(request, cancellationToken);
+            return await EnsureSuccessAsync(response, cancellationToken);
+        }
     }
 
     private async Task<JsonElement> SendAsync(HttpMethod method, string path, object payload, CancellationToken cancellationToken)
     {
-        using var request = await CreateRequestAsync(method, path, cancellationToken);
-        request.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-        var response = await _httpClient.SendAsync(request, cancellationToken);
-        return await EnsureSuccessAsync(response, cancellationToken);
+        using (var request = await CreateRequestAsync(method, path, cancellationToken))
+        {
+            request.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+            var response = await _httpClient.SendAsync(request, cancellationToken);
+            return await EnsureSuccessAsync(response, cancellationToken);
+        }
     }
 
     private async Task<HttpRequestMessage> CreateRequestAsync(HttpMethod method, string path, CancellationToken cancellationToken)
@@ -513,8 +520,10 @@ public sealed class ZohoBooksClient
             throw new HttpRequestException($"Zoho Books API error ({(int)response.StatusCode}): {content}");
         }
 
-        using var document = JsonDocument.Parse(content);
-        return document.RootElement.Clone();
+        using (var document = JsonDocument.Parse(content))
+        {
+            return document.RootElement.Clone();
+        }
     }
 
     private static string ExtractId(JsonElement response, string containerProperty, string idProperty)
@@ -528,7 +537,28 @@ public sealed class ZohoBooksClient
         throw new InvalidOperationException($"Unable to locate {idProperty} in Zoho response.");
     }
 
-    private sealed record ReportingTag(string Id, Dictionary<string, string> OptionsByName);
+    private sealed class ReportingTag
+    {
+        public ReportingTag(string id, Dictionary<string, string> optionsByName)
+        {
+            Id = id;
+            OptionsByName = optionsByName;
+        }
 
-    private sealed record ReportingTagOption(string TagId, string OptionId);
+        public string Id { get; private set; }
+        public Dictionary<string, string> OptionsByName { get; private set; }
+    }
+
+    private sealed class ReportingTagOption
+    {
+        public ReportingTagOption(string tagId, string optionId)
+        {
+            TagId = tagId;
+            OptionId = optionId;
+        }
+
+        public string TagId { get; private set; }
+        public string OptionId { get; private set; }
+    }
+}
 }

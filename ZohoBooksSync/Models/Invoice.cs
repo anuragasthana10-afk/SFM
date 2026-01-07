@@ -1,21 +1,22 @@
-namespace ZohoBooksSync.Models;
-
-public sealed class Invoice
+namespace ZohoBooksSync.Models
 {
-    public required int LocalId { get; init; }
-    public required int ContactLocalId { get; init; }
-    public required DateTime InvoiceDate { get; init; }
-    public required IReadOnlyList<InvoiceLineItem> LineItems { get; init; }
-    public string? CurrencyCode { get; init; }
-    public string? Jurisdiction { get; init; }
-    public string? RelationshipManager { get; init; }
-    public string? Notes { get; init; }
-}
+    public sealed class Invoice
+    {
+        public int LocalId { get; set; }
+        public int ContactLocalId { get; set; }
+        public DateTime InvoiceDate { get; set; }
+        public IReadOnlyList<InvoiceLineItem> LineItems { get; set; }
+        public string CurrencyCode { get; set; }
+        public string Jurisdiction { get; set; }
+        public string RelationshipManager { get; set; }
+        public string Notes { get; set; }
+    }
 
-public sealed class InvoiceLineItem
-{
-    public required int ItemLocalId { get; init; }
-    public required string Description { get; init; }
-    public decimal Rate { get; init; }
-    public int Quantity { get; init; }
+    public sealed class InvoiceLineItem
+    {
+        public int ItemLocalId { get; set; }
+        public string Description { get; set; }
+        public decimal Rate { get; set; }
+        public int Quantity { get; set; }
+    }
 }

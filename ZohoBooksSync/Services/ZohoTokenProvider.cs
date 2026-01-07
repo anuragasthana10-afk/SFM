@@ -1,24 +1,27 @@
+using System.Collections.Generic;
+using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text.Json;
 using ZohoBooksSync.Configuration;
 using ZohoBooksSync.Persistence;
 
-namespace ZohoBooksSync.Services;
-
+namespace ZohoBooksSync.Services
+{
 public sealed class ZohoTokenProvider
 {
     private readonly HttpClient _httpClient;
     private readonly ZohoBooksOptions _options;
     private readonly TokenStore _tokenStore;
-    private string? _cachedAccessToken;
+    private string _cachedAccessToken;
     private DateTimeOffset _expiresAt;
-    private TokenStore.TokenData? _tokenData;
+    private TokenStore.TokenData _tokenData;
 
     public ZohoTokenProvider(HttpClient httpClient, ZohoBooksOptions options, TokenStore tokenStore)
     {
         _httpClient = httpClient;
         _options = options;
         _tokenStore = tokenStore;
+        _cachedAccessToken = string.Empty;
     }
 
     public async Task<string> GetAccessTokenAsync(CancellationToken cancellationToken = default)
@@ -52,25 +55,30 @@ public sealed class ZohoTokenProvider
             ["grant_type"] = "refresh_token"
         };
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, tokenData.TokenEndpoint)
+        string payload;
+        using (var request = new HttpRequestMessage(HttpMethod.Post, tokenData.TokenEndpoint))
         {
-            Content = new FormUrlEncodedContent(form)
-        };
-        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            request.Content = new FormUrlEncodedContent(form);
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
-        var response = await _httpClient.SendAsync(request, cancellationToken);
-        var payload = await response.Content.ReadAsStringAsync(cancellationToken);
-        if (!response.IsSuccessStatusCode)
-        {
-            throw new HttpRequestException($"Zoho OAuth token refresh failed ({(int)response.StatusCode}): {payload}");
+            var response = await _httpClient.SendAsync(request, cancellationToken);
+            payload = await response.Content.ReadAsStringAsync(cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new HttpRequestException($"Zoho OAuth token refresh failed ({(int)response.StatusCode}): {payload}");
+            }
         }
 
-        using var document = JsonDocument.Parse(payload);
-        var root = document.RootElement;
-        var token = root.GetProperty("access_token").GetString();
-        var expiresIn = root.TryGetProperty("expires_in", out var expiresElement)
-            ? expiresElement.GetInt32()
-            : 3600;
+        string token;
+        int expiresIn;
+        using (var document = JsonDocument.Parse(payload))
+        {
+            var root = document.RootElement;
+            token = root.GetProperty("access_token").GetString();
+            expiresIn = root.TryGetProperty("expires_in", out var expiresElement)
+                ? expiresElement.GetInt32()
+                : 3600;
+        }
 
         if (string.IsNullOrWhiteSpace(token))
         {
@@ -79,31 +87,34 @@ public sealed class ZohoTokenProvider
 
         _cachedAccessToken = token;
         _expiresAt = DateTimeOffset.UtcNow.AddSeconds(expiresIn - 60);
-        _tokenData = tokenData with { AccessToken = token };
+        tokenData.AccessToken = token;
+        _tokenData = tokenData;
         await _tokenStore.UpdateAccessTokenAsync(token, cancellationToken);
         return _cachedAccessToken;
     }
 
     private async Task<TokenStore.TokenData> GetTokenDataAsync(CancellationToken cancellationToken)
     {
-        if (_tokenData is not null)
+        if (_tokenData != null)
         {
             return _tokenData;
         }
 
         var existing = await _tokenStore.GetAsync(cancellationToken);
-        if (existing is not null)
+        if (existing != null)
         {
             _tokenData = existing;
             return existing;
         }
 
-        var seeded = new TokenStore.TokenData(
-            _options.AccessToken,
-            _options.RefreshToken,
-            _options.ClientId,
-            _options.ClientSecret,
-            _options.TokenEndpoint);
+        var seeded = new TokenStore.TokenData
+        {
+            AccessToken = _options.AccessToken,
+            RefreshToken = _options.RefreshToken,
+            ClientId = _options.ClientId,
+            ClientSecret = _options.ClientSecret,
+            TokenEndpoint = _options.TokenEndpoint
+        };
 
         if (!string.IsNullOrWhiteSpace(seeded.AccessToken)
             || !string.IsNullOrWhiteSpace(seeded.RefreshToken)
@@ -117,4 +128,5 @@ public sealed class ZohoTokenProvider
         _tokenData = seeded;
         return seeded;
     }
+}
 }

@@ -1,10 +1,11 @@
-namespace ZohoBooksSync.Models;
-
-public sealed class InvoicePayment
+namespace ZohoBooksSync.Models
 {
-    public required string PaymentId { get; init; }
-    public decimal Amount { get; init; }
-    public DateTime Date { get; init; }
-    public string? PaymentMode { get; init; }
-    public string? Description { get; init; }
+    public sealed class InvoicePayment
+    {
+        public string PaymentId { get; set; }
+        public decimal Amount { get; set; }
+        public DateTime Date { get; set; }
+        public string PaymentMode { get; set; }
+        public string Description { get; set; }
+    }
 }

@@ -1,7 +1,7 @@
 using Microsoft.Data.SqlClient;
 
-namespace ZohoBooksSync.Persistence;
-
+namespace ZohoBooksSync.Persistence
+{
 public sealed class ReferenceStore
 {
     private const string ItemsCategory = "Items";
@@ -20,7 +20,7 @@ public sealed class ReferenceStore
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
-        var sql = $"""
+        var sql = $@"
             IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = '{ReferenceTable}')
             BEGIN
                 CREATE TABLE {ReferenceTable} (
@@ -50,13 +50,16 @@ public sealed class ReferenceStore
                     OptionKey NVARCHAR(256) NOT NULL PRIMARY KEY,
                     RemoteId NVARCHAR(256) NOT NULL
                 );
-            END
-            """;
+            END";
 
-        await using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
-        await using var command = new SqlCommand(sql, connection);
-        await command.ExecuteNonQueryAsync(cancellationToken);
+        using (var connection = new SqlConnection(_connectionString))
+        {
+            await connection.OpenAsync(cancellationToken);
+            using (var command = new SqlCommand(sql, connection))
+            {
+                await command.ExecuteNonQueryAsync(cancellationToken);
+            }
+        }
     }
 
     public Task<Dictionary<int, string>> GetItemIdsAsync(IEnumerable<int> localIds, CancellationToken cancellationToken = default)
@@ -68,7 +71,7 @@ public sealed class ReferenceStore
     public Task<Dictionary<int, string>> GetInvoiceIdsAsync(IEnumerable<int> localIds, CancellationToken cancellationToken = default)
         => GetReferenceIdsAsync(InvoicesCategory, localIds, cancellationToken);
 
-    public Task<string?> GetReportingTagOptionIdAsync(string key, CancellationToken cancellationToken = default)
+    public Task<string> GetReportingTagOptionIdAsync(string key, CancellationToken cancellationToken = default)
         => GetReportingTagOptionIdInternalAsync(key, cancellationToken);
 
     public Task SetItemIdAsync(int localId, string remoteId, CancellationToken cancellationToken = default)
@@ -88,12 +91,12 @@ public sealed class ReferenceStore
         int localKey,
         string operation,
         bool success,
-        string? remoteId,
-        string? errorMessage,
-        string? localKeyText = null,
+        string remoteId,
+        string errorMessage,
+        string localKeyText,
         CancellationToken cancellationToken = default)
     {
-        var sql = $"""
+        var sql = $@"
             INSERT INTO {SyncLogTable} (
                 EntityType,
                 LocalKey,
@@ -113,38 +116,44 @@ public sealed class ReferenceStore
                 @RemoteId,
                 @ErrorMessage,
                 @OccurredAtUtc
-            );
-            """;
+            );";
 
-        await using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
-        await using var command = new SqlCommand(sql, connection);
-        command.Parameters.AddWithValue("@EntityType", entityType);
-        command.Parameters.AddWithValue("@LocalKey", localKey);
-        command.Parameters.AddWithValue("@LocalKeyText", string.IsNullOrWhiteSpace(localKeyText) ? DBNull.Value : localKeyText);
-        command.Parameters.AddWithValue("@Operation", operation);
-        command.Parameters.AddWithValue("@Success", success);
-        command.Parameters.AddWithValue("@RemoteId", string.IsNullOrWhiteSpace(remoteId) ? DBNull.Value : remoteId);
-        command.Parameters.AddWithValue("@ErrorMessage", string.IsNullOrWhiteSpace(errorMessage) ? DBNull.Value : errorMessage);
-        command.Parameters.AddWithValue("@OccurredAtUtc", DateTime.UtcNow);
-        await command.ExecuteNonQueryAsync(cancellationToken);
+        using (var connection = new SqlConnection(_connectionString))
+        {
+            await connection.OpenAsync(cancellationToken);
+            using (var command = new SqlCommand(sql, connection))
+            {
+                command.Parameters.AddWithValue("@EntityType", entityType);
+                command.Parameters.AddWithValue("@LocalKey", localKey);
+                command.Parameters.AddWithValue("@LocalKeyText", string.IsNullOrWhiteSpace(localKeyText) ? (object)DBNull.Value : localKeyText);
+                command.Parameters.AddWithValue("@Operation", operation);
+                command.Parameters.AddWithValue("@Success", success);
+                command.Parameters.AddWithValue("@RemoteId", string.IsNullOrWhiteSpace(remoteId) ? (object)DBNull.Value : remoteId);
+                command.Parameters.AddWithValue("@ErrorMessage", string.IsNullOrWhiteSpace(errorMessage) ? (object)DBNull.Value : errorMessage);
+                command.Parameters.AddWithValue("@OccurredAtUtc", DateTime.UtcNow);
+                await command.ExecuteNonQueryAsync(cancellationToken);
+            }
+        }
     }
 
-    private async Task<string?> GetReferenceIdAsync(string category, int localKey, CancellationToken cancellationToken)
+    private async Task<string> GetReferenceIdAsync(string category, int localKey, CancellationToken cancellationToken)
     {
-        var sql = $"""
+        var sql = $@"
             SELECT RemoteId
             FROM {ReferenceTable}
-            WHERE Category = @Category AND LocalKey = @LocalKey;
-            """;
+            WHERE Category = @Category AND LocalKey = @LocalKey;";
 
-        await using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
-        await using var command = new SqlCommand(sql, connection);
-        command.Parameters.AddWithValue("@Category", category);
-        command.Parameters.AddWithValue("@LocalKey", localKey);
-        var result = await command.ExecuteScalarAsync(cancellationToken);
-        return result as string;
+        using (var connection = new SqlConnection(_connectionString))
+        {
+            await connection.OpenAsync(cancellationToken);
+            using (var command = new SqlCommand(sql, connection))
+            {
+                command.Parameters.AddWithValue("@Category", category);
+                command.Parameters.AddWithValue("@LocalKey", localKey);
+                var result = await command.ExecuteScalarAsync(cancellationToken);
+                return result as string;
+            }
+        }
     }
 
     private async Task<Dictionary<int, string>> GetReferenceIdsAsync(
@@ -162,34 +171,39 @@ public sealed class ReferenceStore
             .Select((_, index) => $"@Key{index}")
             .ToArray();
 
-        var sql = $"""
+        var sql = $@"
             SELECT LocalKey, RemoteId
             FROM {ReferenceTable}
-            WHERE Category = @Category AND LocalKey IN ({string.Join(", ", parameters)});
-            """;
+            WHERE Category = @Category AND LocalKey IN ({string.Join(", ", parameters)});";
 
-        await using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
-        await using var command = new SqlCommand(sql, connection);
-        command.Parameters.AddWithValue("@Category", category);
-        for (var i = 0; i < keys.Length; i++)
+        using (var connection = new SqlConnection(_connectionString))
         {
-            command.Parameters.AddWithValue(parameters[i], keys[i]);
-        }
+            await connection.OpenAsync(cancellationToken);
+            using (var command = new SqlCommand(sql, connection))
+            {
+                command.Parameters.AddWithValue("@Category", category);
+                for (var i = 0; i < keys.Length; i++)
+                {
+                    command.Parameters.AddWithValue(parameters[i], keys[i]);
+                }
 
-        var results = new Dictionary<int, string>();
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        while (await reader.ReadAsync(cancellationToken))
-        {
-            results[reader.GetInt32(0)] = reader.GetString(1);
-        }
+                var results = new Dictionary<int, string>();
+                using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+                {
+                    while (await reader.ReadAsync(cancellationToken))
+                    {
+                        results[reader.GetInt32(0)] = reader.GetString(1);
+                    }
+                }
 
-        return results;
+                return results;
+            }
+        }
     }
 
     private async Task SetReferenceIdAsync(string category, int localKey, string remoteId, CancellationToken cancellationToken)
     {
-        var sql = $"""
+        var sql = $@"
             MERGE {ReferenceTable} AS target
             USING (SELECT @Category AS Category, @LocalKey AS LocalKey, @RemoteId AS RemoteId) AS source
             ON target.Category = source.Category AND target.LocalKey = source.LocalKey
@@ -197,37 +211,43 @@ public sealed class ReferenceStore
                 UPDATE SET RemoteId = source.RemoteId
             WHEN NOT MATCHED THEN
                 INSERT (Category, LocalKey, RemoteId)
-                VALUES (source.Category, source.LocalKey, source.RemoteId);
-            """;
+                VALUES (source.Category, source.LocalKey, source.RemoteId);";
 
-        await using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
-        await using var command = new SqlCommand(sql, connection);
-        command.Parameters.AddWithValue("@Category", category);
-        command.Parameters.AddWithValue("@LocalKey", localKey);
-        command.Parameters.AddWithValue("@RemoteId", remoteId);
-        await command.ExecuteNonQueryAsync(cancellationToken);
+        using (var connection = new SqlConnection(_connectionString))
+        {
+            await connection.OpenAsync(cancellationToken);
+            using (var command = new SqlCommand(sql, connection))
+            {
+                command.Parameters.AddWithValue("@Category", category);
+                command.Parameters.AddWithValue("@LocalKey", localKey);
+                command.Parameters.AddWithValue("@RemoteId", remoteId);
+                await command.ExecuteNonQueryAsync(cancellationToken);
+            }
+        }
     }
 
-    private async Task<string?> GetReportingTagOptionIdInternalAsync(string optionKey, CancellationToken cancellationToken)
+    private async Task<string> GetReportingTagOptionIdInternalAsync(string optionKey, CancellationToken cancellationToken)
     {
-        var sql = $"""
+        var sql = $@"
             SELECT RemoteId
             FROM {ReportingTagOptionTable}
-            WHERE OptionKey = @OptionKey;
-            """;
+            WHERE OptionKey = @OptionKey;";
 
-        await using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
-        await using var command = new SqlCommand(sql, connection);
-        command.Parameters.AddWithValue("@OptionKey", optionKey);
-        var result = await command.ExecuteScalarAsync(cancellationToken);
-        return result as string;
+        using (var connection = new SqlConnection(_connectionString))
+        {
+            await connection.OpenAsync(cancellationToken);
+            using (var command = new SqlCommand(sql, connection))
+            {
+                command.Parameters.AddWithValue("@OptionKey", optionKey);
+                var result = await command.ExecuteScalarAsync(cancellationToken);
+                return result as string;
+            }
+        }
     }
 
     private async Task SetReportingTagOptionIdInternalAsync(string optionKey, string remoteId, CancellationToken cancellationToken)
     {
-        var sql = $"""
+        var sql = $@"
             MERGE {ReportingTagOptionTable} AS target
             USING (SELECT @OptionKey AS OptionKey, @RemoteId AS RemoteId) AS source
             ON target.OptionKey = source.OptionKey
@@ -235,14 +255,18 @@ public sealed class ReferenceStore
                 UPDATE SET RemoteId = source.RemoteId
             WHEN NOT MATCHED THEN
                 INSERT (OptionKey, RemoteId)
-                VALUES (source.OptionKey, source.RemoteId);
-            """;
+                VALUES (source.OptionKey, source.RemoteId);";
 
-        await using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
-        await using var command = new SqlCommand(sql, connection);
-        command.Parameters.AddWithValue("@OptionKey", optionKey);
-        command.Parameters.AddWithValue("@RemoteId", remoteId);
-        await command.ExecuteNonQueryAsync(cancellationToken);
+        using (var connection = new SqlConnection(_connectionString))
+        {
+            await connection.OpenAsync(cancellationToken);
+            using (var command = new SqlCommand(sql, connection))
+            {
+                command.Parameters.AddWithValue("@OptionKey", optionKey);
+                command.Parameters.AddWithValue("@RemoteId", remoteId);
+                await command.ExecuteNonQueryAsync(cancellationToken);
+            }
+        }
     }
+}
 }
