@@ -6,7 +6,8 @@ namespace ZohoBooksSync.Persistence
 {
 public sealed class TokenStore
 {
-    private const string TokenTable = "ZohoBooks_TokenStore";
+    private const string TokenTable = "Sec_Crd";
+    private const string TokenCode = "ZOHO";
     private readonly Database _database;
 
     public TokenStore(Database database)
@@ -20,13 +21,15 @@ public sealed class TokenStore
             IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = '{TokenTable}')
             BEGIN
                 CREATE TABLE {TokenTable} (
-                    Id INT NOT NULL PRIMARY KEY,
-                    AccessToken NVARCHAR(MAX) NULL,
-                    AccessTokenExpiresAtUtc DATETIME2 NULL,
-                    RefreshToken NVARCHAR(MAX) NULL,
-                    ClientId NVARCHAR(256) NULL,
-                    ClientSecret NVARCHAR(MAX) NULL,
-                    TokenEndpoint NVARCHAR(512) NULL
+                    Code NVARCHAR(32) NOT NULL PRIMARY KEY,
+                    Client_ID NVARCHAR(256) NULL,
+                    Client_Secret NVARCHAR(MAX) NULL,
+                    Refresh_Token NVARCHAR(MAX) NULL,
+                    Access_Token NVARCHAR(MAX) NULL,
+                    TokenValidity DATETIME2 NULL,
+                    ModifyDate DATETIME2 NULL,
+                    ModifyUserID INT NULL,
+                    RefreshToken_URL NVARCHAR(512) NULL
                 );
             END";
 
@@ -40,14 +43,20 @@ public sealed class TokenStore
     public async Task<TokenData> GetAsync(CancellationToken cancellationToken = default)
     {
         var sql = $@"
-            SELECT AccessToken, AccessTokenExpiresAtUtc, RefreshToken, ClientId, ClientSecret, TokenEndpoint
+            SELECT Access_Token,
+                   TokenValidity,
+                   Refresh_Token,
+                   Client_ID,
+                   Client_Secret,
+                   RefreshToken_URL
             FROM {TokenTable}
-            WHERE Id = 1;";
+            WHERE Code = @Code;";
 
         await EnsureConnectionOpenAsync(cancellationToken);
         using (var command = CreateCommand(sql))
         using (var reader = await command.ExecuteReaderAsync(cancellationToken))
         {
+            AddParameter(command, "@Code", TokenCode);
             if (!await reader.ReadAsync(cancellationToken))
             {
                 return null;
@@ -69,19 +78,21 @@ public sealed class TokenStore
     {
         var sql = $@"
             MERGE {TokenTable} AS target
-            USING (SELECT 1 AS Id) AS source
-            ON target.Id = source.Id
+            USING (SELECT @Code AS Code) AS source
+            ON target.Code = source.Code
             WHEN MATCHED THEN
                 UPDATE SET
-                    AccessToken = @AccessToken,
-                    AccessTokenExpiresAtUtc = @AccessTokenExpiresAtUtc,
-                    RefreshToken = @RefreshToken,
-                    ClientId = @ClientId,
-                    ClientSecret = @ClientSecret,
-                    TokenEndpoint = @TokenEndpoint
+                    Access_Token = @AccessToken,
+                    TokenValidity = @AccessTokenExpiresAtUtc,
+                    Refresh_Token = @RefreshToken,
+                    Client_ID = @ClientId,
+                    Client_Secret = @ClientSecret,
+                    RefreshToken_URL = @TokenEndpoint,
+                    ModifyDate = @ModifyDate,
+                    ModifyUserID = @ModifyUserID
             WHEN NOT MATCHED THEN
-                INSERT (Id, AccessToken, AccessTokenExpiresAtUtc, RefreshToken, ClientId, ClientSecret, TokenEndpoint)
-                VALUES (1, @AccessToken, @AccessTokenExpiresAtUtc, @RefreshToken, @ClientId, @ClientSecret, @TokenEndpoint);";
+                INSERT (Code, Access_Token, TokenValidity, Refresh_Token, Client_ID, Client_Secret, RefreshToken_URL, ModifyDate, ModifyUserID)
+                VALUES (@Code, @AccessToken, @AccessTokenExpiresAtUtc, @RefreshToken, @ClientId, @ClientSecret, @TokenEndpoint, @ModifyDate, @ModifyUserID);";
 
         await EnsureConnectionOpenAsync(cancellationToken);
         using (var command = CreateCommand(sql))
@@ -95,15 +106,20 @@ public sealed class TokenStore
     {
         var sql = $@"
             UPDATE {TokenTable}
-            SET AccessToken = @AccessToken,
-                AccessTokenExpiresAtUtc = @AccessTokenExpiresAtUtc
-            WHERE Id = 1;";
+            SET Access_Token = @AccessToken,
+                TokenValidity = @AccessTokenExpiresAtUtc,
+                ModifyDate = @ModifyDate,
+                ModifyUserID = @ModifyUserID
+            WHERE Code = @Code;";
 
         await EnsureConnectionOpenAsync(cancellationToken);
         using (var command = CreateCommand(sql))
         {
             AddParameter(command, "@AccessToken", accessToken);
             AddParameter(command, "@AccessTokenExpiresAtUtc", expiresAtUtc.HasValue ? (object)expiresAtUtc.Value : DBNull.Value);
+            AddParameter(command, "@ModifyDate", DateTime.UtcNow);
+            AddParameter(command, "@ModifyUserID", 1);
+            AddParameter(command, "@Code", TokenCode);
             await command.ExecuteNonQueryAsync(cancellationToken);
         }
     }
@@ -116,6 +132,9 @@ public sealed class TokenStore
         AddParameter(command, "@ClientId", string.IsNullOrWhiteSpace(data.ClientId) ? (object)DBNull.Value : data.ClientId);
         AddParameter(command, "@ClientSecret", string.IsNullOrWhiteSpace(data.ClientSecret) ? (object)DBNull.Value : data.ClientSecret);
         AddParameter(command, "@TokenEndpoint", string.IsNullOrWhiteSpace(data.TokenEndpoint) ? (object)DBNull.Value : data.TokenEndpoint);
+        AddParameter(command, "@ModifyDate", DateTime.UtcNow);
+        AddParameter(command, "@ModifyUserID", 1);
+        AddParameter(command, "@Code", TokenCode);
     }
 
     private async Task EnsureConnectionOpenAsync(CancellationToken cancellationToken)
