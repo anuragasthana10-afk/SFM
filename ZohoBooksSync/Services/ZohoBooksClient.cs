@@ -11,15 +11,22 @@ public sealed class ZohoBooksClient
 {
     private readonly HttpClient _httpClient;
     private readonly ZohoBooksOptions _options;
+    private readonly ZohoBooksConnectionOptions _connectionOptions;
     private readonly ReferenceStore _referenceStore;
     private readonly ZohoTokenProvider _tokenProvider;
     private readonly Dictionary<string, ReportingTag> _reportingTags = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _reportingTagOptionCache = new(StringComparer.OrdinalIgnoreCase);
 
-    public ZohoBooksClient(HttpClient httpClient, ZohoBooksOptions options, ReferenceStore referenceStore, ZohoTokenProvider tokenProvider)
+    public ZohoBooksClient(
+        HttpClient httpClient,
+        ZohoBooksOptions options,
+        ZohoBooksConnectionOptions connectionOptions,
+        ReferenceStore referenceStore,
+        ZohoTokenProvider tokenProvider)
     {
         _httpClient = httpClient;
         _options = options;
+        _connectionOptions = connectionOptions;
         _referenceStore = referenceStore;
         _tokenProvider = tokenProvider;
     }
@@ -347,10 +354,10 @@ public sealed class ZohoBooksClient
 
     private async Task<HttpRequestMessage> CreateRequestAsync(HttpMethod method, string path, CancellationToken cancellationToken)
     {
-        var request = new HttpRequestMessage(method, $"{_options.BaseUrl}/{path}");
+        var request = new HttpRequestMessage(method, $"{_connectionOptions.BaseUrl}/{path}");
         var accessToken = await _tokenProvider.GetAccessTokenAsync(cancellationToken);
         request.Headers.Authorization = new AuthenticationHeaderValue("Zoho-oauthtoken", accessToken);
-        request.Headers.Add("X-com-zoho-books-organizationid", _options.OrganizationId);
+        request.Headers.Add("X-com-zoho-books-organizationid", _connectionOptions.OrganizationId);
         return request;
     }
 

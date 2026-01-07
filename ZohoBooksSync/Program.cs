@@ -4,25 +4,26 @@ using ZohoBooksSync.Persistence;
 using ZohoBooksSync.Services;
 
 var options = ZohoBooksOptions.FromEnvironment();
+var connectionOptions = ZohoBooksConnectionOptions.FromEnvironment();
 
-if (string.IsNullOrWhiteSpace(options.OrganizationId))
+if (string.IsNullOrWhiteSpace(connectionOptions.OrganizationId))
 {
     Console.WriteLine("Configure ZOHO_BOOKS_ORGANIZATION_ID to run the sync.");
     return;
 }
 
-if (string.IsNullOrWhiteSpace(options.SqlConnectionString))
+if (string.IsNullOrWhiteSpace(connectionOptions.SqlConnectionString))
 {
     Console.WriteLine("Configure ZOHO_BOOKS_SQL_CONNECTION_STRING to run the sync.");
     return;
 }
 
-var referenceStore = new ReferenceStore(options.SqlConnectionString);
+var referenceStore = new ReferenceStore(connectionOptions.SqlConnectionString);
 await referenceStore.InitializeAsync();
 
 using var httpClient = new HttpClient();
 var tokenProvider = new ZohoTokenProvider(httpClient, options);
-var zohoClient = new ZohoBooksClient(httpClient, options, referenceStore, tokenProvider);
+var zohoClient = new ZohoBooksClient(httpClient, options, connectionOptions, referenceStore, tokenProvider);
 
 var inventoryItems = new List<InventoryItem>
 {
