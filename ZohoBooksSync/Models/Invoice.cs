@@ -7,6 +7,8 @@ public sealed class Invoice
     public required DateTime InvoiceDate { get; init; }
     public required IReadOnlyList<InvoiceLineItem> LineItems { get; init; }
     public string? CurrencyCode { get; init; }
+    public string? Jurisdiction { get; init; }
+    public string? RelationshipManager { get; init; }
     public string? Notes { get; init; }
 }
 

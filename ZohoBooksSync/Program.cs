@@ -49,6 +49,8 @@ var invoices = new List<Invoice>
         ContactLocalId = "contact-100",
         InvoiceDate = DateTime.UtcNow.Date,
         CurrencyCode = "USD",
+        Jurisdiction = "US",
+        RelationshipManager = "Taylor Reed",
         Notes = "Thanks for your business.",
         LineItems = new List<InvoiceLineItem>
         {

@@ -42,15 +42,18 @@ public sealed class ReferenceStore
     public string? GetItemId(string localId) => _data.Items.GetValueOrDefault(localId);
     public string? GetContactId(string localId) => _data.Contacts.GetValueOrDefault(localId);
     public string? GetInvoiceId(string localId) => _data.Invoices.GetValueOrDefault(localId);
+    public string? GetReportingTagOptionId(string key) => _data.ReportingTagOptions.GetValueOrDefault(key);
 
     public void SetItemId(string localId, string remoteId) => _data.Items[localId] = remoteId;
     public void SetContactId(string localId, string remoteId) => _data.Contacts[localId] = remoteId;
     public void SetInvoiceId(string localId, string remoteId) => _data.Invoices[localId] = remoteId;
+    public void SetReportingTagOptionId(string key, string remoteId) => _data.ReportingTagOptions[key] = remoteId;
 
     private sealed class ReferenceData
     {
         public Dictionary<string, string> Items { get; init; } = new();
         public Dictionary<string, string> Contacts { get; init; } = new();
         public Dictionary<string, string> Invoices { get; init; } = new();
+        public Dictionary<string, string> ReportingTagOptions { get; init; } = new();
     }
 }

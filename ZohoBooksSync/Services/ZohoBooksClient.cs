@@ -13,6 +13,7 @@ public sealed class ZohoBooksClient
     private readonly ZohoBooksOptions _options;
     private readonly ReferenceStore _referenceStore;
     private readonly ZohoTokenProvider _tokenProvider;
+    private readonly Dictionary<string, ReportingTag> _reportingTags = new(StringComparer.OrdinalIgnoreCase);
 
     public ZohoBooksClient(HttpClient httpClient, ZohoBooksOptions options, ReferenceStore referenceStore, ZohoTokenProvider tokenProvider)
     {
@@ -97,12 +98,14 @@ public sealed class ZohoBooksClient
                 quantity = item.Quantity
             });
 
+            var reportingTagDetails = await BuildReportingTagDetailsAsync(invoice, cancellationToken);
             var payload = new
             {
                 customer_id = contactId,
                 date = invoice.InvoiceDate.ToString("yyyy-MM-dd"),
                 currency_code = invoice.CurrencyCode,
                 line_items = lineItems,
+                reporting_tag_details = reportingTagDetails,
                 notes = invoice.Notes
             };
 
@@ -172,17 +175,21 @@ public sealed class ZohoBooksClient
                 quantity = item.Quantity
             });
 
+            var reportingTagDetails = await BuildReportingTagDetailsAsync(invoice, cancellationToken);
             var payload = new
             {
                 customer_id = contactId,
                 date = invoice.InvoiceDate.ToString("yyyy-MM-dd"),
                 currency_code = invoice.CurrencyCode,
                 line_items = lineItems,
+                reporting_tag_details = reportingTagDetails,
                 notes = invoice.Notes
             };
 
             await PutAsync($"invoices/{remoteId}", payload, cancellationToken);
         }
+
+        await _referenceStore.SaveAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyList<InvoicePayment>> PullPaymentsAsync(IEnumerable<string> invoiceLocalIds, CancellationToken cancellationToken = default)
@@ -264,6 +271,119 @@ public sealed class ZohoBooksClient
         return request;
     }
 
+    private async Task<IReadOnlyList<object>> BuildReportingTagDetailsAsync(Invoice invoice, CancellationToken cancellationToken)
+    {
+        var details = new List<object>();
+
+        if (!string.IsNullOrWhiteSpace(invoice.Jurisdiction))
+        {
+            var option = await EnsureReportingTagOptionAsync("Jurisdiction", invoice.Jurisdiction, cancellationToken);
+            details.Add(new
+            {
+                reporting_tag_id = option.TagId,
+                reporting_tag_option_id = option.OptionId
+            });
+        }
+
+        if (!string.IsNullOrWhiteSpace(invoice.RelationshipManager))
+        {
+            var option = await EnsureReportingTagOptionAsync("RelationshipManager", invoice.RelationshipManager, cancellationToken);
+            details.Add(new
+            {
+                reporting_tag_id = option.TagId,
+                reporting_tag_option_id = option.OptionId
+            });
+        }
+
+        return details;
+    }
+
+    private async Task<ReportingTagOption> EnsureReportingTagOptionAsync(string tagName, string optionName, CancellationToken cancellationToken)
+    {
+        var optionKey = BuildReportingTagOptionKey(tagName, optionName);
+        var existingOptionId = _referenceStore.GetReportingTagOptionId(optionKey);
+        if (!string.IsNullOrWhiteSpace(existingOptionId))
+        {
+            var tag = await GetReportingTagAsync(tagName, cancellationToken);
+            return new ReportingTagOption(tag.Id, existingOptionId);
+        }
+
+        var reportingTag = await GetReportingTagAsync(tagName, cancellationToken);
+        if (reportingTag.OptionsByName.TryGetValue(optionName, out var remoteOptionId))
+        {
+            _referenceStore.SetReportingTagOptionId(optionKey, remoteOptionId);
+            return new ReportingTagOption(reportingTag.Id, remoteOptionId);
+        }
+
+        var payload = new
+        {
+            option_name = optionName
+        };
+
+        var response = await PostAsync($"settings/reportingtags/{reportingTag.Id}/options", payload, cancellationToken);
+        var createdOptionId = ExtractId(response, "reporting_tag_option", "option_id");
+        _referenceStore.SetReportingTagOptionId(optionKey, createdOptionId);
+        reportingTag.OptionsByName[optionName] = createdOptionId;
+        return new ReportingTagOption(reportingTag.Id, createdOptionId);
+    }
+
+    private async Task<ReportingTag> GetReportingTagAsync(string tagName, CancellationToken cancellationToken)
+    {
+        if (_reportingTags.TryGetValue(tagName, out var cachedTag))
+        {
+            return cachedTag;
+        }
+
+        var response = await GetAsync("settings/reportingtags", cancellationToken);
+        if (!response.TryGetProperty("reporting_tags", out var tagsElement))
+        {
+            throw new InvalidOperationException("Unable to load reporting tags from Zoho Books.");
+        }
+
+        foreach (var tagElement in tagsElement.EnumerateArray())
+        {
+            if (!tagElement.TryGetProperty("tag_name", out var tagNameElement))
+            {
+                continue;
+            }
+
+            var name = tagNameElement.GetString();
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                continue;
+            }
+
+            var tagId = tagElement.GetProperty("tag_id").GetString() ?? string.Empty;
+            var optionsByName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            if (tagElement.TryGetProperty("tag_options", out var optionsElement))
+            {
+                foreach (var optionElement in optionsElement.EnumerateArray())
+                {
+                    var optionName = optionElement.GetProperty("option_name").GetString();
+                    var optionId = optionElement.GetProperty("option_id").GetString();
+                    if (!string.IsNullOrWhiteSpace(optionName) && !string.IsNullOrWhiteSpace(optionId))
+                    {
+                        optionsByName[optionName] = optionId;
+                    }
+                }
+            }
+
+            var reportingTag = new ReportingTag(tagId, optionsByName);
+            _reportingTags[name] = reportingTag;
+        }
+
+        if (_reportingTags.TryGetValue(tagName, out var foundTag))
+        {
+            return foundTag;
+        }
+
+        throw new InvalidOperationException($"Reporting tag '{tagName}' not found in Zoho Books.");
+    }
+
+    private static string BuildReportingTagOptionKey(string tagName, string optionName)
+        => $"{tagName.Trim()}::{optionName.Trim()}".ToLowerInvariant();
+
     private static async Task<JsonElement> EnsureSuccessAsync(HttpResponseMessage response, CancellationToken cancellationToken)
     {
         var content = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -286,4 +406,8 @@ public sealed class ZohoBooksClient
 
         throw new InvalidOperationException($"Unable to locate {idProperty} in Zoho response.");
     }
+
+    private sealed record ReportingTag(string Id, Dictionary<string, string> OptionsByName);
+
+    private sealed record ReportingTagOption(string TagId, string OptionId);
 }
