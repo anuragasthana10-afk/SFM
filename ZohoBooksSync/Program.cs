@@ -28,14 +28,15 @@ namespace ZohoBooksSync
                 return;
             }
 
-            var referenceStore = new ReferenceStore(connectionOptions.SqlConnectionString);
-            await referenceStore.InitializeAsync();
-
-            var tokenStore = new TokenStore(connectionOptions.SqlConnectionString);
-            await tokenStore.InitializeAsync();
-
+            using (var dbContext = new ZohoBooksDbContext(connectionOptions.SqlConnectionString))
             using (var httpClient = new HttpClient())
             {
+                var referenceStore = new ReferenceStore(dbContext.Database);
+                await referenceStore.InitializeAsync();
+
+                var tokenStore = new TokenStore(dbContext.Database);
+                await tokenStore.InitializeAsync();
+
                 var tokenProvider = new ZohoTokenProvider(httpClient, options, tokenStore);
                 var zohoClient = new ZohoBooksClient(httpClient, options, connectionOptions, referenceStore, tokenProvider);
 

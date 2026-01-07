@@ -1,4 +1,6 @@
-using Microsoft.Data.SqlClient;
+using System.Data;
+using System.Data.Common;
+using System.Data.Entity;
 
 namespace ZohoBooksSync.Persistence
 {
@@ -11,11 +13,11 @@ public sealed class ReferenceStore
     private const string ReferenceTable = "ZohoBooks_ReferenceStore";
     private const string ReportingTagOptionTable = "ZohoBooks_ReportingTagOptions";
 
-    private readonly string _connectionString;
+    private readonly Database _database;
 
-    public ReferenceStore(string connectionString)
+    public ReferenceStore(Database database)
     {
-        _connectionString = connectionString;
+        _database = database;
     }
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
@@ -52,13 +54,10 @@ public sealed class ReferenceStore
                 );
             END";
 
-        using (var connection = new SqlConnection(_connectionString))
+        await EnsureConnectionOpenAsync(cancellationToken);
+        using (var command = CreateCommand(sql))
         {
-            await connection.OpenAsync(cancellationToken);
-            using (var command = new SqlCommand(sql, connection))
-            {
-                await command.ExecuteNonQueryAsync(cancellationToken);
-            }
+            await command.ExecuteNonQueryAsync(cancellationToken);
         }
     }
 
@@ -118,21 +117,18 @@ public sealed class ReferenceStore
                 @OccurredAtUtc
             );";
 
-        using (var connection = new SqlConnection(_connectionString))
+        await EnsureConnectionOpenAsync(cancellationToken);
+        using (var command = CreateCommand(sql))
         {
-            await connection.OpenAsync(cancellationToken);
-            using (var command = new SqlCommand(sql, connection))
-            {
-                command.Parameters.AddWithValue("@EntityType", entityType);
-                command.Parameters.AddWithValue("@LocalKey", localKey);
-                command.Parameters.AddWithValue("@LocalKeyText", string.IsNullOrWhiteSpace(localKeyText) ? (object)DBNull.Value : localKeyText);
-                command.Parameters.AddWithValue("@Operation", operation);
-                command.Parameters.AddWithValue("@Success", success);
-                command.Parameters.AddWithValue("@RemoteId", string.IsNullOrWhiteSpace(remoteId) ? (object)DBNull.Value : remoteId);
-                command.Parameters.AddWithValue("@ErrorMessage", string.IsNullOrWhiteSpace(errorMessage) ? (object)DBNull.Value : errorMessage);
-                command.Parameters.AddWithValue("@OccurredAtUtc", DateTime.UtcNow);
-                await command.ExecuteNonQueryAsync(cancellationToken);
-            }
+            AddParameter(command, "@EntityType", entityType);
+            AddParameter(command, "@LocalKey", localKey);
+            AddParameter(command, "@LocalKeyText", string.IsNullOrWhiteSpace(localKeyText) ? (object)DBNull.Value : localKeyText);
+            AddParameter(command, "@Operation", operation);
+            AddParameter(command, "@Success", success);
+            AddParameter(command, "@RemoteId", string.IsNullOrWhiteSpace(remoteId) ? (object)DBNull.Value : remoteId);
+            AddParameter(command, "@ErrorMessage", string.IsNullOrWhiteSpace(errorMessage) ? (object)DBNull.Value : errorMessage);
+            AddParameter(command, "@OccurredAtUtc", DateTime.UtcNow);
+            await command.ExecuteNonQueryAsync(cancellationToken);
         }
     }
 
@@ -143,16 +139,13 @@ public sealed class ReferenceStore
             FROM {ReferenceTable}
             WHERE Category = @Category AND LocalKey = @LocalKey;";
 
-        using (var connection = new SqlConnection(_connectionString))
+        await EnsureConnectionOpenAsync(cancellationToken);
+        using (var command = CreateCommand(sql))
         {
-            await connection.OpenAsync(cancellationToken);
-            using (var command = new SqlCommand(sql, connection))
-            {
-                command.Parameters.AddWithValue("@Category", category);
-                command.Parameters.AddWithValue("@LocalKey", localKey);
-                var result = await command.ExecuteScalarAsync(cancellationToken);
-                return result as string;
-            }
+            AddParameter(command, "@Category", category);
+            AddParameter(command, "@LocalKey", localKey);
+            var result = await command.ExecuteScalarAsync(cancellationToken);
+            return result == null || result == DBNull.Value ? null : result.ToString();
         }
     }
 
@@ -176,28 +169,25 @@ public sealed class ReferenceStore
             FROM {ReferenceTable}
             WHERE Category = @Category AND LocalKey IN ({string.Join(", ", parameters)});";
 
-        using (var connection = new SqlConnection(_connectionString))
+        await EnsureConnectionOpenAsync(cancellationToken);
+        using (var command = CreateCommand(sql))
         {
-            await connection.OpenAsync(cancellationToken);
-            using (var command = new SqlCommand(sql, connection))
+            AddParameter(command, "@Category", category);
+            for (var i = 0; i < keys.Length; i++)
             {
-                command.Parameters.AddWithValue("@Category", category);
-                for (var i = 0; i < keys.Length; i++)
-                {
-                    command.Parameters.AddWithValue(parameters[i], keys[i]);
-                }
-
-                var results = new Dictionary<int, string>();
-                using (var reader = await command.ExecuteReaderAsync(cancellationToken))
-                {
-                    while (await reader.ReadAsync(cancellationToken))
-                    {
-                        results[reader.GetInt32(0)] = reader.GetString(1);
-                    }
-                }
-
-                return results;
+                AddParameter(command, parameters[i], keys[i]);
             }
+
+            var results = new Dictionary<int, string>();
+            using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+            {
+                while (await reader.ReadAsync(cancellationToken))
+                {
+                    results[reader.GetInt32(0)] = reader.GetString(1);
+                }
+            }
+
+            return results;
         }
     }
 
@@ -213,16 +203,13 @@ public sealed class ReferenceStore
                 INSERT (Category, LocalKey, RemoteId)
                 VALUES (source.Category, source.LocalKey, source.RemoteId);";
 
-        using (var connection = new SqlConnection(_connectionString))
+        await EnsureConnectionOpenAsync(cancellationToken);
+        using (var command = CreateCommand(sql))
         {
-            await connection.OpenAsync(cancellationToken);
-            using (var command = new SqlCommand(sql, connection))
-            {
-                command.Parameters.AddWithValue("@Category", category);
-                command.Parameters.AddWithValue("@LocalKey", localKey);
-                command.Parameters.AddWithValue("@RemoteId", remoteId);
-                await command.ExecuteNonQueryAsync(cancellationToken);
-            }
+            AddParameter(command, "@Category", category);
+            AddParameter(command, "@LocalKey", localKey);
+            AddParameter(command, "@RemoteId", remoteId);
+            await command.ExecuteNonQueryAsync(cancellationToken);
         }
     }
 
@@ -233,15 +220,12 @@ public sealed class ReferenceStore
             FROM {ReportingTagOptionTable}
             WHERE OptionKey = @OptionKey;";
 
-        using (var connection = new SqlConnection(_connectionString))
+        await EnsureConnectionOpenAsync(cancellationToken);
+        using (var command = CreateCommand(sql))
         {
-            await connection.OpenAsync(cancellationToken);
-            using (var command = new SqlCommand(sql, connection))
-            {
-                command.Parameters.AddWithValue("@OptionKey", optionKey);
-                var result = await command.ExecuteScalarAsync(cancellationToken);
-                return result as string;
-            }
+            AddParameter(command, "@OptionKey", optionKey);
+            var result = await command.ExecuteScalarAsync(cancellationToken);
+            return result == null || result == DBNull.Value ? null : result.ToString();
         }
     }
 
@@ -257,16 +241,36 @@ public sealed class ReferenceStore
                 INSERT (OptionKey, RemoteId)
                 VALUES (source.OptionKey, source.RemoteId);";
 
-        using (var connection = new SqlConnection(_connectionString))
+        await EnsureConnectionOpenAsync(cancellationToken);
+        using (var command = CreateCommand(sql))
         {
-            await connection.OpenAsync(cancellationToken);
-            using (var command = new SqlCommand(sql, connection))
-            {
-                command.Parameters.AddWithValue("@OptionKey", optionKey);
-                command.Parameters.AddWithValue("@RemoteId", remoteId);
-                await command.ExecuteNonQueryAsync(cancellationToken);
-            }
+            AddParameter(command, "@OptionKey", optionKey);
+            AddParameter(command, "@RemoteId", remoteId);
+            await command.ExecuteNonQueryAsync(cancellationToken);
         }
+    }
+
+    private async Task EnsureConnectionOpenAsync(CancellationToken cancellationToken)
+    {
+        if (_database.Connection.State != ConnectionState.Open)
+        {
+            await _database.Connection.OpenAsync(cancellationToken);
+        }
+    }
+
+    private DbCommand CreateCommand(string sql)
+    {
+        var command = _database.Connection.CreateCommand();
+        command.CommandText = sql;
+        return command;
+    }
+
+    private static void AddParameter(DbCommand command, string name, object value)
+    {
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = name;
+        parameter.Value = value;
+        command.Parameters.Add(parameter);
     }
 }
 }
