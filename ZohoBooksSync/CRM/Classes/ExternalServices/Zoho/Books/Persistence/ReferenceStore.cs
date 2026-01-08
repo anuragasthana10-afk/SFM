@@ -159,23 +159,6 @@ public sealed class ReferenceStore
         }
     }
 
-    private async Task<string> GetReferenceIdAsync(string category, int localKey, CancellationToken cancellationToken)
-    {
-        var sql = $@"
-            SELECT RemoteId
-            FROM {ReferenceTable}
-            WHERE EntityType = @EntityType AND LocalKey = @LocalKey;";
-
-        await EnsureConnectionOpenAsync(cancellationToken);
-        using (var command = CreateCommand(sql))
-        {
-            AddParameter(command, "@EntityType", category);
-            AddParameter(command, "@LocalKey", localKey);
-            var result = await command.ExecuteScalarAsync(cancellationToken);
-            return result == null || result == DBNull.Value ? null : result.ToString();
-        }
-    }
-
     private async Task<Dictionary<int, string>> GetReferenceIdsAsync(
         string category,
         IEnumerable<int> localKeys,
