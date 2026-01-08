@@ -6,9 +6,13 @@ namespace CRM.Classes.ExternalServices.Zoho.Books.Persistence
 {
 public sealed class ReferenceStore
 {
-    private const string ItemsCategory = "Items";
-    private const string ContactsCategory = "Contacts";
-    private const string InvoicesCategory = "Invoices";
+    private enum ReferenceCategory
+    {
+        Items,
+        Contacts,
+        Invoices
+    }
+
     private const string SyncLogTable = "ZohoBooks_SyncOperationLog";
     private const string ReferenceTable = "ZohoBooks_ReferenceStore";
     private const string ReportingTagOptionTable = "ZohoBooks_ReportingTagOptions";
@@ -62,25 +66,25 @@ public sealed class ReferenceStore
     }
 
     public Task<Dictionary<int, string>> GetItemIdsAsync(IEnumerable<int> localIds, CancellationToken cancellationToken = default)
-        => GetReferenceIdsAsync(ItemsCategory, localIds, cancellationToken);
+        => GetReferenceIdsAsync(ReferenceCategory.Items.ToString(), localIds, cancellationToken);
 
     public Task<Dictionary<int, string>> GetContactIdsAsync(IEnumerable<int> localIds, CancellationToken cancellationToken = default)
-        => GetReferenceIdsAsync(ContactsCategory, localIds, cancellationToken);
+        => GetReferenceIdsAsync(ReferenceCategory.Contacts.ToString(), localIds, cancellationToken);
 
     public Task<Dictionary<int, string>> GetInvoiceIdsAsync(IEnumerable<int> localIds, CancellationToken cancellationToken = default)
-        => GetReferenceIdsAsync(InvoicesCategory, localIds, cancellationToken);
+        => GetReferenceIdsAsync(ReferenceCategory.Invoices.ToString(), localIds, cancellationToken);
 
     public Task<string> GetReportingTagOptionIdAsync(string key, CancellationToken cancellationToken = default)
         => GetReportingTagOptionIdInternalAsync(key, cancellationToken);
 
     public Task SetItemIdAsync(int localId, string remoteId, CancellationToken cancellationToken = default)
-        => SetReferenceIdAsync(ItemsCategory, localId, remoteId, cancellationToken);
+        => SetReferenceIdAsync(ReferenceCategory.Items.ToString(), localId, remoteId, cancellationToken);
 
     public Task SetContactIdAsync(int localId, string remoteId, CancellationToken cancellationToken = default)
-        => SetReferenceIdAsync(ContactsCategory, localId, remoteId, cancellationToken);
+        => SetReferenceIdAsync(ReferenceCategory.Contacts.ToString(), localId, remoteId, cancellationToken);
 
     public Task SetInvoiceIdAsync(int localId, string remoteId, CancellationToken cancellationToken = default)
-        => SetReferenceIdAsync(InvoicesCategory, localId, remoteId, cancellationToken);
+        => SetReferenceIdAsync(ReferenceCategory.Invoices.ToString(), localId, remoteId, cancellationToken);
 
     public Task SetReportingTagOptionIdAsync(string key, string remoteId, CancellationToken cancellationToken = default)
         => SetReportingTagOptionIdInternalAsync(key, remoteId, cancellationToken);
