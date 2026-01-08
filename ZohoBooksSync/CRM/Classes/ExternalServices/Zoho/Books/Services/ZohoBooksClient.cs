@@ -584,15 +584,7 @@ public sealed class ZohoBooksClient
 
             if (tagElement.TryGetProperty("tag_options", out var optionsElement))
             {
-                foreach (var optionElement in optionsElement.EnumerateArray())
-                {
-                    var optionName = optionElement.GetProperty("option_name").GetString();
-                    var optionId = optionElement.GetProperty("option_id").GetString();
-                    if (!string.IsNullOrWhiteSpace(optionName) && !string.IsNullOrWhiteSpace(optionId))
-                    {
-                        optionsByName[optionName] = optionId;
-                    }
-                }
+                AddReportingTagOptions(optionsByName, optionsElement);
             }
 
             var reportingTag = new ReportingTag(tagId, optionsByName);
@@ -609,6 +601,63 @@ public sealed class ZohoBooksClient
 
     private static string BuildReportingTagOptionKey(string tagName, string optionName)
         => $"{tagName.Trim()}::{optionName.Trim()}".ToLowerInvariant();
+
+    private static void AddReportingTagOptions(Dictionary<string, string> optionsByName, JsonElement optionsElement)
+    {
+        if (optionsElement.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var optionElement in optionsElement.EnumerateArray())
+            {
+                AddReportingTagOption(optionsByName, optionElement);
+            }
+
+            return;
+        }
+
+        if (optionsElement.ValueKind == JsonValueKind.String)
+        {
+            var optionName = optionsElement.GetString();
+            if (!string.IsNullOrWhiteSpace(optionName))
+            {
+                optionsByName[optionName] = optionName;
+            }
+
+            return;
+        }
+
+        AddReportingTagOption(optionsByName, optionsElement);
+    }
+
+    private static void AddReportingTagOption(Dictionary<string, string> optionsByName, JsonElement optionElement)
+    {
+        if (optionElement.ValueKind == JsonValueKind.String)
+        {
+            var optionName = optionElement.GetString();
+            if (!string.IsNullOrWhiteSpace(optionName))
+            {
+                optionsByName[optionName] = optionName;
+            }
+
+            return;
+        }
+
+        if (optionElement.ValueKind != JsonValueKind.Object)
+        {
+            return;
+        }
+
+        var optionName = optionElement.TryGetProperty("option_name", out var nameElement)
+            ? nameElement.GetString()
+            : null;
+        var optionId = optionElement.TryGetProperty("option_id", out var idElement)
+            ? idElement.GetString()
+            : null;
+
+        if (!string.IsNullOrWhiteSpace(optionName) && !string.IsNullOrWhiteSpace(optionId))
+        {
+            optionsByName[optionName] = optionId;
+        }
+    }
 
     private static async Task<JsonElement> EnsureSuccessAsync(HttpResponseMessage response, CancellationToken cancellationToken)
     {
