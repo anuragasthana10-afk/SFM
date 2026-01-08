@@ -167,7 +167,8 @@ public sealed class ZohoBooksClient
                     notes = invoice.Notes,
                     tax_id = invoice.TaxId,
                     tax_name = invoice.TaxName,
-                    tax_percentage = invoice.TaxPercentage
+                    tax_percentage = invoice.TaxPercentage,
+                    tax_treatment = invoice.TaxTreatment
                 };
 
                 var response = await PostAsync("invoices", payload, cancellationToken);
@@ -289,7 +290,8 @@ public sealed class ZohoBooksClient
                     notes = invoice.Notes,
                     tax_id = invoice.TaxId,
                     tax_name = invoice.TaxName,
-                    tax_percentage = invoice.TaxPercentage
+                    tax_percentage = invoice.TaxPercentage,
+                    tax_treatment = invoice.TaxTreatment
                 };
 
                 await PutAsync($"invoices/{remoteId}", payload, cancellationToken);
