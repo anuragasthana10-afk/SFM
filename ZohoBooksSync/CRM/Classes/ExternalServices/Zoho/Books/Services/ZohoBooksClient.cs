@@ -163,7 +163,7 @@ public sealed class ZohoBooksClient
                     date = invoice.InvoiceDate.ToString("yyyy-MM-dd"),
                     currency_code = invoice.CurrencyCode,
                     line_items = lineItems,
-                    reporting_tag_details = reportingTagDetails,
+                    tags = reportingTagDetails,
                     notes = invoice.Notes,
                     tax_id = invoice.TaxId,
                     tax_name = invoice.TaxName,
@@ -285,7 +285,7 @@ public sealed class ZohoBooksClient
                     date = invoice.InvoiceDate.ToString("yyyy-MM-dd"),
                     currency_code = invoice.CurrencyCode,
                     line_items = lineItems,
-                    reporting_tag_details = reportingTagDetails,
+                    tags = reportingTagDetails,
                     notes = invoice.Notes,
                     tax_id = invoice.TaxId,
                     tax_name = invoice.TaxName,
@@ -475,8 +475,8 @@ public sealed class ZohoBooksClient
             var option = await EnsureReportingTagOptionAsync("Jurisdiction", invoice.Jurisdiction, cancellationToken);
             details.Add(new
             {
-                reporting_tag_id = option.TagId,
-                reporting_tag_option_id = option.OptionId
+                tag_id = option.TagId,
+                tag_option_id = option.OptionId
             });
         }
 
@@ -485,8 +485,8 @@ public sealed class ZohoBooksClient
             var option = await EnsureReportingTagOptionAsync("RelationshipManager", invoice.RelationshipManager, cancellationToken);
             details.Add(new
             {
-                reporting_tag_id = option.TagId,
-                reporting_tag_option_id = option.OptionId
+                tag_id = option.TagId,
+                tag_option_id = option.OptionId
             });
         }
 
