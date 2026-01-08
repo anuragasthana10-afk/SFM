@@ -157,20 +157,24 @@ public sealed class ZohoBooksClient
             {
                 await EnsureCurrencyAsync(invoice.CurrencyCode, cancellationToken);
                 var reportingTagDetails = await BuildReportingTagDetailsAsync(invoice, cancellationToken);
-                var payload = new
+                var payload = new Dictionary<string, object>
                 {
-                    customer_id = contactId,
-                    date = invoice.InvoiceDate.ToString("yyyy-MM-dd"),
-                    currency_code = invoice.CurrencyCode,
-                    line_items = lineItems,
-                    tags = reportingTagDetails,
-                    notes = invoice.Notes,
-                    tax_id = invoice.TaxId,
-                    tax_name = invoice.TaxName,
-                    tax_percentage = invoice.TaxPercentage,
-                    tax_treatment = invoice.TaxTreatment,
-                    place_of_supply = invoice.PlaceOfSupply
+                    ["customer_id"] = contactId,
+                    ["date"] = invoice.InvoiceDate.ToString("yyyy-MM-dd"),
+                    ["currency_code"] = invoice.CurrencyCode,
+                    ["line_items"] = lineItems,
+                    ["tags"] = reportingTagDetails,
+                    ["notes"] = invoice.Notes,
+                    ["tax_name"] = invoice.TaxName,
+                    ["tax_percentage"] = invoice.TaxPercentage,
+                    ["tax_treatment"] = invoice.TaxTreatment,
+                    ["place_of_supply"] = invoice.PlaceOfSupply
                 };
+
+                if (!string.IsNullOrWhiteSpace(invoice.TaxId))
+                {
+                    payload["tax_id"] = invoice.TaxId;
+                }
 
                 var response = await PostAsync("invoices", payload, cancellationToken);
                 var remoteId = ExtractId(response, "invoice", "invoice_id");
@@ -281,20 +285,24 @@ public sealed class ZohoBooksClient
             {
                 await EnsureCurrencyAsync(invoice.CurrencyCode, cancellationToken);
                 var reportingTagDetails = await BuildReportingTagDetailsAsync(invoice, cancellationToken);
-                var payload = new
+                var payload = new Dictionary<string, object>
                 {
-                    customer_id = contactId,
-                    date = invoice.InvoiceDate.ToString("yyyy-MM-dd"),
-                    currency_code = invoice.CurrencyCode,
-                    line_items = lineItems,
-                    tags = reportingTagDetails,
-                    notes = invoice.Notes,
-                    tax_id = invoice.TaxId,
-                    tax_name = invoice.TaxName,
-                    tax_percentage = invoice.TaxPercentage,
-                    tax_treatment = invoice.TaxTreatment,
-                    place_of_supply = invoice.PlaceOfSupply
+                    ["customer_id"] = contactId,
+                    ["date"] = invoice.InvoiceDate.ToString("yyyy-MM-dd"),
+                    ["currency_code"] = invoice.CurrencyCode,
+                    ["line_items"] = lineItems,
+                    ["tags"] = reportingTagDetails,
+                    ["notes"] = invoice.Notes,
+                    ["tax_name"] = invoice.TaxName,
+                    ["tax_percentage"] = invoice.TaxPercentage,
+                    ["tax_treatment"] = invoice.TaxTreatment,
+                    ["place_of_supply"] = invoice.PlaceOfSupply
                 };
+
+                if (!string.IsNullOrWhiteSpace(invoice.TaxId))
+                {
+                    payload["tax_id"] = invoice.TaxId;
+                }
 
                 await PutAsync($"invoices/{remoteId}", payload, cancellationToken);
                 await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.Invoice.ToString(), invoice.LocalId, "Update", true, remoteId, null, null, cancellationToken);
