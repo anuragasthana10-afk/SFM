@@ -13,6 +13,15 @@ public sealed class ReferenceStore
         Invoices
     }
 
+    public enum SyncEntityType
+    {
+        InventoryItem,
+        Contact,
+        Invoice,
+        ReportingTagOption,
+        ReportingTag
+    }
+
     private const string SyncLogTable = "ZohoBooks_SyncOperationLog";
     private const string ReferenceTable = "ZohoBooks_ReferenceStore";
     private const string ReportingTagOptionTable = "ZohoBooks_ReportingTagOptions";
