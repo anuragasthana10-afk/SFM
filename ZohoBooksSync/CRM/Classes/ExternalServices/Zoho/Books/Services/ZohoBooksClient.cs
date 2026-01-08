@@ -22,7 +22,7 @@ public sealed class ZohoBooksClient
     private readonly Dictionary<string, ReportingTag> _reportingTags = new Dictionary<string, ReportingTag>(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _reportingTagOptionCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _currencyCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-    private string _reportingTagBasePath = "settings/reportingtags";
+    private const string ReportingTagBasePath = "settings/tags";
 
     public ZohoBooksClient(
         HttpClient httpClient,
@@ -525,7 +525,7 @@ public sealed class ZohoBooksClient
 
         try
         {
-            var response = await PostAsync(GetReportingTagOptionsPath(reportingTag.Id), payload, cancellationToken);
+            var response = await PostAsync($"{ReportingTagBasePath}/{reportingTag.Id}/options", payload, cancellationToken);
             var createdOptionId = ExtractId(response, "reporting_tag_option", "option_id");
             _reportingTagOptionCache[optionKey] = createdOptionId;
             await _referenceStore.SetReportingTagOptionIdAsync(optionKey, createdOptionId, cancellationToken);
@@ -550,7 +550,7 @@ public sealed class ZohoBooksClient
         JsonElement response;
         try
         {
-            response = await GetReportingTagsAsync(cancellationToken);
+            response = await GetAsync(ReportingTagBasePath, cancellationToken);
             await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.ReportingTag.ToString(), 0, "Fetch", true, null, null, tagName, cancellationToken);
         }
         catch (Exception ex)
@@ -609,29 +609,6 @@ public sealed class ZohoBooksClient
 
     private static string BuildReportingTagOptionKey(string tagName, string optionName)
         => $"{tagName.Trim()}::{optionName.Trim()}".ToLowerInvariant();
-
-    private async Task<JsonElement> GetReportingTagsAsync(CancellationToken cancellationToken)
-    {
-        try
-        {
-            return await GetAsync(_reportingTagBasePath, cancellationToken);
-        }
-        catch (HttpRequestException)
-        {
-            const string fallbackPath = "settings/reporting_tags";
-            if (string.Equals(_reportingTagBasePath, fallbackPath, StringComparison.OrdinalIgnoreCase))
-            {
-                throw;
-            }
-
-            var response = await GetAsync(fallbackPath, cancellationToken);
-            _reportingTagBasePath = fallbackPath;
-            return response;
-        }
-    }
-
-    private string GetReportingTagOptionsPath(string tagId)
-        => $"{_reportingTagBasePath}/{tagId}/options";
 
     private static async Task<JsonElement> EnsureSuccessAsync(HttpResponseMessage response, CancellationToken cancellationToken)
     {
