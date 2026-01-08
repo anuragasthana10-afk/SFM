@@ -513,12 +513,9 @@ public sealed class ZohoBooksClient
         var reportingTag = await GetReportingTagAsync(tagName, cancellationToken);
         if (reportingTag.OptionsByName.TryGetValue(optionName, out var remoteOptionId))
         {
-            if (!string.Equals(remoteOptionId, optionName, StringComparison.OrdinalIgnoreCase))
-            {
-                _reportingTagOptionCache[optionKey] = remoteOptionId;
-                await _referenceStore.SetReportingTagOptionIdAsync(optionKey, remoteOptionId, cancellationToken);
-                return new ReportingTagOption(reportingTag.Id, remoteOptionId);
-            }
+            _reportingTagOptionCache[optionKey] = remoteOptionId;
+            await _referenceStore.SetReportingTagOptionIdAsync(optionKey, remoteOptionId, cancellationToken);
+            return new ReportingTagOption(reportingTag.Id, remoteOptionId);
         }
 
         var refreshedOptions = await GetReportingTagOptionsAsync(reportingTag.Id, cancellationToken);
