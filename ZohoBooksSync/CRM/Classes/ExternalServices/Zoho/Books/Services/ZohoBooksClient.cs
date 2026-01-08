@@ -636,7 +636,8 @@ public sealed class ZohoBooksClient
         var response = await GetAsync($"{ReportingTagBasePath}/{tagId}", cancellationToken);
         var options = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        if (response.TryGetProperty("options", out var optionsElement)
+        if (response.TryGetProperty("reporting_tag", out var reportingTagElement)
+            && reportingTagElement.TryGetProperty("tag_options", out var optionsElement)
             && optionsElement.ValueKind == JsonValueKind.Array)
         {
             foreach (var optionElement in optionsElement.EnumerateArray())
