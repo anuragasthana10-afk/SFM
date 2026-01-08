@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
@@ -20,6 +21,7 @@ public sealed class ZohoBooksClient
     private readonly ZohoTokenProvider _tokenProvider;
     private readonly Dictionary<string, ReportingTag> _reportingTags = new Dictionary<string, ReportingTag>(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _reportingTagOptionCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> _currencyCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
     public ZohoBooksClient(
         HttpClient httpClient,
@@ -152,6 +154,7 @@ public sealed class ZohoBooksClient
 
             try
             {
+                await EnsureCurrencyAsync(invoice.CurrencyCode, cancellationToken);
                 var reportingTagDetails = await BuildReportingTagDetailsAsync(invoice, cancellationToken);
                 var payload = new
                 {
@@ -273,6 +276,7 @@ public sealed class ZohoBooksClient
 
             try
             {
+                await EnsureCurrencyAsync(invoice.CurrencyCode, cancellationToken);
                 var reportingTagDetails = await BuildReportingTagDetailsAsync(invoice, cancellationToken);
                 var payload = new
                 {
@@ -326,6 +330,59 @@ public sealed class ZohoBooksClient
         }
 
         return results;
+    }
+
+    private async Task EnsureCurrencyAsync(string currencyCode, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(currencyCode))
+        {
+            return;
+        }
+
+        if (_currencyCache.ContainsKey(currencyCode))
+        {
+            return;
+        }
+
+        var existingCurrencyId = await _referenceStore.GetCurrencyIdAsync(currencyCode, cancellationToken);
+        if (!string.IsNullOrWhiteSpace(existingCurrencyId))
+        {
+            _currencyCache[currencyCode] = existingCurrencyId;
+            return;
+        }
+
+        var response = await GetAsync("settings/currencies", cancellationToken);
+        if (response.TryGetProperty("currencies", out var currenciesElement))
+        {
+            foreach (var currency in currenciesElement.EnumerateArray())
+            {
+                var code = currency.GetProperty("currency_code").GetString();
+                if (string.Equals(code, currencyCode, StringComparison.OrdinalIgnoreCase))
+                {
+                    var currencyId = currency.GetProperty("currency_id").GetString() ?? string.Empty;
+                    if (!string.IsNullOrWhiteSpace(currencyId))
+                    {
+                        await _referenceStore.SetCurrencyIdAsync(currencyCode, currencyId, cancellationToken);
+                        _currencyCache[currencyCode] = currencyId;
+                        return;
+                    }
+                }
+            }
+        }
+
+        var payload = new
+        {
+            currency_code = currencyCode,
+            currency_name = currencyCode
+        };
+
+        var createResponse = await PostAsync("settings/currencies", payload, cancellationToken);
+        var createdCurrencyId = ExtractId(createResponse, "currency", "currency_id");
+        if (!string.IsNullOrWhiteSpace(createdCurrencyId))
+        {
+            await _referenceStore.SetCurrencyIdAsync(currencyCode, createdCurrencyId, cancellationToken);
+            _currencyCache[currencyCode] = createdCurrencyId;
+        }
     }
 
     private async Task UpdateInventoryItemAsync(string remoteId, InventoryItem item, CancellationToken cancellationToken)

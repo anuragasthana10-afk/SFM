@@ -25,6 +25,7 @@ public sealed class ReferenceStore
     private const string SyncLogTable = "ZohoBooks_SyncOperationLog";
     private const string ReferenceTable = "ZohoBooks_ReferenceStore";
     private const string ReportingTagOptionTable = "ZohoBooks_ReportingTagOptions";
+    private const string CurrencyReferenceTable = "ZohoBooks_CurrencyReferences";
 
     private readonly Database _database;
 
@@ -65,6 +66,13 @@ public sealed class ReferenceStore
                     OptionKey NVARCHAR(256) NOT NULL PRIMARY KEY,
                     RemoteId NVARCHAR(256) NOT NULL
                 );
+            END
+            IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = '{CurrencyReferenceTable}')
+            BEGIN
+                CREATE TABLE {CurrencyReferenceTable} (
+                    CurrencyCode NVARCHAR(16) NOT NULL PRIMARY KEY,
+                    RemoteId NVARCHAR(100) NOT NULL
+                );
             END";
 
         await EnsureConnectionOpenAsync(cancellationToken);
@@ -97,6 +105,12 @@ public sealed class ReferenceStore
 
     public Task SetReportingTagOptionIdAsync(string key, string remoteId, CancellationToken cancellationToken = default)
         => SetReportingTagOptionIdInternalAsync(key, remoteId, cancellationToken);
+
+    public Task<string> GetCurrencyIdAsync(string currencyCode, CancellationToken cancellationToken = default)
+        => GetCurrencyIdInternalAsync(currencyCode, cancellationToken);
+
+    public Task SetCurrencyIdAsync(string currencyCode, string remoteId, CancellationToken cancellationToken = default)
+        => SetCurrencyIdInternalAsync(currencyCode, remoteId, cancellationToken);
 
     public async Task LogSyncOperationAsync(
         string entityType,
@@ -258,6 +272,53 @@ public sealed class ReferenceStore
         using (var command = CreateCommand(sql))
         {
             AddParameter(command, "@OptionKey", optionKey);
+            AddParameter(command, "@RemoteId", remoteId);
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
+    }
+
+    private async Task<string> GetCurrencyIdInternalAsync(string currencyCode, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(currencyCode))
+        {
+            return null;
+        }
+
+        var sql = $@"
+            SELECT RemoteId
+            FROM {CurrencyReferenceTable}
+            WHERE CurrencyCode = @CurrencyCode;";
+
+        await EnsureConnectionOpenAsync(cancellationToken);
+        using (var command = CreateCommand(sql))
+        {
+            AddParameter(command, "@CurrencyCode", currencyCode);
+            var result = await command.ExecuteScalarAsync(cancellationToken);
+            return result == null || result == DBNull.Value ? null : result.ToString();
+        }
+    }
+
+    private async Task SetCurrencyIdInternalAsync(string currencyCode, string remoteId, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(currencyCode) || string.IsNullOrWhiteSpace(remoteId))
+        {
+            return;
+        }
+
+        var sql = $@"
+            MERGE {CurrencyReferenceTable} AS target
+            USING (SELECT @CurrencyCode AS CurrencyCode, @RemoteId AS RemoteId) AS source
+            ON target.CurrencyCode = source.CurrencyCode
+            WHEN MATCHED THEN
+                UPDATE SET RemoteId = source.RemoteId
+            WHEN NOT MATCHED THEN
+                INSERT (CurrencyCode, RemoteId)
+                VALUES (source.CurrencyCode, source.RemoteId);";
+
+        await EnsureConnectionOpenAsync(cancellationToken);
+        using (var command = CreateCommand(sql))
+        {
+            AddParameter(command, "@CurrencyCode", currencyCode);
             AddParameter(command, "@RemoteId", remoteId);
             await command.ExecuteNonQueryAsync(cancellationToken);
         }
