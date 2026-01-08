@@ -616,10 +616,10 @@ public sealed class ZohoBooksClient
 
         if (optionsElement.ValueKind == JsonValueKind.String)
         {
-            var optionName = optionsElement.GetString();
-            if (!string.IsNullOrWhiteSpace(optionName))
+            var optionNameStr = optionsElement.GetString();
+            if (!string.IsNullOrWhiteSpace(optionNameStr))
             {
-                optionsByName[optionName] = optionName;
+                optionsByName[optionNameStr] = optionNameStr;
             }
 
             return;
@@ -632,10 +632,10 @@ public sealed class ZohoBooksClient
     {
         if (optionElement.ValueKind == JsonValueKind.String)
         {
-            var optionName = optionElement.GetString();
-            if (!string.IsNullOrWhiteSpace(optionName))
+            var optionNameStr = optionElement.GetString();
+            if (!string.IsNullOrWhiteSpace(optionNameStr))
             {
-                optionsByName[optionName] = optionName;
+                optionsByName[optionNameStr] = optionNameStr;
             }
 
             return;
