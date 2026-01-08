@@ -518,6 +518,13 @@ public sealed class ZohoBooksClient
             return new ReportingTagOption(reportingTag.Id, remoteOptionId);
         }
 
+        if (!_connectionOptions.AllowReportingTagOptionCreate)
+        {
+            var message = $"Reporting tag option '{optionName}' is missing in Zoho Books. Create it manually and retry.";
+            await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.ReportingTagOption.ToString(), 0, "Create", false, null, message, optionKey, cancellationToken);
+            throw new InvalidOperationException(message);
+        }
+
         var payload = new
         {
             option_name = optionName

@@ -7,12 +7,14 @@ namespace CRM.Classes.ExternalServices.Zoho.Books.Configuration
         public string APIBaseUrl { get; set; }
         public string OrganizationId { get; set; }
         public string SqlConnectionString { get; set; }
+        public bool AllowReportingTagOptionCreate { get; set; }
 
         public ZohoBooksConnectionOptions()
         {
             APIBaseUrl = "https://www.zohoapis.com/books/v3";
             OrganizationId = string.Empty;
             SqlConnectionString = string.Empty;
+            AllowReportingTagOptionCreate = false;
         }
 
         public static ZohoBooksConnectionOptions FromEnvironment()
@@ -24,7 +26,11 @@ namespace CRM.Classes.ExternalServices.Zoho.Books.Configuration
                 OrganizationId = Environment.GetEnvironmentVariable("ZOHO_BOOKS_ORGANIZATION_ID")
                     ?? string.Empty,
                 SqlConnectionString = Environment.GetEnvironmentVariable("ZOHO_BOOKS_SQL_CONNECTION_STRING")
-                    ?? string.Empty
+                    ?? string.Empty,
+                AllowReportingTagOptionCreate = string.Equals(
+                    Environment.GetEnvironmentVariable("ZOHO_BOOKS_ALLOW_REPORTING_TAG_OPTION_CREATE"),
+                    "true",
+                    StringComparison.OrdinalIgnoreCase)
             };
         }
     }
