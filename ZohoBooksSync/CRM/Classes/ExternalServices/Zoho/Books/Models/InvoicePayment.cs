@@ -1,4 +1,4 @@
-namespace ZohoBooksSync.Models
+namespace CRM.Classes.ExternalServices.Zoho.Books.Models
 {
     public sealed class InvoicePayment
     {

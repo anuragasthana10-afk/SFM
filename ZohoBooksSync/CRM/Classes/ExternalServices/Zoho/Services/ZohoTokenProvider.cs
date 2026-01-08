@@ -2,10 +2,9 @@ using System.Collections.Generic;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text.Json;
-using ZohoBooksSync.Configuration;
-using ZohoBooksSync.Persistence;
+using CRM.Classes.ExternalServices.Zoho.Books.Persistence;
 
-namespace ZohoBooksSync.Services
+namespace CRM.Classes.ExternalServices.Zoho.Services
 {
 public sealed class ZohoTokenProvider
 {

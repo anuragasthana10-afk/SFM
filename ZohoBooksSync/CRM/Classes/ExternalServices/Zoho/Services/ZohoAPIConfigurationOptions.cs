@@ -1,4 +1,6 @@
-namespace ZohoBooksSync.Configuration
+using System;
+
+namespace CRM.Classes.ExternalServices.Zoho.Services
 {
     public sealed class ZohoAPIConfigurationOptions
     {

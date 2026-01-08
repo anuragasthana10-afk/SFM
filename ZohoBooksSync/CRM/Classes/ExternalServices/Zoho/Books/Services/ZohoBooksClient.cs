@@ -4,11 +4,12 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
-using ZohoBooksSync.Configuration;
-using ZohoBooksSync.Models;
-using ZohoBooksSync.Persistence;
+using CRM.Classes.ExternalServices.Zoho.Books.Configuration;
+using CRM.Classes.ExternalServices.Zoho.Books.Models;
+using CRM.Classes.ExternalServices.Zoho.Books.Persistence;
+using CRM.Classes.ExternalServices.Zoho.Services;
 
-namespace ZohoBooksSync.Services
+namespace CRM.Classes.ExternalServices.Zoho.Books.Services
 {
 public sealed class ZohoBooksClient
 {

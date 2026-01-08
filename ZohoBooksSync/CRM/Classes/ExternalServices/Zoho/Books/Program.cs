@@ -2,12 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Threading.Tasks;
-using ZohoBooksSync.Configuration;
-using ZohoBooksSync.Models;
-using ZohoBooksSync.Persistence;
-using ZohoBooksSync.Services;
+using CRM.Classes.ExternalServices.Zoho.Books.Configuration;
+using CRM.Classes.ExternalServices.Zoho.Books.Models;
+using CRM.Classes.ExternalServices.Zoho.Books.Persistence;
+using CRM.Classes.ExternalServices.Zoho.Books.Services;
+using CRM.Classes.ExternalServices.Zoho.Services;
 
-namespace ZohoBooksSync
+namespace CRM.Classes.ExternalServices.Zoho.Books
 {
     public static class Program
     {

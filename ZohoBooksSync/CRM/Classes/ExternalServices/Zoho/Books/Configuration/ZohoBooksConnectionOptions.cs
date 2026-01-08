@@ -1,4 +1,6 @@
-namespace ZohoBooksSync.Configuration
+using System;
+
+namespace CRM.Classes.ExternalServices.Zoho.Books.Configuration
 {
     public sealed class ZohoBooksConnectionOptions
     {

@@ -1,6 +1,6 @@
 using System.Data.Entity;
 
-namespace ZohoBooksSync.Persistence
+namespace CRM.Classes.ExternalServices.Zoho.Books.Persistence
 {
 public sealed class ZohoBooksDbContext : DbContext
 {
