@@ -620,22 +620,6 @@ public sealed class ZohoBooksClient
 
     private static void AddReportingTagOptions(Dictionary<string, string> optionsByName, JsonElement optionsElement)
     {
-        if (optionsElement.ValueKind == JsonValueKind.Array)
-        {
-            foreach (var optionElement in optionsElement.EnumerateArray())
-            {
-                AddReportingTagOption(optionsByName, optionElement);
-            }
-
-            return;
-        }
-
-        if (optionsElement.ValueKind == JsonValueKind.Object)
-        {
-            AddReportingTagOption(optionsByName, optionsElement);
-            return;
-        }
-
         if (optionsElement.ValueKind != JsonValueKind.String)
         {
             return;
@@ -656,69 +640,6 @@ public sealed class ZohoBooksClient
                 optionsByName[optionNameStr] = optionNameStr;
             }
         }
-    }
-
-    private static void AddReportingTagOption(Dictionary<string, string> optionsByName, JsonElement optionElement)
-    {
-        if (optionElement.ValueKind == JsonValueKind.String)
-        {
-            var optionNameStr = optionElement.GetString();
-            if (!string.IsNullOrWhiteSpace(optionNameStr))
-            {
-                optionsByName[optionNameStr] = optionNameStr;
-            }
-
-            return;
-        }
-
-        if (optionElement.ValueKind != JsonValueKind.Object)
-        {
-            return;
-        }
-
-        var optionName = optionElement.TryGetProperty("option_name", out var nameElement)
-            ? nameElement.GetString()
-            : null;
-        if (string.IsNullOrWhiteSpace(optionName))
-        {
-            return;
-        }
-
-        if (!TryGetOptionId(optionElement, out var optionId))
-        {
-            return;
-        }
-
-        optionsByName[optionName] = optionId;
-    }
-
-    private static bool TryGetOptionId(JsonElement optionElement, out string optionId)
-    {
-        optionId = null;
-        if (!optionElement.TryGetProperty("option_id", out var idElement))
-        {
-            return false;
-        }
-
-        if (idElement.ValueKind == JsonValueKind.Number)
-        {
-            if (idElement.TryGetInt64(out var idValue))
-            {
-                optionId = idValue.ToString();
-                return true;
-            }
-
-            optionId = idElement.GetRawText();
-            return !string.IsNullOrWhiteSpace(optionId);
-        }
-
-        if (idElement.ValueKind == JsonValueKind.String)
-        {
-            optionId = idElement.GetString();
-            return !string.IsNullOrWhiteSpace(optionId);
-        }
-
-        return false;
     }
 
     private static async Task<JsonElement> EnsureSuccessAsync(HttpResponseMessage response, CancellationToken cancellationToken)
