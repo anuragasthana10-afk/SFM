@@ -610,11 +610,6 @@ public sealed class ZohoBooksClient
             var tagId = tagElement.GetProperty("tag_id").GetString() ?? string.Empty;
             var optionsByName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-            if (tagElement.TryGetProperty("tag_options", out var optionsElement))
-            {
-                AddReportingTagOptions(optionsByName, optionsElement);
-            }
-
             var reportingTag = new ReportingTag(tagId, optionsByName);
             _reportingTags[name] = reportingTag;
             await _referenceStore.SetReportingTagIdAsync(name, tagId, cancellationToken);
