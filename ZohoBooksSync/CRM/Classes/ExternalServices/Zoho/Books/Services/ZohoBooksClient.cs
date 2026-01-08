@@ -140,17 +140,26 @@ public sealed class ZohoBooksClient
                 throw new InvalidOperationException(message);
             }
 
-            var lineItems = invoice.LineItems.Select(item => new
+            var lineItems = invoice.LineItems.Select(item =>
             {
-                item_id = itemIds.TryGetValue(item.ItemLocalId, out var itemId)
-                    ? itemId
-                    : throw new InvalidOperationException($"Missing item reference for {item.ItemLocalId}."),
-                name = item.Description,
-                rate = item.Rate,
-                quantity = item.Quantity,
-                tax_id = item.TaxId,
-                tax_name = item.TaxName,
-                tax_percentage = item.TaxPercentage
+                var lineItem = new Dictionary<string, object>
+                {
+                    ["item_id"] = itemIds.TryGetValue(item.ItemLocalId, out var itemId)
+                        ? itemId
+                        : throw new InvalidOperationException($"Missing item reference for {item.ItemLocalId}."),
+                    ["name"] = item.Description,
+                    ["rate"] = item.Rate,
+                    ["quantity"] = item.Quantity,
+                    ["tax_name"] = item.TaxName,
+                    ["tax_percentage"] = item.TaxPercentage
+                };
+
+                if (!string.IsNullOrWhiteSpace(item.TaxId))
+                {
+                    lineItem["tax_id"] = item.TaxId;
+                }
+
+                return lineItem;
             });
 
             try
@@ -268,17 +277,26 @@ public sealed class ZohoBooksClient
                 throw new InvalidOperationException(message);
             }
 
-            var lineItems = invoice.LineItems.Select(item => new
+            var lineItems = invoice.LineItems.Select(item =>
             {
-                item_id = itemIds.TryGetValue(item.ItemLocalId, out var itemId)
-                    ? itemId
-                    : throw new InvalidOperationException($"Missing item reference for {item.ItemLocalId}."),
-                name = item.Description,
-                rate = item.Rate,
-                quantity = item.Quantity,
-                tax_id = item.TaxId,
-                tax_name = item.TaxName,
-                tax_percentage = item.TaxPercentage
+                var lineItem = new Dictionary<string, object>
+                {
+                    ["item_id"] = itemIds.TryGetValue(item.ItemLocalId, out var itemId)
+                        ? itemId
+                        : throw new InvalidOperationException($"Missing item reference for {item.ItemLocalId}."),
+                    ["name"] = item.Description,
+                    ["rate"] = item.Rate,
+                    ["quantity"] = item.Quantity,
+                    ["tax_name"] = item.TaxName,
+                    ["tax_percentage"] = item.TaxPercentage
+                };
+
+                if (!string.IsNullOrWhiteSpace(item.TaxId))
+                {
+                    lineItem["tax_id"] = item.TaxId;
+                }
+
+                return lineItem;
             });
 
             try
