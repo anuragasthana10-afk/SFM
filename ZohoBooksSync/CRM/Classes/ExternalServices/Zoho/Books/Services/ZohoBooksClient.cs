@@ -376,12 +376,39 @@ public sealed class ZohoBooksClient
             currency_name = currencyCode
         };
 
-        var createResponse = await PostAsync("settings/currencies", payload, cancellationToken);
-        var createdCurrencyId = ExtractId(createResponse, "currency", "currency_id");
-        if (!string.IsNullOrWhiteSpace(createdCurrencyId))
+        try
         {
-            await _referenceStore.SetCurrencyIdAsync(currencyCode, createdCurrencyId, cancellationToken);
-            _currencyCache[currencyCode] = createdCurrencyId;
+            var createResponse = await PostAsync("settings/currencies", payload, cancellationToken);
+            var createdCurrencyId = ExtractId(createResponse, "currency", "currency_id");
+            if (!string.IsNullOrWhiteSpace(createdCurrencyId))
+            {
+                await _referenceStore.SetCurrencyIdAsync(currencyCode, createdCurrencyId, cancellationToken);
+                _currencyCache[currencyCode] = createdCurrencyId;
+                return;
+            }
+        }
+        catch (Exception)
+        {
+            var retryResponse = await GetAsync("settings/currencies", cancellationToken);
+            if (retryResponse.TryGetProperty("currencies", out var retryCurrencies))
+            {
+                foreach (var currency in retryCurrencies.EnumerateArray())
+                {
+                    var code = currency.GetProperty("currency_code").GetString();
+                    if (string.Equals(code, currencyCode, StringComparison.OrdinalIgnoreCase))
+                    {
+                        var currencyId = currency.GetProperty("currency_id").GetString() ?? string.Empty;
+                        if (!string.IsNullOrWhiteSpace(currencyId))
+                        {
+                            await _referenceStore.SetCurrencyIdAsync(currencyCode, currencyId, cancellationToken);
+                            _currencyCache[currencyCode] = currencyId;
+                            return;
+                        }
+                    }
+                }
+            }
+
+            throw;
         }
     }
 
