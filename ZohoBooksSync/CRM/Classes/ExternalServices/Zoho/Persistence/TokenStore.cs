@@ -56,9 +56,10 @@ public sealed class TokenStore
 
         await EnsureConnectionOpenAsync(cancellationToken);
         using (var command = CreateCommand(sql))
-        using (var reader = await command.ExecuteReaderAsync(cancellationToken))
         {
             AddParameter(command, "@Code", TokenCode);
+            using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+            {
             if (!await reader.ReadAsync(cancellationToken))
             {
                 return null;
@@ -73,6 +74,7 @@ public sealed class TokenStore
                 ClientSecret = reader.IsDBNull(4) ? string.Empty : reader.GetString(4),
                 TokenEndpoint = reader.IsDBNull(5) ? string.Empty : reader.GetString(5)
             };
+            }
         }
     }
 
