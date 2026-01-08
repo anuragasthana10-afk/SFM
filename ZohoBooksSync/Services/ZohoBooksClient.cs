@@ -13,7 +13,7 @@ namespace ZohoBooksSync.Services
 public sealed class ZohoBooksClient
 {
     private readonly HttpClient _httpClient;
-    private readonly ZohoBooksOptions _options;
+    private readonly ZohoAPIConfigurationOptions _options;
     private readonly ZohoBooksConnectionOptions _connectionOptions;
     private readonly ReferenceStore _referenceStore;
     private readonly ZohoTokenProvider _tokenProvider;
@@ -22,7 +22,7 @@ public sealed class ZohoBooksClient
 
     public ZohoBooksClient(
         HttpClient httpClient,
-        ZohoBooksOptions options,
+        ZohoAPIConfigurationOptions options,
         ZohoBooksConnectionOptions connectionOptions,
         ReferenceStore referenceStore,
         ZohoTokenProvider tokenProvider)

@@ -1,6 +1,6 @@
 namespace ZohoBooksSync.Configuration
 {
-    public sealed class ZohoBooksOptions
+    public sealed class ZohoAPIConfigurationOptions
     {
         public string AccessToken { get; set; }
         public string RefreshToken { get; set; }
@@ -8,7 +8,7 @@ namespace ZohoBooksSync.Configuration
         public string ClientSecret { get; set; }
         public string TokenEndpoint { get; set; }
 
-        public ZohoBooksOptions()
+        public ZohoAPIConfigurationOptions()
         {
             AccessToken = string.Empty;
             RefreshToken = string.Empty;
@@ -17,9 +17,9 @@ namespace ZohoBooksSync.Configuration
             TokenEndpoint = "https://accounts.zoho.com/oauth/v2/token";
         }
 
-        public static ZohoBooksOptions FromEnvironment()
+        public static ZohoAPIConfigurationOptions FromEnvironment()
         {
-            return new ZohoBooksOptions
+            return new ZohoAPIConfigurationOptions
             {
                 AccessToken = Environment.GetEnvironmentVariable("ZOHO_BOOKS_ACCESS_TOKEN")
                     ?? string.Empty,

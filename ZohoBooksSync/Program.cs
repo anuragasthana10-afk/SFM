@@ -13,7 +13,7 @@ namespace ZohoBooksSync
     {
         public static async Task Main(string[] args)
         {
-            var options = ZohoBooksOptions.FromEnvironment();
+            var options = ZohoAPIConfigurationOptions.FromEnvironment();
             var connectionOptions = ZohoBooksConnectionOptions.FromEnvironment();
 
             if (string.IsNullOrWhiteSpace(connectionOptions.OrganizationId))

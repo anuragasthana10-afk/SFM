@@ -10,13 +10,13 @@ namespace ZohoBooksSync.Services
 public sealed class ZohoTokenProvider
 {
     private readonly HttpClient _httpClient;
-    private readonly ZohoBooksOptions _options;
+    private readonly ZohoAPIConfigurationOptions _options;
     private readonly TokenStore _tokenStore;
     private string _cachedAccessToken;
     private DateTime _expiresAtUtc;
     private TokenStore.TokenData _tokenData;
 
-    public ZohoTokenProvider(HttpClient httpClient, ZohoBooksOptions options, TokenStore tokenStore)
+    public ZohoTokenProvider(HttpClient httpClient, ZohoAPIConfigurationOptions options, TokenStore tokenStore)
     {
         _httpClient = httpClient;
         _options = options;
