@@ -518,6 +518,19 @@ public sealed class ZohoBooksClient
             return new ReportingTagOption(reportingTag.Id, remoteOptionId);
         }
 
+        var refreshedOptions = await GetReportingTagOptionsAsync(reportingTag.Id, cancellationToken);
+        foreach (var option in refreshedOptions)
+        {
+            reportingTag.OptionsByName[option.Key] = option.Value;
+        }
+
+        if (reportingTag.OptionsByName.TryGetValue(optionName, out var refreshedOptionId))
+        {
+            _reportingTagOptionCache[optionKey] = refreshedOptionId;
+            await _referenceStore.SetReportingTagOptionIdAsync(optionKey, refreshedOptionId, cancellationToken);
+            return new ReportingTagOption(reportingTag.Id, refreshedOptionId);
+        }
+
         if (!_connectionOptions.AllowReportingTagOptionCreate)
         {
             var message = $"Reporting tag option '{optionName}' is missing in Zoho Books. Create it manually and retry.";
@@ -617,6 +630,52 @@ public sealed class ZohoBooksClient
 
     private static string BuildReportingTagOptionKey(string tagName, string optionName)
         => $"{tagName.Trim()}::{optionName.Trim()}".ToLowerInvariant();
+
+    private async Task<Dictionary<string, string>> GetReportingTagOptionsAsync(string tagId, CancellationToken cancellationToken)
+    {
+        var response = await GetAsync($"{ReportingTagBasePath}/{tagId}/options", cancellationToken);
+        var options = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        if (response.TryGetProperty("options", out var optionsElement)
+            && optionsElement.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var optionElement in optionsElement.EnumerateArray())
+            {
+                if (!optionElement.TryGetProperty("option_name", out var nameElement))
+                {
+                    continue;
+                }
+
+                var optionName = nameElement.GetString();
+                if (string.IsNullOrWhiteSpace(optionName))
+                {
+                    continue;
+                }
+
+                if (!optionElement.TryGetProperty("option_id", out var idElement))
+                {
+                    continue;
+                }
+
+                string optionId;
+                if (idElement.ValueKind == JsonValueKind.Number)
+                {
+                    optionId = idElement.TryGetInt64(out var idValue) ? idValue.ToString() : idElement.GetRawText();
+                }
+                else
+                {
+                    optionId = idElement.GetString();
+                }
+
+                if (!string.IsNullOrWhiteSpace(optionId))
+                {
+                    options[optionName] = optionId;
+                }
+            }
+        }
+
+        return options;
+    }
 
     private static void AddReportingTagOptions(Dictionary<string, string> optionsByName, JsonElement optionsElement)
     {
