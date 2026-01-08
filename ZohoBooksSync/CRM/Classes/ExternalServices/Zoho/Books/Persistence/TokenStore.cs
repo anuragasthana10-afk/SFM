@@ -27,6 +27,8 @@ public sealed class TokenStore
                     Refresh_Token NVARCHAR(MAX) NULL,
                     Access_Token NVARCHAR(MAX) NULL,
                     TokenValidity DATETIME2 NULL,
+                    CreateDate DATETIME2 NULL,
+                    CreateUserID INT NULL,
                     ModifyDate DATETIME2 NULL,
                     ModifyUserID INT NULL,
                     RefreshToken_URL NVARCHAR(512) NULL
@@ -91,8 +93,8 @@ public sealed class TokenStore
                     ModifyDate = @ModifyDate,
                     ModifyUserID = @ModifyUserID
             WHEN NOT MATCHED THEN
-                INSERT (Code, Access_Token, TokenValidity, Refresh_Token, Client_ID, Client_Secret, RefreshToken_URL, ModifyDate, ModifyUserID)
-                VALUES (@Code, @AccessToken, @AccessTokenExpiresAtUtc, @RefreshToken, @ClientId, @ClientSecret, @TokenEndpoint, @ModifyDate, @ModifyUserID);";
+                INSERT (Code, Access_Token, TokenValidity, Refresh_Token, Client_ID, Client_Secret, RefreshToken_URL, CreateDate, CreateUserID)
+                VALUES (@Code, @AccessToken, @AccessTokenExpiresAtUtc, @RefreshToken, @ClientId, @ClientSecret, @TokenEndpoint, @CreateDate, @CreateUserID);";
 
         await EnsureConnectionOpenAsync(cancellationToken);
         using (var command = CreateCommand(sql))
@@ -132,6 +134,8 @@ public sealed class TokenStore
         AddParameter(command, "@ClientId", string.IsNullOrWhiteSpace(data.ClientId) ? (object)DBNull.Value : data.ClientId);
         AddParameter(command, "@ClientSecret", string.IsNullOrWhiteSpace(data.ClientSecret) ? (object)DBNull.Value : data.ClientSecret);
         AddParameter(command, "@TokenEndpoint", string.IsNullOrWhiteSpace(data.TokenEndpoint) ? (object)DBNull.Value : data.TokenEndpoint);
+        AddParameter(command, "@CreateDate", DateTime.UtcNow);
+        AddParameter(command, "@CreateUserID", 1);
         AddParameter(command, "@ModifyDate", DateTime.UtcNow);
         AddParameter(command, "@ModifyUserID", 1);
         AddParameter(command, "@Code", TokenCode);
