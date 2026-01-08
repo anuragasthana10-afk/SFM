@@ -635,7 +635,7 @@ public sealed class ZohoBooksClient
 
     private static async Task<JsonElement> EnsureSuccessAsync(HttpResponseMessage response, CancellationToken cancellationToken)
     {
-        var content = await response.Content.ReadAsStringAsync(cancellationToken);
+        var content = await response.Content.ReadAsStringAsync();
         if (!response.IsSuccessStatusCode)
         {
             throw new HttpRequestException($"Zoho Books API error ({(int)response.StatusCode}): {content}");
