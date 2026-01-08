@@ -611,58 +611,25 @@ public sealed class ZohoBooksClient
 
     private static void AddReportingTagOptions(Dictionary<string, string> optionsByName, JsonElement optionsElement)
     {
-        if (optionsElement.ValueKind == JsonValueKind.Array)
+        if (optionsElement.ValueKind != JsonValueKind.String)
         {
-            foreach (var optionElement in optionsElement.EnumerateArray())
-            {
-                AddReportingTagOption(optionsByName, optionElement);
-            }
-
             return;
         }
 
-        if (optionsElement.ValueKind == JsonValueKind.String)
+        var optionsValue = optionsElement.GetString();
+        if (string.IsNullOrWhiteSpace(optionsValue))
         {
-            var optionNameStr = optionsElement.GetString();
+            return;
+        }
+
+        var entries = optionsValue.Split(',');
+        foreach (var entry in entries)
+        {
+            var optionNameStr = entry.Trim();
             if (!string.IsNullOrWhiteSpace(optionNameStr))
             {
                 optionsByName[optionNameStr] = optionNameStr;
             }
-
-            return;
-        }
-
-        AddReportingTagOption(optionsByName, optionsElement);
-    }
-
-    private static void AddReportingTagOption(Dictionary<string, string> optionsByName, JsonElement optionElement)
-    {
-        if (optionElement.ValueKind == JsonValueKind.String)
-        {
-            var optionNameStr = optionElement.GetString();
-            if (!string.IsNullOrWhiteSpace(optionNameStr))
-            {
-                optionsByName[optionNameStr] = optionNameStr;
-            }
-
-            return;
-        }
-
-        if (optionElement.ValueKind != JsonValueKind.Object)
-        {
-            return;
-        }
-
-        var optionName = optionElement.TryGetProperty("option_name", out var nameElement)
-            ? nameElement.GetString()
-            : null;
-        var optionId = optionElement.TryGetProperty("option_id", out var idElement)
-            ? idElement.GetString()
-            : null;
-
-        if (!string.IsNullOrWhiteSpace(optionName) && !string.IsNullOrWhiteSpace(optionId))
-        {
-            optionsByName[optionName] = optionId;
         }
     }
 
