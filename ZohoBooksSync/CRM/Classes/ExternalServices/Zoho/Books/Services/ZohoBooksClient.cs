@@ -633,7 +633,7 @@ public sealed class ZohoBooksClient
 
     private async Task<Dictionary<string, string>> GetReportingTagOptionsAsync(string tagId, CancellationToken cancellationToken)
     {
-        var response = await GetAsync($"{ReportingTagBasePath}/{tagId}/options", cancellationToken);
+        var response = await GetAsync($"{ReportingTagBasePath}/{tagId}", cancellationToken);
         var options = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         if (response.TryGetProperty("options", out var optionsElement)
