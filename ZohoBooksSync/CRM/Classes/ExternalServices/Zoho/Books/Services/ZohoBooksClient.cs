@@ -642,7 +642,7 @@ public sealed class ZohoBooksClient
         {
             foreach (var optionElement in optionsElement.EnumerateArray())
             {
-                if (!optionElement.TryGetProperty("option_name", out var nameElement))
+                if (!optionElement.TryGetProperty("tag_option_name", out var nameElement))
                 {
                     continue;
                 }
@@ -653,7 +653,7 @@ public sealed class ZohoBooksClient
                     continue;
                 }
 
-                if (!optionElement.TryGetProperty("option_id", out var idElement))
+                if (!optionElement.TryGetProperty("tag_option_id", out var idElement))
                 {
                     continue;
                 }
