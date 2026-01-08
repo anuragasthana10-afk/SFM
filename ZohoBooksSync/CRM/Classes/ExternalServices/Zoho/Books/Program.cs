@@ -78,6 +78,7 @@ namespace CRM.Classes.ExternalServices.Zoho.Books
                         TaxName = "Sales Tax",
                         TaxPercentage = 7.5m,
                         TaxTreatment = "taxable",
+                        PlaceOfSupply = "CA",
                         Notes = "Thanks for your business.",
                         LineItems = new List<InvoiceLineItem>
                         {

@@ -168,7 +168,8 @@ public sealed class ZohoBooksClient
                     tax_id = invoice.TaxId,
                     tax_name = invoice.TaxName,
                     tax_percentage = invoice.TaxPercentage,
-                    tax_treatment = invoice.TaxTreatment
+                    tax_treatment = invoice.TaxTreatment,
+                    place_of_supply = invoice.PlaceOfSupply
                 };
 
                 var response = await PostAsync("invoices", payload, cancellationToken);
@@ -291,7 +292,8 @@ public sealed class ZohoBooksClient
                     tax_id = invoice.TaxId,
                     tax_name = invoice.TaxName,
                     tax_percentage = invoice.TaxPercentage,
-                    tax_treatment = invoice.TaxTreatment
+                    tax_treatment = invoice.TaxTreatment,
+                    place_of_supply = invoice.PlaceOfSupply
                 };
 
                 await PutAsync($"invoices/{remoteId}", payload, cancellationToken);
