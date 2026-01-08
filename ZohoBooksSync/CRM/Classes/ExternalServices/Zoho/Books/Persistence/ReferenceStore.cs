@@ -25,6 +25,7 @@ public sealed class ReferenceStore
     private const string SyncLogTable = "ZohoBooks_SyncOperationLog";
     private const string ReferenceTable = "ZohoBooks_ReferenceStore";
     private const string ReportingTagOptionTable = "ZohoBooks_ReportingTagOptions";
+    private const string ReportingTagTable = "ZohoBooks_ReportingTags";
     private const string CurrencyReferenceTable = "ZohoBooks_CurrencyReferences";
 
     private readonly Database _database;
@@ -67,6 +68,13 @@ public sealed class ReferenceStore
                     RemoteId NVARCHAR(256) NOT NULL
                 );
             END
+            IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = '{ReportingTagTable}')
+            BEGIN
+                CREATE TABLE {ReportingTagTable} (
+                    TagName NVARCHAR(128) NOT NULL PRIMARY KEY,
+                    TagId NVARCHAR(100) NOT NULL
+                );
+            END
             IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = '{CurrencyReferenceTable}')
             BEGIN
                 CREATE TABLE {CurrencyReferenceTable} (
@@ -105,6 +113,12 @@ public sealed class ReferenceStore
 
     public Task SetReportingTagOptionIdAsync(string key, string remoteId, CancellationToken cancellationToken = default)
         => SetReportingTagOptionIdInternalAsync(key, remoteId, cancellationToken);
+
+    public Task<string> GetReportingTagIdAsync(string tagName, CancellationToken cancellationToken = default)
+        => GetReportingTagIdInternalAsync(tagName, cancellationToken);
+
+    public Task SetReportingTagIdAsync(string tagName, string tagId, CancellationToken cancellationToken = default)
+        => SetReportingTagIdInternalAsync(tagName, tagId, cancellationToken);
 
     public Task<string> GetCurrencyIdAsync(string currencyCode, CancellationToken cancellationToken = default)
         => GetCurrencyIdInternalAsync(currencyCode, cancellationToken);
@@ -256,6 +270,53 @@ public sealed class ReferenceStore
         {
             AddParameter(command, "@OptionKey", optionKey);
             AddParameter(command, "@RemoteId", remoteId);
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
+    }
+
+    private async Task<string> GetReportingTagIdInternalAsync(string tagName, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(tagName))
+        {
+            return null;
+        }
+
+        var sql = $@"
+            SELECT TagId
+            FROM {ReportingTagTable}
+            WHERE TagName = @TagName;";
+
+        await EnsureConnectionOpenAsync(cancellationToken);
+        using (var command = CreateCommand(sql))
+        {
+            AddParameter(command, "@TagName", tagName);
+            var result = await command.ExecuteScalarAsync(cancellationToken);
+            return result == null || result == DBNull.Value ? null : result.ToString();
+        }
+    }
+
+    private async Task SetReportingTagIdInternalAsync(string tagName, string tagId, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(tagName) || string.IsNullOrWhiteSpace(tagId))
+        {
+            return;
+        }
+
+        var sql = $@"
+            MERGE {ReportingTagTable} AS target
+            USING (SELECT @TagName AS TagName, @TagId AS TagId) AS source
+            ON target.TagName = source.TagName
+            WHEN MATCHED THEN
+                UPDATE SET TagId = source.TagId
+            WHEN NOT MATCHED THEN
+                INSERT (TagName, TagId)
+                VALUES (source.TagName, source.TagId);";
+
+        await EnsureConnectionOpenAsync(cancellationToken);
+        using (var command = CreateCommand(sql))
+        {
+            AddParameter(command, "@TagName", tagName);
+            AddParameter(command, "@TagId", tagId);
             await command.ExecuteNonQueryAsync(cancellationToken);
         }
     }

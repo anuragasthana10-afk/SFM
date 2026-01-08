@@ -554,6 +554,14 @@ public sealed class ZohoBooksClient
             return cachedTag;
         }
 
+        var cachedTagId = await _referenceStore.GetReportingTagIdAsync(tagName, cancellationToken);
+        if (!string.IsNullOrWhiteSpace(cachedTagId))
+        {
+            var cachedReportingTag = new ReportingTag(cachedTagId, new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+            _reportingTags[tagName] = cachedReportingTag;
+            return cachedReportingTag;
+        }
+
         JsonElement response;
         try
         {
@@ -596,6 +604,7 @@ public sealed class ZohoBooksClient
 
             var reportingTag = new ReportingTag(tagId, optionsByName);
             _reportingTags[name] = reportingTag;
+            await _referenceStore.SetReportingTagIdAsync(name, tagId, cancellationToken);
         }
 
         if (_reportingTags.TryGetValue(tagName, out var foundTag))
