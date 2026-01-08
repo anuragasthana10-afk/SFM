@@ -431,7 +431,7 @@ public sealed class ZohoBooksClient
 
     private async Task<HttpRequestMessage> CreateRequestAsync(HttpMethod method, string path, CancellationToken cancellationToken)
     {
-        var request = new HttpRequestMessage(method, $"{_connectionOptions.BaseUrl}/{path}");
+        var request = new HttpRequestMessage(method, $"{_connectionOptions.APIBaseUrl}/{path}");
         var accessToken = await _tokenProvider.GetAccessTokenAsync(cancellationToken);
         request.Headers.Authorization = new AuthenticationHeaderValue("Zoho-oauthtoken", accessToken);
         request.Headers.Add("X-com-zoho-books-organizationid", _connectionOptions.OrganizationId);

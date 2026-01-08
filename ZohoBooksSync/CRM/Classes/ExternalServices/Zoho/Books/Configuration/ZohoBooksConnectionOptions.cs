@@ -4,13 +4,13 @@ namespace CRM.Classes.ExternalServices.Zoho.Books.Configuration
 {
     public sealed class ZohoBooksConnectionOptions
     {
-        public string BaseUrl { get; set; }
+        public string APIBaseUrl { get; set; }
         public string OrganizationId { get; set; }
         public string SqlConnectionString { get; set; }
 
         public ZohoBooksConnectionOptions()
         {
-            BaseUrl = "https://www.zohoapis.com/books/v3";
+            APIBaseUrl = "https://www.zohoapis.com/books/v3";
             OrganizationId = string.Empty;
             SqlConnectionString = string.Empty;
         }
@@ -19,7 +19,7 @@ namespace CRM.Classes.ExternalServices.Zoho.Books.Configuration
         {
             return new ZohoBooksConnectionOptions
             {
-                BaseUrl = Environment.GetEnvironmentVariable("ZOHO_BOOKS_BASE_URL")
+                APIBaseUrl = Environment.GetEnvironmentVariable("ZOHO_BOOKS_BASE_URL")
                     ?? "https://www.zohoapis.com/books/v3",
                 OrganizationId = Environment.GetEnvironmentVariable("ZOHO_BOOKS_ORGANIZATION_ID")
                     ?? string.Empty,
