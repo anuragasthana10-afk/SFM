@@ -2,7 +2,7 @@ using System.Data;
 using System.Data.Common;
 using System.Data.Entity;
 
-namespace CRM.Classes.ExternalServices.Zoho.Books.Persistence
+namespace CRM.Classes.ExternalServices.Zoho.Persistence
 {
 public sealed class TokenStore
 {

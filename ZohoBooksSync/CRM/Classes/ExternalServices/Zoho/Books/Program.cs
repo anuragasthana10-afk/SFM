@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using CRM.Classes.ExternalServices.Zoho.Books.Configuration;
 using CRM.Classes.ExternalServices.Zoho.Books.Models;
 using CRM.Classes.ExternalServices.Zoho.Books.Persistence;
+using CRM.Classes.ExternalServices.Zoho.Persistence;
 using CRM.Classes.ExternalServices.Zoho.Books.Services;
 using CRM.Classes.ExternalServices.Zoho.Services;
 

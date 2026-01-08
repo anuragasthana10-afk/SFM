@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text.Json;
-using CRM.Classes.ExternalServices.Zoho.Books.Persistence;
+using CRM.Classes.ExternalServices.Zoho.Persistence;
 
 namespace CRM.Classes.ExternalServices.Zoho.Services
 {
