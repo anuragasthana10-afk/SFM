@@ -47,7 +47,8 @@ namespace CRM.Classes.ExternalServices.Zoho.Books
                 var referenceStore = new ReferenceStore(dbContext.Database);
                 await referenceStore.InitializeAsync();
 
-                var tokenStore = new TokenStore(dbContext.Database);
+                var tokenCode = isUae ? TokenStore.UaeTokenCode : TokenStore.SwissTokenCode;
+                var tokenStore = new TokenStore(dbContext.Database, tokenCode);
                 await tokenStore.InitializeAsync();
 
                 var tokenProvider = new ZohoTokenProvider(httpClient, options, tokenStore);

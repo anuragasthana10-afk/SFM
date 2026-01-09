@@ -7,12 +7,15 @@ namespace CRM.Classes.ExternalServices.Zoho.Persistence
 public sealed class TokenStore
 {
     private const string TokenTable = "Sec_Crd";
-    private const string TokenCode = "ZOHO";
+    public const string UaeTokenCode = "ZOHO_UAE";
+    public const string SwissTokenCode = "ZOHO_SWISS";
     private readonly Database _database;
+    private readonly string _tokenCode;
 
-    public TokenStore(Database database)
+    public TokenStore(Database database, string tokenCode)
     {
         _database = database;
+        _tokenCode = tokenCode;
     }
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
@@ -57,7 +60,7 @@ public sealed class TokenStore
         await EnsureConnectionOpenAsync(cancellationToken);
         using (var command = CreateCommand(sql))
         {
-            AddParameter(command, "@Code", TokenCode);
+            AddParameter(command, "@Code", _tokenCode);
             using (var reader = await command.ExecuteReaderAsync(cancellationToken))
             {
             if (!await reader.ReadAsync(cancellationToken))
@@ -123,7 +126,7 @@ public sealed class TokenStore
             AddParameter(command, "@AccessTokenExpiresAtUtc", expiresAtUtc.HasValue ? (object)expiresAtUtc.Value : DBNull.Value);
             AddParameter(command, "@ModifyDate", DateTime.UtcNow);
             AddParameter(command, "@ModifyUserID", 1);
-            AddParameter(command, "@Code", TokenCode);
+            AddParameter(command, "@Code", _tokenCode);
             await command.ExecuteNonQueryAsync(cancellationToken);
         }
     }
@@ -140,7 +143,7 @@ public sealed class TokenStore
         AddParameter(command, "@CreateUserID", 1);
         AddParameter(command, "@ModifyDate", DateTime.UtcNow);
         AddParameter(command, "@ModifyUserID", 1);
-        AddParameter(command, "@Code", TokenCode);
+        AddParameter(command, "@Code", _tokenCode);
     }
 
     private async Task EnsureConnectionOpenAsync(CancellationToken cancellationToken)
