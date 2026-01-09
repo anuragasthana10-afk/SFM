@@ -15,12 +15,23 @@ namespace CRM.Classes.ExternalServices.Zoho.Books
     {
         public static async Task Main(string[] args)
         {
-            var options = ZohoAPIConfigurationOptions.FromEnvironment();
+            var uaeOptions = UaeZohoAPIConfigurationOptions.FromEnvironment();
+            var swissOptions = SwissZohoAPIConfigurationOptions.FromEnvironment();
             var connectionOptions = ZohoBooksConnectionOptions.FromEnvironment();
+            var location = args.Length > 0
+                ? args[0]
+                : Environment.GetEnvironmentVariable("ZOHO_BOOKS_LOCATION") ?? "uae";
+            var isUae = location.Equals("uae", StringComparison.OrdinalIgnoreCase);
+            var options = isUae
+                ? (IZohoApiConfigurationOptions)uaeOptions
+                : swissOptions;
+            connectionOptions.ActiveOrganizationId = isUae
+                ? connectionOptions.UaeOrganizationId
+                : connectionOptions.SwissOrganizationId;
 
-            if (string.IsNullOrWhiteSpace(connectionOptions.OrganizationId))
+            if (string.IsNullOrWhiteSpace(connectionOptions.ActiveOrganizationId))
             {
-                Console.WriteLine("Configure ZOHO_BOOKS_ORGANIZATION_ID to run the sync.");
+                Console.WriteLine("Configure ZOHO_BOOKS_UAE_ORGANIZATION_ID or ZOHO_BOOKS_SWISS_ORGANIZATION_ID to run the sync.");
                 return;
             }
 

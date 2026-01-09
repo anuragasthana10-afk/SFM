@@ -15,7 +15,7 @@ namespace CRM.Classes.ExternalServices.Zoho.Books.Services
 public sealed class ZohoBooksClient
 {
     private readonly HttpClient _httpClient;
-    private readonly ZohoAPIConfigurationOptions _options;
+    private readonly IZohoApiConfigurationOptions _options;
     private readonly ZohoBooksConnectionOptions _connectionOptions;
     private readonly ReferenceStore _referenceStore;
     private readonly ZohoTokenProvider _tokenProvider;
@@ -26,7 +26,7 @@ public sealed class ZohoBooksClient
 
     public ZohoBooksClient(
         HttpClient httpClient,
-        ZohoAPIConfigurationOptions options,
+        IZohoApiConfigurationOptions options,
         ZohoBooksConnectionOptions connectionOptions,
         ReferenceStore referenceStore,
         ZohoTokenProvider tokenProvider)
@@ -492,7 +492,7 @@ public sealed class ZohoBooksClient
         var request = new HttpRequestMessage(method, $"{_connectionOptions.APIBaseUrl}/{path}");
         var accessToken = await _tokenProvider.GetAccessTokenAsync(cancellationToken);
         request.Headers.Authorization = new AuthenticationHeaderValue("Zoho-oauthtoken", accessToken);
-        request.Headers.Add("X-com-zoho-books-organizationid", _connectionOptions.OrganizationId);
+        request.Headers.Add("X-com-zoho-books-organizationid", _connectionOptions.ActiveOrganizationId);
         return request;
     }
 

@@ -2,7 +2,7 @@ using System;
 
 namespace CRM.Classes.ExternalServices.Zoho.Services
 {
-    public sealed class ZohoAPIConfigurationOptions
+    public sealed class UaeZohoAPIConfigurationOptions : IZohoApiConfigurationOptions
     {
         public string AccessToken { get; set; }
         public string RefreshToken { get; set; }
@@ -10,7 +10,7 @@ namespace CRM.Classes.ExternalServices.Zoho.Services
         public string ClientSecret { get; set; }
         public string TokenEndpoint { get; set; }
 
-        public ZohoAPIConfigurationOptions()
+        public UaeZohoAPIConfigurationOptions()
         {
             AccessToken = string.Empty;
             RefreshToken = string.Empty;
@@ -19,19 +19,19 @@ namespace CRM.Classes.ExternalServices.Zoho.Services
             TokenEndpoint = "https://accounts.zoho.com/oauth/v2/token";
         }
 
-        public static ZohoAPIConfigurationOptions FromEnvironment()
+        public static UaeZohoAPIConfigurationOptions FromEnvironment()
         {
-            return new ZohoAPIConfigurationOptions
+            return new UaeZohoAPIConfigurationOptions
             {
-                AccessToken = Environment.GetEnvironmentVariable("ZOHO_BOOKS_ACCESS_TOKEN")
+                AccessToken = Environment.GetEnvironmentVariable("ZOHO_BOOKS_UAE_ACCESS_TOKEN")
                     ?? string.Empty,
-                RefreshToken = Environment.GetEnvironmentVariable("ZOHO_BOOKS_REFRESH_TOKEN")
+                RefreshToken = Environment.GetEnvironmentVariable("ZOHO_BOOKS_UAE_REFRESH_TOKEN")
                     ?? string.Empty,
-                ClientId = Environment.GetEnvironmentVariable("ZOHO_BOOKS_CLIENT_ID")
+                ClientId = Environment.GetEnvironmentVariable("ZOHO_BOOKS_UAE_CLIENT_ID")
                     ?? string.Empty,
-                ClientSecret = Environment.GetEnvironmentVariable("ZOHO_BOOKS_CLIENT_SECRET")
+                ClientSecret = Environment.GetEnvironmentVariable("ZOHO_BOOKS_UAE_CLIENT_SECRET")
                     ?? string.Empty,
-                TokenEndpoint = Environment.GetEnvironmentVariable("ZOHO_BOOKS_TOKEN_ENDPOINT")
+                TokenEndpoint = Environment.GetEnvironmentVariable("ZOHO_BOOKS_UAE_TOKEN_ENDPOINT")
                     ?? "https://accounts.zoho.com/oauth/v2/token"
             };
         }

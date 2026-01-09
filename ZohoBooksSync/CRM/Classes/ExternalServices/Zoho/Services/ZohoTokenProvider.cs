@@ -9,13 +9,13 @@ namespace CRM.Classes.ExternalServices.Zoho.Services
 public sealed class ZohoTokenProvider
 {
     private readonly HttpClient _httpClient;
-    private readonly ZohoAPIConfigurationOptions _options;
+    private readonly IZohoApiConfigurationOptions _options;
     private readonly TokenStore _tokenStore;
     private string _cachedAccessToken;
     private DateTime _expiresAtUtc;
     private TokenStore.TokenData _tokenData;
 
-    public ZohoTokenProvider(HttpClient httpClient, ZohoAPIConfigurationOptions options, TokenStore tokenStore)
+    public ZohoTokenProvider(HttpClient httpClient, IZohoApiConfigurationOptions options, TokenStore tokenStore)
     {
         _httpClient = httpClient;
         _options = options;
