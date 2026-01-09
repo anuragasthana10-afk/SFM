@@ -71,29 +71,32 @@ namespace CRM.Classes.ExternalServices.Zoho.Books
                     Quantity = 10
                 };
 
-                var invoice = new Invoice
+                var invoices = new List<Invoice>
                 {
-                    LocalId = 200,
-                    ContactLocalId = 200,
-                    InvoiceDate = DateTime.UtcNow.Date,
-                    CurrencyCode = "USD",
-                    Jurisdiction = "US",
-                    RelationshipManager = "Jordan Lee",
-                    TaxName = "Sales Tax",
-                    TaxPercentage = 5.0m,
-                    TaxTreatment = "taxable",
-                    PlaceOfSupply = "CA",
-                    Notes = "Follow-up invoice.",
-                    LineItems = new List<InvoiceLineItem>
+                    new Invoice
                     {
-                        new InvoiceLineItem
+                        LocalId = 200,
+                        ContactLocalId = 200,
+                        InvoiceDate = DateTime.UtcNow.Date,
+                        CurrencyCode = "USD",
+                        Jurisdiction = "US",
+                        RelationshipManager = "Jordan Lee",
+                        TaxName = "Sales Tax",
+                        TaxPercentage = 5.0m,
+                        TaxTreatment = "taxable",
+                        PlaceOfSupply = "CA",
+                        Notes = "Follow-up invoice.",
+                        LineItems = new List<InvoiceLineItem>
                         {
-                            ItemLocalId = 200,
-                            Description = "Gizmo",
-                            Rate = 79.95m,
-                            Quantity = 1,
-                            TaxName = "Sales Tax",
-                            TaxPercentage = 5.0m
+                            new InvoiceLineItem
+                            {
+                                ItemLocalId = 200,
+                                Description = "Gizmo",
+                                Rate = 79.95m,
+                                Quantity = 1,
+                                TaxName = "Sales Tax",
+                                TaxPercentage = 5.0m
+                            }
                         }
                     }
                 };
@@ -101,8 +104,8 @@ namespace CRM.Classes.ExternalServices.Zoho.Books
                 await EnsureContactAsync(zohoClient, referenceStore, contact);
                 await EnsureInventoryItemAsync(zohoClient, referenceStore, inventoryItem);
 
-                await zohoClient.SyncInvoicesAsync(new[] { invoice });
-                await zohoClient.UpdateInvoicesAsync(new[] { invoice });
+                await zohoClient.SyncInvoicesAsync(invoices);
+                await zohoClient.UpdateInvoicesAsync(invoices);
             }
         }
 
