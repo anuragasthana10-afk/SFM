@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
 using CRM.Classes.ExternalServices.Zoho.Books.Configuration;
@@ -54,21 +55,27 @@ namespace CRM.Classes.ExternalServices.Zoho.Books
                 var tokenProvider = new ZohoTokenProvider(httpClient, options, tokenStore);
                 var zohoClient = new ZohoBooksClient(httpClient, options, connectionOptions, referenceStore, tokenProvider);
 
-                var contact = new Contact
+                var contacts = new List<Contact>
                 {
-                    LocalId = 200,
-                    Name = "Globex Corp",
-                    Email = "ap@globex.test",
-                    Phone = "+1-555-0200"
+                    new Contact
+                    {
+                        LocalId = 200,
+                        Name = "Globex Corp",
+                        Email = "ap@globex.test",
+                        Phone = "+1-555-0200"
+                    }
                 };
 
-                var inventoryItem = new InventoryItem
+                var inventoryItems = new List<InventoryItem>
                 {
-                    LocalId = 200,
-                    Name = "Gizmo",
-                    Sku = "GIZMO-200",
-                    Rate = 79.95m,
-                    Quantity = 10
+                    new InventoryItem
+                    {
+                        LocalId = 200,
+                        Name = "Gizmo",
+                        Sku = "GIZMO-200",
+                        Rate = 79.95m,
+                        Quantity = 10
+                    }
                 };
 
                 var invoices = new List<Invoice>
@@ -101,29 +108,31 @@ namespace CRM.Classes.ExternalServices.Zoho.Books
                     }
                 };
 
-                await EnsureContactAsync(zohoClient, referenceStore, contact);
-                await EnsureInventoryItemAsync(zohoClient, referenceStore, inventoryItem);
+                await EnsureContactsAsync(zohoClient, referenceStore, contacts);
+                await EnsureInventoryItemsAsync(zohoClient, referenceStore, inventoryItems);
 
                 await zohoClient.SyncInvoicesAsync(invoices);
                 await zohoClient.UpdateInvoicesAsync(invoices);
             }
         }
 
-        private static async Task EnsureContactAsync(ZohoBooksClient zohoClient, ReferenceStore referenceStore, Contact contact)
+        private static async Task EnsureContactsAsync(ZohoBooksClient zohoClient, ReferenceStore referenceStore, IReadOnlyCollection<Contact> contacts)
         {
-            var existingContacts = await referenceStore.GetContactIdsAsync(new[] { contact.LocalId });
-            if (!existingContacts.ContainsKey(contact.LocalId))
+            var existingContacts = await referenceStore.GetContactIdsAsync(contacts.Select(contact => contact.LocalId));
+            var missingContacts = contacts.Where(contact => !existingContacts.ContainsKey(contact.LocalId)).ToList();
+            if (missingContacts.Count > 0)
             {
-                await zohoClient.SyncContactsAsync(new[] { contact });
+                await zohoClient.SyncContactsAsync(missingContacts);
             }
         }
 
-        private static async Task EnsureInventoryItemAsync(ZohoBooksClient zohoClient, ReferenceStore referenceStore, InventoryItem item)
+        private static async Task EnsureInventoryItemsAsync(ZohoBooksClient zohoClient, ReferenceStore referenceStore, IReadOnlyCollection<InventoryItem> items)
         {
-            var existingItems = await referenceStore.GetItemIdsAsync(new[] { item.LocalId });
-            if (!existingItems.ContainsKey(item.LocalId))
+            var existingItems = await referenceStore.GetItemIdsAsync(items.Select(item => item.LocalId));
+            var missingItems = items.Where(item => !existingItems.ContainsKey(item.LocalId)).ToList();
+            if (missingItems.Count > 0)
             {
-                await zohoClient.SyncInventoryItemsAsync(new[] { item });
+                await zohoClient.SyncInventoryItemsAsync(missingItems);
             }
         }
     }
