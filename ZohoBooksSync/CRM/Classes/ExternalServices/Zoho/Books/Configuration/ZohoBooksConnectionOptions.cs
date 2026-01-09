@@ -6,8 +6,6 @@ namespace CRM.Classes.ExternalServices.Zoho.Books.Configuration
     {
         public string APIBaseUrl { get; set; }
         public string OrganizationId { get; set; }
-        public string UaeOrganizationId { get; set; }
-        public string SwissOrganizationId { get; set; }
         public string SqlConnectionString { get; set; }
         public bool AllowReportingTagOptionCreate { get; set; }
 
@@ -15,8 +13,6 @@ namespace CRM.Classes.ExternalServices.Zoho.Books.Configuration
         {
             APIBaseUrl = "https://www.zohoapis.com/books/v3";
             OrganizationId = string.Empty;
-            UaeOrganizationId = string.Empty;
-            SwissOrganizationId = string.Empty;
             SqlConnectionString = string.Empty;
             AllowReportingTagOptionCreate = false;
         }
@@ -28,10 +24,6 @@ namespace CRM.Classes.ExternalServices.Zoho.Books.Configuration
                 APIBaseUrl = Environment.GetEnvironmentVariable("ZOHO_BOOKS_BASE_URL")
                     ?? "https://www.zohoapis.com/books/v3",
                 OrganizationId = Environment.GetEnvironmentVariable("ZOHO_BOOKS_ORGANIZATION_ID")
-                    ?? string.Empty,
-                UaeOrganizationId = Environment.GetEnvironmentVariable("ZOHO_BOOKS_UAE_ORGANIZATION_ID")
-                    ?? string.Empty,
-                SwissOrganizationId = Environment.GetEnvironmentVariable("ZOHO_BOOKS_SWISS_ORGANIZATION_ID")
                     ?? string.Empty,
                 SqlConnectionString = Environment.GetEnvironmentVariable("ZOHO_BOOKS_SQL_CONNECTION_STRING")
                     ?? string.Empty,
