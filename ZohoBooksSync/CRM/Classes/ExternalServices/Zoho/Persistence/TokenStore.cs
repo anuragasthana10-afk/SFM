@@ -131,7 +131,7 @@ public sealed class TokenStore
         }
     }
 
-    private static void AddTokenParameters(DbCommand command, TokenData data)
+    private void AddTokenParameters(DbCommand command, TokenData data)
     {
         AddParameter(command, "@AccessToken", string.IsNullOrWhiteSpace(data.AccessToken) ? (object)DBNull.Value : data.AccessToken);
         AddParameter(command, "@AccessTokenExpiresAtUtc", data.AccessTokenExpiresAtUtc.HasValue ? (object)data.AccessTokenExpiresAtUtc.Value : DBNull.Value);
