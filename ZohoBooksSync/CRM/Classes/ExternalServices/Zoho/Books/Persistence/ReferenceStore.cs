@@ -62,7 +62,7 @@ public sealed class ReferenceStore
                     LocalKey INT NOT NULL,
                     LocalKeyText NVARCHAR(64) NULL,
                     Location NVARCHAR(16) NOT NULL,
-                    Operation NVARCHAR(64) NOT NULL,
+                    Operation NVARCHAR(16) NOT NULL,
                     Success BIT NOT NULL,
                     RemoteId NVARCHAR(100) NULL,
                     ErrorMessage NVARCHAR(MAX) NULL,
