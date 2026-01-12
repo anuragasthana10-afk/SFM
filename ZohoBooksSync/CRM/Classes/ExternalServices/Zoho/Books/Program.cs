@@ -22,13 +22,13 @@ namespace CRM.Classes.ExternalServices.Zoho.Books
 
             if (string.IsNullOrWhiteSpace(context.ConnectionOptions.ActiveOrganizationId))
             {
-                Console.WriteLine($"Configure {context.OrganizationIdEnvironmentVariable} to run the sync for {context.Location}.");
+                Console.WriteLine($"Configure {context.OrganizationIdEnvironmentVariable} to run the sync for {context.LocationName}.");
                 return;
             }
 
             if (string.IsNullOrWhiteSpace(context.ConnectionOptions.SqlConnectionString))
             {
-                Console.WriteLine($"Configure ZOHO_BOOKS_SQL_CONNECTION_STRING to run the sync for {context.Location}.");
+                Console.WriteLine($"Configure ZOHO_BOOKS_SQL_CONNECTION_STRING to run the sync for {context.LocationName}.");
                 return;
             }
 

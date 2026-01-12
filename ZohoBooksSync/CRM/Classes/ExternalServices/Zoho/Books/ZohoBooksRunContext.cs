@@ -7,14 +7,15 @@ namespace CRM.Classes.ExternalServices.Zoho.Books
 {
     public sealed class ZohoBooksRunContext
     {
-        public string Location { get; }
+        public ZohoBooksLocation Location { get; }
+        public string LocationName => Location.ToString().ToLowerInvariant();
         public IZohoApiConfigurationOptions Options { get; }
         public ZohoBooksConnectionOptions ConnectionOptions { get; }
         public string TokenCode { get; }
         public string OrganizationIdEnvironmentVariable { get; }
 
         private ZohoBooksRunContext(
-            string location,
+            ZohoBooksLocation location,
             IZohoApiConfigurationOptions options,
             ZohoBooksConnectionOptions connectionOptions,
             string tokenCode,
@@ -35,16 +36,24 @@ namespace CRM.Classes.ExternalServices.Zoho.Books
             var locationInput = args.Length > 0
                 ? args[0]
                 : Environment.GetEnvironmentVariable("ZOHO_BOOKS_LOCATION") ?? "uae";
-            var location = locationInput.Trim().ToLowerInvariant();
+            var locationValue = locationInput.Trim();
+            ZohoBooksLocation location;
 
-            if (!location.Equals("uae", StringComparison.OrdinalIgnoreCase)
-                && !location.Equals("swiss", StringComparison.OrdinalIgnoreCase))
+            if (locationValue.Equals("uae", StringComparison.OrdinalIgnoreCase))
+            {
+                location = ZohoBooksLocation.Uae;
+            }
+            else if (locationValue.Equals("swiss", StringComparison.OrdinalIgnoreCase))
+            {
+                location = ZohoBooksLocation.Swiss;
+            }
+            else
             {
                 error = $"Unsupported ZOHO_BOOKS_LOCATION '{locationInput}'. Use 'uae' or 'swiss'.";
                 return false;
             }
 
-            var isUae = location.Equals("uae", StringComparison.OrdinalIgnoreCase);
+            var isUae = location == ZohoBooksLocation.Uae;
             var options = isUae
                 ? (IZohoApiConfigurationOptions)UaeZohoAPIConfigurationOptions.FromEnvironment()
                 : SwissZohoAPIConfigurationOptions.FromEnvironment();

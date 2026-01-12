@@ -3,6 +3,7 @@ using System.Data;
 using System.Data.Common;
 using System.Data.Entity;
 using System.Linq;
+using CRM.Classes.ExternalServices.Zoho.Books;
 
 namespace CRM.Classes.ExternalServices.Zoho.Books.Persistence
 {
@@ -31,14 +32,12 @@ public sealed class ReferenceStore
     private const string CurrencyReferenceTable = "ZohoBooks_CurrencyReferences";
 
     private readonly Database _database;
-    private readonly string _location;
+    private readonly byte _location;
 
-    public ReferenceStore(Database database, string location)
+    public ReferenceStore(Database database, ZohoBooksLocation location)
     {
         _database = database;
-        _location = string.IsNullOrWhiteSpace(location)
-            ? throw new ArgumentException("Location is required for reference storage.", nameof(location))
-            : location.Trim().ToLowerInvariant();
+        _location = (byte)location;
     }
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
@@ -49,7 +48,7 @@ public sealed class ReferenceStore
                 CREATE TABLE {ReferenceTable} (
                     EntityType NVARCHAR(32) NOT NULL,
                     LocalKey INT NOT NULL,
-                    Location NVARCHAR(16) NOT NULL,
+                    Location TINYINT NOT NULL,
                     RemoteId NVARCHAR(100) NOT NULL,
                     CONSTRAINT PK_ZohoBooks_ReferenceStore PRIMARY KEY (EntityType, LocalKey, Location)
                 );
@@ -61,7 +60,7 @@ public sealed class ReferenceStore
                     EntityType NVARCHAR(32) NOT NULL,
                     LocalKey INT NOT NULL,
                     LocalKeyText NVARCHAR(64) NULL,
-                    Location NVARCHAR(16) NOT NULL,
+                    Location TINYINT NOT NULL,
                     Operation NVARCHAR(16) NOT NULL,
                     Success BIT NOT NULL,
                     RemoteId NVARCHAR(100) NULL,
@@ -73,7 +72,7 @@ public sealed class ReferenceStore
             BEGIN
                 CREATE TABLE {ReportingTagOptionTable} (
                     OptionKey NVARCHAR(256) NOT NULL,
-                    Location NVARCHAR(16) NOT NULL,
+                    Location TINYINT NOT NULL,
                     RemoteId NVARCHAR(256) NOT NULL,
                     CONSTRAINT PK_ZohoBooks_ReportingTagOptions PRIMARY KEY (OptionKey, Location)
                 );
@@ -82,7 +81,7 @@ public sealed class ReferenceStore
             BEGIN
                 CREATE TABLE {ReportingTagTable} (
                     TagName NVARCHAR(128) NOT NULL,
-                    Location NVARCHAR(16) NOT NULL,
+                    Location TINYINT NOT NULL,
                     TagId NVARCHAR(100) NOT NULL,
                     CONSTRAINT PK_ZohoBooks_ReportingTags PRIMARY KEY (TagName, Location)
                 );
@@ -91,7 +90,7 @@ public sealed class ReferenceStore
             BEGIN
                 CREATE TABLE {CurrencyReferenceTable} (
                     CurrencyCode NVARCHAR(16) NOT NULL,
-                    Location NVARCHAR(16) NOT NULL,
+                    Location TINYINT NOT NULL,
                     RemoteId NVARCHAR(100) NOT NULL,
                     CONSTRAINT PK_ZohoBooks_CurrencyReferences PRIMARY KEY (CurrencyCode, Location)
                 );
@@ -407,23 +406,60 @@ public sealed class ReferenceStore
 
     private async Task EnsureLocationColumnAsync(string tableName, bool updateExisting, CancellationToken cancellationToken)
     {
-        var existsSql = @"
-            SELECT COUNT(*)
-            FROM sys.columns
-            WHERE name = 'Location' AND object_id = OBJECT_ID(@TableName);";
+        var columnSql = @"
+            SELECT c.max_length, t.name
+            FROM sys.columns c
+            INNER JOIN sys.types t ON c.user_type_id = t.user_type_id
+            WHERE c.name = 'Location' AND c.object_id = OBJECT_ID(@TableName);";
 
-        using (var command = CreateCommand(existsSql))
+        bool hasLocation;
+        string typeName = null;
+        using (var command = CreateCommand(columnSql))
         {
             AddParameter(command, "@TableName", tableName);
-            var result = await command.ExecuteScalarAsync(cancellationToken);
-            var hasLocation = result != null && result != DBNull.Value && Convert.ToInt32(result) > 0;
-            if (!hasLocation)
+            using (var reader = await command.ExecuteReaderAsync(cancellationToken))
             {
-                var addColumnSql = $"ALTER TABLE {tableName} ADD Location NVARCHAR(16) NOT NULL CONSTRAINT DF_{tableName}_Location DEFAULT ('');";
-                using (var addCommand = CreateCommand(addColumnSql))
+                if (await reader.ReadAsync(cancellationToken))
                 {
-                    await addCommand.ExecuteNonQueryAsync(cancellationToken);
+                    hasLocation = true;
+                    typeName = reader.GetString(1);
                 }
+                else
+                {
+                    hasLocation = false;
+                }
+            }
+        }
+
+        if (!hasLocation)
+        {
+            var addColumnSql = $"ALTER TABLE {tableName} ADD Location TINYINT NOT NULL CONSTRAINT DF_{tableName}_Location DEFAULT ({_location});";
+            using (var addCommand = CreateCommand(addColumnSql))
+            {
+                await addCommand.ExecuteNonQueryAsync(cancellationToken);
+            }
+        }
+        else if (!string.Equals(typeName, "tinyint", StringComparison.OrdinalIgnoreCase))
+        {
+            var updateSql = $@"
+                UPDATE {tableName}
+                SET Location = CASE
+                    WHEN Location IS NULL THEN {_location}
+                    WHEN LTRIM(RTRIM(CONVERT(NVARCHAR(32), Location))) = '' THEN {_location}
+                    WHEN LOWER(CONVERT(NVARCHAR(32), Location)) = 'uae' THEN {(byte)ZohoBooksLocation.Uae}
+                    WHEN LOWER(CONVERT(NVARCHAR(32), Location)) = 'swiss' THEN {(byte)ZohoBooksLocation.Swiss}
+                    ELSE {_location}
+                END;";
+
+            using (var command = CreateCommand(updateSql))
+            {
+                await command.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            var alterSql = $"ALTER TABLE {tableName} ALTER COLUMN Location TINYINT NOT NULL;";
+            using (var command = CreateCommand(alterSql))
+            {
+                await command.ExecuteNonQueryAsync(cancellationToken);
             }
         }
 
@@ -432,14 +468,13 @@ public sealed class ReferenceStore
             return;
         }
 
-        var updateSql = $@"
+        var normalizeSql = $@"
             UPDATE {tableName}
-            SET Location = @Location
-            WHERE Location IS NULL OR Location = '';";
+            SET Location = {_location}
+            WHERE Location IS NULL OR Location = 0;";
 
-        using (var command = CreateCommand(updateSql))
+        using (var command = CreateCommand(normalizeSql))
         {
-            AddParameter(command, "@Location", _location);
             await command.ExecuteNonQueryAsync(cancellationToken);
         }
     }
