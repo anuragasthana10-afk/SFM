@@ -100,7 +100,7 @@ public sealed class ReferenceStore
             IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = '{AccountReferenceTable}')
             BEGIN
                 CREATE TABLE {AccountReferenceTable} (
-                    AccountCode NVARCHAR(64) NOT NULL,
+                    AccountCode NVARCHAR(20) NOT NULL,
                     Location TINYINT NOT NULL,
                     RemoteId NVARCHAR(100) NOT NULL,
                     CONSTRAINT PK_ZohoBooks_AccountReferences PRIMARY KEY (AccountCode, Location)
