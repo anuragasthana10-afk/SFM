@@ -21,6 +21,7 @@ namespace CRM.Classes.ExternalServices.Zoho.Books.Models
     {
         public int ItemLocalId { get; set; }
         public string Description { get; set; }
+        public string AccountId { get; set; }
         public decimal Rate { get; set; }
         public int Quantity { get; set; }
         public string TaxId { get; set; }

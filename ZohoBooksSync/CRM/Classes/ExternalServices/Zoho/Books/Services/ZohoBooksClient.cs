@@ -159,6 +159,11 @@ public sealed class ZohoBooksClient
                     lineItem["tax_id"] = item.TaxId;
                 }
 
+                if (!string.IsNullOrWhiteSpace(item.AccountId))
+                {
+                    lineItem["account_id"] = item.AccountId;
+                }
+
                 return lineItem;
             });
 
@@ -294,6 +299,11 @@ public sealed class ZohoBooksClient
                 if (!string.IsNullOrWhiteSpace(item.TaxId))
                 {
                     lineItem["tax_id"] = item.TaxId;
+                }
+
+                if (!string.IsNullOrWhiteSpace(item.AccountId))
+                {
+                    lineItem["account_id"] = item.AccountId;
                 }
 
                 return lineItem;
