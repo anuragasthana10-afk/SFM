@@ -327,6 +327,33 @@ public sealed class ZohoBooksClient
         }
     }
 
+    public async Task AttachInvoicePdfAsync(int invoiceLocalId, MemoryStream fileContent, CancellationToken cancellationToken = default)
+    {
+        if (fileContent == null)
+        {
+            throw new ArgumentNullException(nameof(fileContent));
+        }
+
+        var invoiceIdLookup = await _referenceStore.GetInvoiceIdsAsync(new[] { invoiceLocalId }, cancellationToken);
+        if (!invoiceIdLookup.TryGetValue(invoiceLocalId, out var invoiceId))
+        {
+            throw new InvalidOperationException($"Missing invoice reference for {invoiceLocalId}.");
+        }
+
+        fileContent.Position = 0;
+        using (var request = await CreateRequestAsync(HttpMethod.Post, $"invoices/{invoiceId}/attachment", cancellationToken))
+        using (var content = new MultipartFormDataContent())
+        using (var streamContent = new StreamContent(fileContent))
+        {
+            streamContent.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
+            content.Add(streamContent, "attachment", $"invoice-{invoiceLocalId}.pdf");
+            request.Content = content;
+
+            var response = await _httpClient.SendAsync(request, cancellationToken);
+            await EnsureSuccessAsync(response, cancellationToken);
+        }
+    }
+
     public async Task<IReadOnlyList<InvoicePayment>> PullPaymentsAsync(IEnumerable<int> invoiceLocalIds, CancellationToken cancellationToken = default)
     {
         var results = new List<InvoicePayment>();
