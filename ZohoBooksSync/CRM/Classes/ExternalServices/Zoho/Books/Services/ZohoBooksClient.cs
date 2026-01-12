@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -291,6 +292,38 @@ public sealed class ZohoBooksClient
                 await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.Invoice.ToString(), invoice.LocalId, "Update", false, remoteId, ex.Message, null, cancellationToken);
                 throw;
             }
+        }
+    }
+
+    public async Task AttachInvoicePdfAsync(int invoiceLocalId, string filePath, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(filePath))
+        {
+            throw new ArgumentException("PDF attachment path is required.", nameof(filePath));
+        }
+
+        if (!File.Exists(filePath))
+        {
+            throw new FileNotFoundException("Invoice PDF attachment was not found.", filePath);
+        }
+
+        var invoiceIdLookup = await _referenceStore.GetInvoiceIdsAsync(new[] { invoiceLocalId }, cancellationToken);
+        if (!invoiceIdLookup.TryGetValue(invoiceLocalId, out var invoiceId))
+        {
+            throw new InvalidOperationException($"Missing invoice reference for {invoiceLocalId}.");
+        }
+
+        using (var request = await CreateRequestAsync(HttpMethod.Post, $"invoices/{invoiceId}/attachment", cancellationToken))
+        using (var content = new MultipartFormDataContent())
+        using (var stream = File.OpenRead(filePath))
+        using (var fileContent = new StreamContent(stream))
+        {
+            fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
+            content.Add(fileContent, "attachment", Path.GetFileName(filePath));
+            request.Content = content;
+
+            var response = await _httpClient.SendAsync(request, cancellationToken);
+            await EnsureSuccessAsync(response, cancellationToken);
         }
     }
 
