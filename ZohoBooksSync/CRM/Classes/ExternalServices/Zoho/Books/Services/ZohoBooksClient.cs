@@ -159,8 +159,7 @@ public sealed class ZohoBooksClient
                     ["tax_name"] = invoice.TaxName,
                     ["tax_percentage"] = invoice.TaxPercentage,
                     ["tax_treatment"] = invoice.TaxTreatment,
-                    ["place_of_supply"] = invoice.PlaceOfSupply,
-                    ["status"] = "sent"
+                    ["place_of_supply"] = invoice.PlaceOfSupply
                 };
 
                 if (!string.IsNullOrWhiteSpace(invoice.InvoiceNumber))
@@ -176,6 +175,7 @@ public sealed class ZohoBooksClient
                 var response = await PostAsync("invoices", payload, cancellationToken);
                 var remoteId = ExtractId(response, "invoice", "invoice_id");
                 await _referenceStore.SetInvoiceIdAsync(invoice.LocalId, remoteId, cancellationToken);
+                await MarkInvoiceSentAsync(remoteId, cancellationToken);
                 await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.Invoice.ToString(), invoice.LocalId, "Create", true, remoteId, null, null, cancellationToken);
             }
             catch (Exception ex)
@@ -282,8 +282,7 @@ public sealed class ZohoBooksClient
                     ["tax_name"] = invoice.TaxName,
                     ["tax_percentage"] = invoice.TaxPercentage,
                     ["tax_treatment"] = invoice.TaxTreatment,
-                    ["place_of_supply"] = invoice.PlaceOfSupply,
-                    ["status"] = "sent"
+                    ["place_of_supply"] = invoice.PlaceOfSupply
                 };
 
                 if (!string.IsNullOrWhiteSpace(invoice.InvoiceNumber))
@@ -297,6 +296,7 @@ public sealed class ZohoBooksClient
                 }
 
                 await PutAsync($"invoices/{remoteId}", payload, cancellationToken);
+                await MarkInvoiceSentAsync(remoteId, cancellationToken);
                 await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.Invoice.ToString(), invoice.LocalId, "Update", true, remoteId, null, null, cancellationToken);
             }
             catch (Exception ex)
@@ -361,6 +361,15 @@ public sealed class ZohoBooksClient
             content.Add(streamContent, "attachment", $"invoice-{invoiceLocalId}.pdf");
             request.Content = content;
 
+            var response = await _httpClient.SendAsync(request, cancellationToken);
+            await EnsureSuccessAsync(response, cancellationToken);
+        }
+    }
+
+    private async Task MarkInvoiceSentAsync(string invoiceId, CancellationToken cancellationToken)
+    {
+        using (var request = await CreateRequestAsync(HttpMethod.Post, $"invoices/{invoiceId}/status/sent", cancellationToken))
+        {
             var response = await _httpClient.SendAsync(request, cancellationToken);
             await EnsureSuccessAsync(response, cancellationToken);
         }
