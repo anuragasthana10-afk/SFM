@@ -159,7 +159,8 @@ public sealed class ZohoBooksClient
                     ["tax_name"] = invoice.TaxName,
                     ["tax_percentage"] = invoice.TaxPercentage,
                     ["tax_treatment"] = invoice.TaxTreatment,
-                    ["place_of_supply"] = invoice.PlaceOfSupply
+                    ["place_of_supply"] = invoice.PlaceOfSupply,
+                    ["status"] = "sent"
                 };
 
                 if (!string.IsNullOrWhiteSpace(invoice.InvoiceNumber))
@@ -281,7 +282,8 @@ public sealed class ZohoBooksClient
                     ["tax_name"] = invoice.TaxName,
                     ["tax_percentage"] = invoice.TaxPercentage,
                     ["tax_treatment"] = invoice.TaxTreatment,
-                    ["place_of_supply"] = invoice.PlaceOfSupply
+                    ["place_of_supply"] = invoice.PlaceOfSupply,
+                    ["status"] = "sent"
                 };
 
                 if (!string.IsNullOrWhiteSpace(invoice.InvoiceNumber))
