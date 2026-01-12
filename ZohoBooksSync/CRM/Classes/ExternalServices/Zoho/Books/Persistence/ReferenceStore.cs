@@ -60,9 +60,9 @@ public sealed class ReferenceStore
                     Id INT IDENTITY(1,1) PRIMARY KEY,
                     EntityType NVARCHAR(32) NOT NULL,
                     LocalKey INT NOT NULL,
-                    LocalKeyText NVARCHAR(128) NULL,
+                    LocalKeyText NVARCHAR(64) NULL,
                     Location NVARCHAR(16) NOT NULL,
-                    Operation NVARCHAR(128) NOT NULL,
+                    Operation NVARCHAR(64) NOT NULL,
                     Success BIT NOT NULL,
                     RemoteId NVARCHAR(100) NULL,
                     ErrorMessage NVARCHAR(MAX) NULL,
@@ -113,6 +113,8 @@ public sealed class ReferenceStore
         await EnsurePrimaryKeyIncludesLocationAsync(ReportingTagOptionTable, "PK_ZohoBooks_ReportingTagOptions", "OptionKey", cancellationToken);
         await EnsurePrimaryKeyIncludesLocationAsync(ReportingTagTable, "PK_ZohoBooks_ReportingTags", "TagName", cancellationToken);
         await EnsurePrimaryKeyIncludesLocationAsync(CurrencyReferenceTable, "PK_ZohoBooks_CurrencyReferences", "CurrencyCode", cancellationToken);
+
+        await EnsureSyncLogColumnSizesAsync(cancellationToken);
     }
 
     public Task<Dictionary<int, string>> GetItemIdsAsync(IEnumerable<int> localIds, CancellationToken cancellationToken = default)
@@ -439,6 +441,47 @@ public sealed class ReferenceStore
         using (var command = CreateCommand(updateSql))
         {
             AddParameter(command, "@Location", _location);
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
+    }
+
+    private async Task EnsureSyncLogColumnSizesAsync(CancellationToken cancellationToken)
+    {
+        var localKeyTextSql = $@"
+            IF EXISTS (
+                SELECT 1
+                FROM sys.columns c
+                INNER JOIN sys.types t ON c.user_type_id = t.user_type_id
+                WHERE c.object_id = OBJECT_ID('{SyncLogTable}')
+                  AND c.name = 'LocalKeyText'
+                  AND t.name = 'nvarchar'
+                  AND c.max_length > 128
+            )
+            BEGIN
+                ALTER TABLE {SyncLogTable} ALTER COLUMN LocalKeyText NVARCHAR(64) NULL;
+            END";
+
+        var operationSql = $@"
+            IF EXISTS (
+                SELECT 1
+                FROM sys.columns c
+                INNER JOIN sys.types t ON c.user_type_id = t.user_type_id
+                WHERE c.object_id = OBJECT_ID('{SyncLogTable}')
+                  AND c.name = 'Operation'
+                  AND t.name = 'nvarchar'
+                  AND c.max_length > 128
+            )
+            BEGIN
+                ALTER TABLE {SyncLogTable} ALTER COLUMN Operation NVARCHAR(64) NOT NULL;
+            END";
+
+        using (var command = CreateCommand(localKeyTextSql))
+        {
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        using (var command = CreateCommand(operationSql))
+        {
             await command.ExecuteNonQueryAsync(cancellationToken);
         }
     }
