@@ -22,7 +22,8 @@ public sealed class ReferenceStore
         Contact,
         Invoice,
         ReportingTagOption,
-        ReportingTag
+        ReportingTag,
+        Account
     }
 
     private const string SyncLogTable = "ZohoBooks_SyncOperationLog";
@@ -30,6 +31,7 @@ public sealed class ReferenceStore
     private const string ReportingTagOptionTable = "ZohoBooks_ReportingTagOptions";
     private const string ReportingTagTable = "ZohoBooks_ReportingTags";
     private const string CurrencyReferenceTable = "ZohoBooks_CurrencyReferences";
+    private const string AccountReferenceTable = "ZohoBooks_AccountReferences";
 
     private readonly Database _database;
     private readonly byte _location;
@@ -94,6 +96,15 @@ public sealed class ReferenceStore
                     RemoteId NVARCHAR(100) NOT NULL,
                     CONSTRAINT PK_ZohoBooks_CurrencyReferences PRIMARY KEY (CurrencyCode, Location)
                 );
+            END
+            IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = '{AccountReferenceTable}')
+            BEGIN
+                CREATE TABLE {AccountReferenceTable} (
+                    AccountCode NVARCHAR(64) NOT NULL,
+                    Location TINYINT NOT NULL,
+                    RemoteId NVARCHAR(100) NOT NULL,
+                    CONSTRAINT PK_ZohoBooks_AccountReferences PRIMARY KEY (AccountCode, Location)
+                );
             END";
 
         await EnsureConnectionOpenAsync(cancellationToken);
@@ -107,11 +118,13 @@ public sealed class ReferenceStore
         await EnsureLocationColumnAsync(ReportingTagOptionTable, true, cancellationToken);
         await EnsureLocationColumnAsync(ReportingTagTable, true, cancellationToken);
         await EnsureLocationColumnAsync(CurrencyReferenceTable, true, cancellationToken);
+        await EnsureLocationColumnAsync(AccountReferenceTable, true, cancellationToken);
 
         await EnsurePrimaryKeyIncludesLocationAsync(ReferenceTable, "PK_ZohoBooks_ReferenceStore", "EntityType, LocalKey", cancellationToken);
         await EnsurePrimaryKeyIncludesLocationAsync(ReportingTagOptionTable, "PK_ZohoBooks_ReportingTagOptions", "OptionKey", cancellationToken);
         await EnsurePrimaryKeyIncludesLocationAsync(ReportingTagTable, "PK_ZohoBooks_ReportingTags", "TagName", cancellationToken);
         await EnsurePrimaryKeyIncludesLocationAsync(CurrencyReferenceTable, "PK_ZohoBooks_CurrencyReferences", "CurrencyCode", cancellationToken);
+        await EnsurePrimaryKeyIncludesLocationAsync(AccountReferenceTable, "PK_ZohoBooks_AccountReferences", "AccountCode", cancellationToken);
 
     }
 
@@ -150,6 +163,12 @@ public sealed class ReferenceStore
 
     public Task SetCurrencyIdAsync(string currencyCode, string remoteId, CancellationToken cancellationToken = default)
         => SetCurrencyIdInternalAsync(currencyCode, remoteId, cancellationToken);
+
+    public Task<string> GetAccountIdAsync(string accountCode, CancellationToken cancellationToken = default)
+        => GetAccountIdInternalAsync(accountCode, cancellationToken);
+
+    public Task SetAccountIdAsync(string accountCode, string remoteId, CancellationToken cancellationToken = default)
+        => SetAccountIdInternalAsync(accountCode, remoteId, cancellationToken);
 
     public async Task LogSyncOperationAsync(
         string entityType,
@@ -398,6 +417,55 @@ public sealed class ReferenceStore
         using (var command = CreateCommand(sql))
         {
             AddParameter(command, "@CurrencyCode", currencyCode);
+            AddParameter(command, "@Location", _location);
+            AddParameter(command, "@RemoteId", remoteId);
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
+    }
+
+    private async Task<string> GetAccountIdInternalAsync(string accountCode, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(accountCode))
+        {
+            return null;
+        }
+
+        var sql = $@"
+            SELECT RemoteId
+            FROM {AccountReferenceTable}
+            WHERE AccountCode = @AccountCode AND Location = @Location;";
+
+        await EnsureConnectionOpenAsync(cancellationToken);
+        using (var command = CreateCommand(sql))
+        {
+            AddParameter(command, "@AccountCode", accountCode);
+            AddParameter(command, "@Location", _location);
+            var result = await command.ExecuteScalarAsync(cancellationToken);
+            return result == null || result == DBNull.Value ? null : result.ToString();
+        }
+    }
+
+    private async Task SetAccountIdInternalAsync(string accountCode, string remoteId, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(accountCode) || string.IsNullOrWhiteSpace(remoteId))
+        {
+            return;
+        }
+
+        var sql = $@"
+            MERGE {AccountReferenceTable} AS target
+            USING (SELECT @AccountCode AS AccountCode, @Location AS Location, @RemoteId AS RemoteId) AS source
+            ON target.AccountCode = source.AccountCode AND target.Location = source.Location
+            WHEN MATCHED THEN
+                UPDATE SET RemoteId = source.RemoteId
+            WHEN NOT MATCHED THEN
+                INSERT (AccountCode, Location, RemoteId)
+                VALUES (source.AccountCode, source.Location, source.RemoteId);";
+
+        await EnsureConnectionOpenAsync(cancellationToken);
+        using (var command = CreateCommand(sql))
+        {
+            AddParameter(command, "@AccountCode", accountCode);
             AddParameter(command, "@Location", _location);
             AddParameter(command, "@RemoteId", remoteId);
             await command.ExecuteNonQueryAsync(cancellationToken);

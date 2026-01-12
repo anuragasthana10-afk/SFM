@@ -88,7 +88,7 @@ namespace CRM.Classes.ExternalServices.Zoho.Books
                             {
                                 ItemLocalId = 100,
                                 Description = "Widget",
-                                AccountId = "4000",
+                                AccountCode = "4000",
                                 Rate = 49.99m,
                                 Quantity = 2,
                                 TaxName = "Sales Tax",

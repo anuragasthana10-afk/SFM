@@ -22,6 +22,7 @@ public sealed class ZohoBooksClient
     private readonly Dictionary<string, ReportingTag> _reportingTags = new Dictionary<string, ReportingTag>(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _reportingTagOptionCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _currencyCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> _accountCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     private const string ReportingTagBasePath = "settings/tags";
 
     public ZohoBooksClient(
@@ -140,32 +141,7 @@ public sealed class ZohoBooksClient
                 throw new InvalidOperationException(message);
             }
 
-            var lineItems = invoice.LineItems.Select(item =>
-            {
-                var lineItem = new Dictionary<string, object>
-                {
-                    ["item_id"] = itemIds.TryGetValue(item.ItemLocalId, out var itemId)
-                        ? itemId
-                        : throw new InvalidOperationException($"Missing item reference for {item.ItemLocalId}."),
-                    ["name"] = item.Description,
-                    ["rate"] = item.Rate,
-                    ["quantity"] = item.Quantity,
-                    ["tax_name"] = item.TaxName,
-                    ["tax_percentage"] = item.TaxPercentage
-                };
-
-                if (!string.IsNullOrWhiteSpace(item.TaxId))
-                {
-                    lineItem["tax_id"] = item.TaxId;
-                }
-
-                if (!string.IsNullOrWhiteSpace(item.AccountId))
-                {
-                    lineItem["account_id"] = item.AccountId;
-                }
-
-                return lineItem;
-            });
+            var lineItems = await BuildLineItemsAsync(invoice, itemIds, cancellationToken);
 
             try
             {
@@ -282,32 +258,7 @@ public sealed class ZohoBooksClient
                 throw new InvalidOperationException(message);
             }
 
-            var lineItems = invoice.LineItems.Select(item =>
-            {
-                var lineItem = new Dictionary<string, object>
-                {
-                    ["item_id"] = itemIds.TryGetValue(item.ItemLocalId, out var itemId)
-                        ? itemId
-                        : throw new InvalidOperationException($"Missing item reference for {item.ItemLocalId}."),
-                    ["name"] = item.Description,
-                    ["rate"] = item.Rate,
-                    ["quantity"] = item.Quantity,
-                    ["tax_name"] = item.TaxName,
-                    ["tax_percentage"] = item.TaxPercentage
-                };
-
-                if (!string.IsNullOrWhiteSpace(item.TaxId))
-                {
-                    lineItem["tax_id"] = item.TaxId;
-                }
-
-                if (!string.IsNullOrWhiteSpace(item.AccountId))
-                {
-                    lineItem["account_id"] = item.AccountId;
-                }
-
-                return lineItem;
-            });
+            var lineItems = await BuildLineItemsAsync(invoice, itemIds, cancellationToken);
 
             try
             {
@@ -371,6 +322,99 @@ public sealed class ZohoBooksClient
         }
 
         return results;
+    }
+
+    private async Task<IReadOnlyList<Dictionary<string, object>>> BuildLineItemsAsync(
+        Invoice invoice,
+        IReadOnlyDictionary<int, string> itemIds,
+        CancellationToken cancellationToken)
+    {
+        var lineItems = new List<Dictionary<string, object>>();
+
+        foreach (var item in invoice.LineItems)
+        {
+            var lineItem = new Dictionary<string, object>
+            {
+                ["item_id"] = itemIds.TryGetValue(item.ItemLocalId, out var itemId)
+                    ? itemId
+                    : throw new InvalidOperationException($"Missing item reference for {item.ItemLocalId}."),
+                ["name"] = item.Description,
+                ["rate"] = item.Rate,
+                ["quantity"] = item.Quantity,
+                ["tax_name"] = item.TaxName,
+                ["tax_percentage"] = item.TaxPercentage
+            };
+
+            if (!string.IsNullOrWhiteSpace(item.TaxId))
+            {
+                lineItem["tax_id"] = item.TaxId;
+            }
+
+            if (!string.IsNullOrWhiteSpace(item.AccountCode))
+            {
+                var accountId = await EnsureAccountIdAsync(item.AccountCode, cancellationToken);
+                lineItem["account_id"] = accountId;
+            }
+
+            lineItems.Add(lineItem);
+        }
+
+        return lineItems;
+    }
+
+    private async Task<string> EnsureAccountIdAsync(string accountCode, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(accountCode))
+        {
+            return null;
+        }
+
+        if (_accountCache.TryGetValue(accountCode, out var cachedId))
+        {
+            return cachedId;
+        }
+
+        var existingId = await _referenceStore.GetAccountIdAsync(accountCode, cancellationToken);
+        if (!string.IsNullOrWhiteSpace(existingId))
+        {
+            _accountCache[accountCode] = existingId;
+            return existingId;
+        }
+
+        var response = await GetAsync("chartofaccounts", cancellationToken);
+        if (response.TryGetProperty("chartofaccounts", out var accountsElement))
+        {
+            foreach (var account in accountsElement.EnumerateArray())
+            {
+                var code = account.TryGetProperty("account_code", out var codeElement)
+                    ? codeElement.GetString()
+                    : null;
+                if (!string.Equals(code, accountCode, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var accountId = account.GetProperty("account_id").GetString() ?? string.Empty;
+                if (!string.IsNullOrWhiteSpace(accountId))
+                {
+                    await _referenceStore.SetAccountIdAsync(accountCode, accountId, cancellationToken);
+                    _accountCache[accountCode] = accountId;
+                    return accountId;
+                }
+            }
+        }
+
+        var message = $"Account code '{accountCode}' was not found in Zoho Books. Create the account in Zoho Books and try again.";
+        await _referenceStore.LogSyncOperationAsync(
+            ReferenceStore.SyncEntityType.Account.ToString(),
+            0,
+            "Fetch",
+            false,
+            null,
+            message,
+            accountCode,
+            cancellationToken);
+        throw new InvalidOperationException(message);
     }
 
     private async Task EnsureCurrencyAsync(string currencyCode, CancellationToken cancellationToken)

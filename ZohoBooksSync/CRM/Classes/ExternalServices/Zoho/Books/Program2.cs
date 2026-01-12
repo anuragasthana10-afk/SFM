@@ -89,7 +89,7 @@ namespace CRM.Classes.ExternalServices.Zoho.Books
                             {
                                 ItemLocalId = 200,
                                 Description = "Gizmo",
-                                AccountId = "4000",
+                                AccountCode = "4000",
                                 Rate = 79.95m,
                                 Quantity = 1,
                                 TaxName = "Sales Tax",
