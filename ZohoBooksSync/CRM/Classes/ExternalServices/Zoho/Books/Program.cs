@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Threading.Tasks;
-using CRM.Classes.ExternalServices.Zoho.Books.Configuration;
 using CRM.Classes.ExternalServices.Zoho.Books.Models;
 using CRM.Classes.ExternalServices.Zoho.Books.Persistence;
 using CRM.Classes.ExternalServices.Zoho.Persistence;
@@ -15,44 +14,35 @@ namespace CRM.Classes.ExternalServices.Zoho.Books
     {
         public static async Task Main(string[] args)
         {
-            var uaeOptions = UaeZohoAPIConfigurationOptions.FromEnvironment();
-            var swissOptions = SwissZohoAPIConfigurationOptions.FromEnvironment();
-            var connectionOptions = ZohoBooksConnectionOptions.FromEnvironment();
-            var location = args.Length > 0
-                ? args[0]
-                : Environment.GetEnvironmentVariable("ZOHO_BOOKS_LOCATION") ?? "uae";
-            var isUae = location.Equals("uae", StringComparison.OrdinalIgnoreCase);
-            var options = isUae
-                ? (IZohoApiConfigurationOptions)uaeOptions
-                : swissOptions;
-            connectionOptions.ActiveOrganizationId = isUae
-                ? connectionOptions.UaeOrganizationId
-                : connectionOptions.SwissOrganizationId;
-
-            if (string.IsNullOrWhiteSpace(connectionOptions.ActiveOrganizationId))
+            if (!ZohoBooksRunContext.TryCreate(args, out var context, out var error))
             {
-                Console.WriteLine("Configure ZOHO_BOOKS_UAE_ORGANIZATION_ID or ZOHO_BOOKS_SWISS_ORGANIZATION_ID to run the sync.");
+                Console.WriteLine(error);
                 return;
             }
 
-            if (string.IsNullOrWhiteSpace(connectionOptions.SqlConnectionString))
+            if (string.IsNullOrWhiteSpace(context.ConnectionOptions.ActiveOrganizationId))
             {
-                Console.WriteLine("Configure ZOHO_BOOKS_SQL_CONNECTION_STRING to run the sync.");
+                Console.WriteLine($"Configure {context.OrganizationIdEnvironmentVariable} to run the sync for {context.Location}.");
                 return;
             }
 
-            using (var dbContext = new ZohoBooksDbContext(connectionOptions.SqlConnectionString))
+            if (string.IsNullOrWhiteSpace(context.ConnectionOptions.SqlConnectionString))
+            {
+                Console.WriteLine($"Configure ZOHO_BOOKS_SQL_CONNECTION_STRING to run the sync for {context.Location}.");
+                return;
+            }
+
+            using (var dbContext = new ZohoBooksDbContext(context.ConnectionOptions.SqlConnectionString))
             using (var httpClient = new HttpClient())
             {
-                var referenceStore = new ReferenceStore(dbContext.Database);
+                var referenceStore = new ReferenceStore(dbContext.Database, context.Location);
                 await referenceStore.InitializeAsync();
 
-                var tokenCode = isUae ? TokenStore.UaeTokenCode : TokenStore.SwissTokenCode;
-                var tokenStore = new TokenStore(dbContext.Database, tokenCode);
+                var tokenStore = new TokenStore(dbContext.Database, context.TokenCode);
                 await tokenStore.InitializeAsync();
 
-                var tokenProvider = new ZohoTokenProvider(httpClient, options, tokenStore);
-                var zohoClient = new ZohoBooksClient(httpClient, options, connectionOptions, referenceStore, tokenProvider);
+                var tokenProvider = new ZohoTokenProvider(httpClient, context.Options, tokenStore);
+                var zohoClient = new ZohoBooksClient(httpClient, context.Options, context.ConnectionOptions, referenceStore, tokenProvider);
 
                 var inventoryItems = new List<InventoryItem>
                 {
