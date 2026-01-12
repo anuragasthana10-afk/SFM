@@ -75,6 +75,7 @@ namespace CRM.Classes.ExternalServices.Zoho.Books
                         LocalId = 200,
                         ContactLocalId = 200,
                         InvoiceDate = DateTime.UtcNow.Date,
+                        InvoiceNumber = "INV-200",
                         CurrencyCode = "USD",
                         Jurisdiction = "US",
                         RelationshipManager = "Jordan Lee",

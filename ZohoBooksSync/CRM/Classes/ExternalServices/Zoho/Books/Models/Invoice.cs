@@ -7,6 +7,7 @@ namespace CRM.Classes.ExternalServices.Zoho.Books.Models
         public DateTime InvoiceDate { get; set; }
         public IReadOnlyList<InvoiceLineItem> LineItems { get; set; }
         public string CurrencyCode { get; set; }
+        public string InvoiceNumber { get; set; }
         public string Jurisdiction { get; set; }
         public string RelationshipManager { get; set; }
         public string Notes { get; set; }

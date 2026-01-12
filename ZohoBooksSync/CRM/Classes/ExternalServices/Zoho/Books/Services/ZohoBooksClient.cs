@@ -162,6 +162,11 @@ public sealed class ZohoBooksClient
                     ["place_of_supply"] = invoice.PlaceOfSupply
                 };
 
+                if (!string.IsNullOrWhiteSpace(invoice.InvoiceNumber))
+                {
+                    payload["invoice_number"] = invoice.InvoiceNumber;
+                }
+
                 if (!string.IsNullOrWhiteSpace(invoice.TaxId))
                 {
                     payload["tax_id"] = invoice.TaxId;
@@ -278,6 +283,11 @@ public sealed class ZohoBooksClient
                     ["tax_treatment"] = invoice.TaxTreatment,
                     ["place_of_supply"] = invoice.PlaceOfSupply
                 };
+
+                if (!string.IsNullOrWhiteSpace(invoice.InvoiceNumber))
+                {
+                    payload["invoice_number"] = invoice.InvoiceNumber;
+                }
 
                 if (!string.IsNullOrWhiteSpace(invoice.TaxId))
                 {
