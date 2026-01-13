@@ -155,12 +155,21 @@ public sealed class ZohoBooksClient
                     ["currency_code"] = invoice.CurrencyCode,
                     ["line_items"] = lineItems,
                     ["tags"] = reportingTagDetails,
-                    ["notes"] = invoice.Notes,
                     ["tax_name"] = invoice.TaxName,
                     ["tax_percentage"] = invoice.TaxPercentage,
                     ["tax_treatment"] = invoice.TaxTreatment,
                     ["place_of_supply"] = invoice.PlaceOfSupply
                 };
+
+                if (!string.IsNullOrWhiteSpace(invoice.Subject))
+                {
+                    payload["subject"] = invoice.Subject;
+                }
+
+                if (!string.IsNullOrWhiteSpace(invoice.Notes))
+                {
+                    payload["notes"] = invoice.Notes;
+                }
 
                 if (!string.IsNullOrWhiteSpace(invoice.InvoiceNumber))
                 {
@@ -278,12 +287,21 @@ public sealed class ZohoBooksClient
                     ["currency_code"] = invoice.CurrencyCode,
                     ["line_items"] = lineItems,
                     ["tags"] = reportingTagDetails,
-                    ["notes"] = invoice.Notes,
                     ["tax_name"] = invoice.TaxName,
                     ["tax_percentage"] = invoice.TaxPercentage,
                     ["tax_treatment"] = invoice.TaxTreatment,
                     ["place_of_supply"] = invoice.PlaceOfSupply
                 };
+
+                if (!string.IsNullOrWhiteSpace(invoice.Subject))
+                {
+                    payload["subject"] = invoice.Subject;
+                }
+
+                if (!string.IsNullOrWhiteSpace(invoice.Notes))
+                {
+                    payload["notes"] = invoice.Notes;
+                }
 
                 if (!string.IsNullOrWhiteSpace(invoice.InvoiceNumber))
                 {

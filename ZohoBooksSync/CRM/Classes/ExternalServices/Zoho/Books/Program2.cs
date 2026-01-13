@@ -79,6 +79,7 @@ namespace CRM.Classes.ExternalServices.Zoho.Books
                         CurrencyCode = "USD",
                         Jurisdiction = "US",
                         RelationshipManager = "Jordan Lee",
+                        Subject = "Services - Gizmo",
                         TaxName = "Sales Tax",
                         TaxPercentage = 5.0m,
                         TaxTreatment = "taxable",

@@ -10,6 +10,7 @@ namespace CRM.Classes.ExternalServices.Zoho.Books.Models
         public string InvoiceNumber { get; set; }
         public string Jurisdiction { get; set; }
         public string RelationshipManager { get; set; }
+        public string Subject { get; set; }
         public string Notes { get; set; }
         public string TaxId { get; set; }
         public string TaxName { get; set; }
