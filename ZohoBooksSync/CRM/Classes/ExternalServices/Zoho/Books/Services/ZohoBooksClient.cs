@@ -439,7 +439,7 @@ public sealed class ZohoBooksClient
             var taxName = ResolveLineItemTaxName(item.TaxName);
             if (!string.IsNullOrWhiteSpace(taxName))
             {
-                lineItem["tax_name"] = taxName;
+            var taxName = ResolveLineItemTaxName(item.TaxName, item.TaxPercentage);
             }
 
             var paymentsElement = response.GetProperty("payments");
@@ -524,8 +524,31 @@ public sealed class ZohoBooksClient
                 var code = account.TryGetProperty("account_code", out var codeElement)
                     ? codeElement.GetString()
                     : null;
-                if (!string.Equals(code, accountCode, StringComparison.OrdinalIgnoreCase))
-                {
+        return ResolveTaxNameByLocation(invoice.TaxPercentage);
+    private string ResolveLineItemTaxName(string lineItemTaxName, decimal? taxPercentage)
+        return ResolveTaxNameByLocation(taxPercentage);
+    }
+
+    private string ResolveTaxNameByLocation(decimal? taxPercentage)
+    {
+        if (taxPercentage.HasValue)
+        {
+            if (taxPercentage.Value == 0m)
+            {
+                return _connectionOptions.Location == ZohoBooksLocation.Uae ? "Zero Rate" : "Zero TVA";
+            }
+
+            if (_connectionOptions.Location == ZohoBooksLocation.Uae && taxPercentage.Value == 5m)
+            {
+                return "Standard Rate";
+            }
+
+            if (_connectionOptions.Location == ZohoBooksLocation.Swiss && taxPercentage.Value == 8.1m)
+            {
+                return "TVA";
+            }
+        }
+
                     continue;
     private string ResolveLineItemTaxName(string lineItemTaxName)
     {
