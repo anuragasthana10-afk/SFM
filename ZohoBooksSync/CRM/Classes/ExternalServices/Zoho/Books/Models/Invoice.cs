@@ -26,6 +26,7 @@ namespace CRM.Classes.ExternalServices.Zoho.Books.Models
         public string AccountCode { get; set; }
         public decimal Rate { get; set; }
         public int Quantity { get; set; }
+        public decimal? Discount { get; set; }
         public string TaxId { get; set; }
         public string TaxName { get; set; }
         public decimal? TaxPercentage { get; set; }

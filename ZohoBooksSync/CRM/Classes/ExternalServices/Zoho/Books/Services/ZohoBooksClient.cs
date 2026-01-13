@@ -450,6 +450,11 @@ public sealed class ZohoBooksClient
                     PaymentId = payment.GetProperty("payment_id").GetString() ?? string.Empty,
                     Amount = payment.GetProperty("amount").GetDecimal(),
                     Date = DateTime.Parse(payment.GetProperty("date").GetString() ?? string.Empty),
+            if (item.Discount.HasValue)
+            {
+                lineItem["discount"] = item.Discount.Value;
+            }
+
                     PaymentMode = payment.TryGetProperty("payment_mode", out var mode) ? mode.GetString() : null,
                     Description = payment.TryGetProperty("description", out var description) ? description.GetString() : null
                 });
