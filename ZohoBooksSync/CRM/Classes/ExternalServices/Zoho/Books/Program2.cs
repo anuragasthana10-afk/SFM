@@ -15,7 +15,8 @@ namespace CRM.Classes.ExternalServices.Zoho.Books
     {
         public static async Task Main(string[] args)
         {
-            if (!ZohoBooksRunContext.TryCreate(args, out var context, out var error))
+            var locationArg = args.Length > 0 ? args[0] : null;
+            if (!ZohoBooksRunContext.TryCreate(locationArg, out var context, out var error))
             {
                 Console.WriteLine(error);
                 return;

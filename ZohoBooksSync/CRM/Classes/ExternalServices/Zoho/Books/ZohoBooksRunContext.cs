@@ -28,15 +28,15 @@ namespace CRM.Classes.ExternalServices.Zoho.Books
             OrganizationIdEnvironmentVariable = organizationIdEnvironmentVariable;
         }
 
-        public static bool TryCreate(string[] args, out ZohoBooksRunContext context, out string error)
+        public static bool TryCreate(string locationInput, out ZohoBooksRunContext context, out string error)
         {
             context = null;
             error = null;
 
-            var locationInput = args.Length > 0
-                ? args[0]
-                : Environment.GetEnvironmentVariable("ZOHO_BOOKS_LOCATION") ?? "uae";
-            var locationValue = locationInput.Trim();
+            var resolvedInput = string.IsNullOrWhiteSpace(locationInput)
+                ? Environment.GetEnvironmentVariable("ZOHO_BOOKS_LOCATION") ?? "uae"
+                : locationInput;
+            var locationValue = resolvedInput.Trim();
             ZohoBooksLocation location;
 
             if (locationValue.Equals("uae", StringComparison.OrdinalIgnoreCase))
@@ -49,7 +49,7 @@ namespace CRM.Classes.ExternalServices.Zoho.Books
             }
             else
             {
-                error = $"Unsupported ZOHO_BOOKS_LOCATION '{locationInput}'. Use 'uae' or 'swiss'.";
+                error = $"Unsupported ZOHO_BOOKS_LOCATION '{resolvedInput}'. Use 'uae' or 'swiss'.";
                 return false;
             }
 
