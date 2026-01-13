@@ -107,7 +107,15 @@ namespace CRM.Classes.ExternalServices.Zoho.Books
                 await zohoClient.SyncInvoicesAsync(invoices);
                 await zohoClient.UpdateInvoicesAsync(invoices);
 
-                await zohoClient.AttachInvoicePdfAsync(200, "sample-invoice.pdf");
+                var invoiceAttachments = new Dictionary<int, string>
+                {
+                    [200] = "sample-invoice.pdf"
+                };
+
+                foreach (var attachment in invoiceAttachments)
+                {
+                    await zohoClient.AttachInvoicePdfAsync(attachment.Key, attachment.Value);
+                }
             }
         }
 
