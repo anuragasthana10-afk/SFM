@@ -148,6 +148,8 @@ public sealed class ZohoBooksClient
             {
                 await EnsureCurrencyAsync(invoice.CurrencyCode, cancellationToken);
                 var reportingTagDetails = await BuildReportingTagDetailsAsync(invoice, cancellationToken);
+                var taxName = ResolveTaxName(invoice);
+                var taxTreatment = ResolveTaxTreatment(invoice);
                 var payload = new Dictionary<string, object>
                 {
                     ["customer_id"] = contactId,
@@ -155,11 +157,19 @@ public sealed class ZohoBooksClient
                     ["currency_code"] = invoice.CurrencyCode,
                     ["line_items"] = lineItems,
                     ["tags"] = reportingTagDetails,
-                    ["tax_name"] = invoice.TaxName,
                     ["tax_percentage"] = invoice.TaxPercentage,
-                    ["tax_treatment"] = invoice.TaxTreatment,
                     ["place_of_supply"] = invoice.PlaceOfSupply
                 };
+
+                if (!string.IsNullOrWhiteSpace(taxName))
+                {
+                    payload["tax_name"] = taxName;
+                }
+
+                if (!string.IsNullOrWhiteSpace(taxTreatment))
+                {
+                    payload["tax_treatment"] = taxTreatment;
+                }
 
                 if (!string.IsNullOrWhiteSpace(invoice.Subject))
                 {
@@ -280,6 +290,8 @@ public sealed class ZohoBooksClient
             {
                 await EnsureCurrencyAsync(invoice.CurrencyCode, cancellationToken);
                 var reportingTagDetails = await BuildReportingTagDetailsAsync(invoice, cancellationToken);
+                var taxName = ResolveTaxName(invoice);
+                var taxTreatment = ResolveTaxTreatment(invoice);
                 var payload = new Dictionary<string, object>
                 {
                     ["customer_id"] = contactId,
@@ -287,11 +299,19 @@ public sealed class ZohoBooksClient
                     ["currency_code"] = invoice.CurrencyCode,
                     ["line_items"] = lineItems,
                     ["tags"] = reportingTagDetails,
-                    ["tax_name"] = invoice.TaxName,
                     ["tax_percentage"] = invoice.TaxPercentage,
-                    ["tax_treatment"] = invoice.TaxTreatment,
                     ["place_of_supply"] = invoice.PlaceOfSupply
                 };
+
+                if (!string.IsNullOrWhiteSpace(taxName))
+                {
+                    payload["tax_name"] = taxName;
+                }
+
+                if (!string.IsNullOrWhiteSpace(taxTreatment))
+                {
+                    payload["tax_treatment"] = taxTreatment;
+                }
 
                 if (!string.IsNullOrWhiteSpace(invoice.Subject))
                 {
@@ -514,6 +534,26 @@ public sealed class ZohoBooksClient
             accountCode,
             cancellationToken);
         throw new InvalidOperationException(message);
+    }
+
+    private string ResolveTaxName(Invoice invoice)
+    {
+        if (!string.IsNullOrWhiteSpace(invoice.TaxName))
+        {
+            return invoice.TaxName;
+        }
+
+        return _connectionOptions.Location == ZohoBooksLocation.Uae ? "Standard Rate" : "TVA";
+    }
+
+    private string ResolveTaxTreatment(Invoice invoice)
+    {
+        if (!string.IsNullOrWhiteSpace(invoice.TaxTreatment))
+        {
+            return invoice.TaxTreatment;
+        }
+
+        return _connectionOptions.Location == ZohoBooksLocation.Uae ? "vat_not_registered" : string.Empty;
     }
 
     private async Task EnsureCurrencyAsync(string currencyCode, CancellationToken cancellationToken)

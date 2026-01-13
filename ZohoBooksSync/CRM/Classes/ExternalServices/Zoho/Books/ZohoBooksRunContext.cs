@@ -61,6 +61,7 @@ namespace CRM.Classes.ExternalServices.Zoho.Books
             connectionOptions.ActiveOrganizationId = isUae
                 ? connectionOptions.UaeOrganizationId
                 : connectionOptions.SwissOrganizationId;
+            connectionOptions.Location = location;
 
             var tokenCode = isUae ? TokenStore.UaeTokenCode : TokenStore.SwissTokenCode;
             var organizationEnvVar = isUae
