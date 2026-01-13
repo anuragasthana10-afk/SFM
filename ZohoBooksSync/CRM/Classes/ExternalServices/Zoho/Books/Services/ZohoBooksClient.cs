@@ -6,7 +6,6 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
-using CRM.Classes.ExternalServices.Zoho.Books;
 using CRM.Classes.ExternalServices.Zoho.Books.Configuration;
 using CRM.Classes.ExternalServices.Zoho.Books.Models;
 using CRM.Classes.ExternalServices.Zoho.Books.Persistence;
@@ -436,12 +435,7 @@ public sealed class ZohoBooksClient
                 continue;
             }
 
-            var taxName = ResolveTaxName(item.TaxName);
-            if (!string.IsNullOrWhiteSpace(taxName))
-            {
-                lineItem["tax_name"] = taxName;
-            }
-
+                ["tax_name"] = item.TaxName,
             var paymentsElement = response.GetProperty("payments");
             foreach (var payment in paymentsElement.EnumerateArray())
             {
@@ -527,16 +521,6 @@ public sealed class ZohoBooksClient
                 if (!string.Equals(code, accountCode, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
-    private string ResolveTaxName(string lineItemTaxName)
-    {
-        if (!string.IsNullOrWhiteSpace(lineItemTaxName))
-        {
-            return lineItemTaxName;
-        }
-
-        return _connectionOptions.Location == ZohoBooksLocation.Uae ? "Standard Rate" : "TVA";
-    }
-
                 }
 
                 var accountId = account.GetProperty("account_id").GetString() ?? string.Empty;
