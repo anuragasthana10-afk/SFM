@@ -339,25 +339,77 @@ public sealed class ZohoBooksClient
                     payload["invoice_number"] = invoice.InvoiceNumber;
                 }
 
-                if (!string.IsNullOrWhiteSpace(invoice.TaxId))
-                {
-                    payload["tax_id"] = invoice.TaxId;
-                }
-
-                await PutAsync($"invoices/{remoteId}", payload, cancellationToken);
-                await MarkInvoiceSentAsync(remoteId, cancellationToken);
-                await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.Invoice.ToString(), invoice.LocalId, "Update", true, remoteId, null, null, cancellationToken);
-            }
-            catch (Exception ex)
+        try
+            using (var request = await CreateRequestAsync(HttpMethod.Post, $"invoices/{invoiceId}/attachment", cancellationToken))
+            using (var content = new MultipartFormDataContent())
+            using (var stream = File.OpenRead(filePath))
+            using (var fileContent = new StreamContent(stream))
             {
-                await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.Invoice.ToString(), invoice.LocalId, "Update", false, remoteId, ex.Message, null, cancellationToken);
-                throw;
+                fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
+                content.Add(fileContent, "attachment", Path.GetFileName(filePath));
+                request.Content = content;
+                var response = await _httpClient.SendAsync(request, cancellationToken);
+                await EnsureSuccessAsync(response, cancellationToken);
             }
-        }
-    }
 
-    public async Task AttachInvoicePdfAsync(int invoiceLocalId, string filePath, CancellationToken cancellationToken = default)
-    {
+            await _referenceStore.LogSyncOperationAsync(
+                ReferenceStore.SyncEntityType.Invoice.ToString(),
+                invoiceLocalId,
+                "AttachPdf",
+                true,
+                invoiceId,
+                null,
+                filePath,
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            await _referenceStore.LogSyncOperationAsync(
+                ReferenceStore.SyncEntityType.Invoice.ToString(),
+                invoiceLocalId,
+                "AttachPdf",
+                false,
+                invoiceId,
+                ex.Message,
+                filePath,
+                cancellationToken);
+            throw;
+        try
+            fileContent.Position = 0;
+            using (var request = await CreateRequestAsync(HttpMethod.Post, $"invoices/{invoiceId}/attachment", cancellationToken))
+            using (var content = new MultipartFormDataContent())
+            using (var streamContent = new StreamContent(fileContent))
+            {
+                streamContent.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
+                content.Add(streamContent, "attachment", $"invoice-{invoiceLocalId}.pdf");
+                request.Content = content;
+
+                var response = await _httpClient.SendAsync(request, cancellationToken);
+                await EnsureSuccessAsync(response, cancellationToken);
+            }
+
+            await _referenceStore.LogSyncOperationAsync(
+                ReferenceStore.SyncEntityType.Invoice.ToString(),
+                invoiceLocalId,
+                "AttachPdf",
+                true,
+                invoiceId,
+                null,
+                null,
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            await _referenceStore.LogSyncOperationAsync(
+                ReferenceStore.SyncEntityType.Invoice.ToString(),
+                invoiceLocalId,
+                "AttachPdf",
+                false,
+                invoiceId,
+                ex.Message,
+                null,
+                cancellationToken);
+            throw;
         if (string.IsNullOrWhiteSpace(filePath))
         {
             throw new ArgumentException("PDF attachment path is required.", nameof(filePath));

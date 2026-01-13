@@ -108,6 +108,8 @@ namespace CRM.Classes.ExternalServices.Zoho.Books
                 await zohoClient.UpdateContactsAsync(contacts);
                 await zohoClient.UpdateInvoicesAsync(invoices);
 
+                await zohoClient.AttachInvoicePdfAsync(100, "sample-invoice.pdf");
+
                 var payments = await zohoClient.PullPaymentsAsync(new[] { 100 });
                 foreach (var payment in payments)
                 {

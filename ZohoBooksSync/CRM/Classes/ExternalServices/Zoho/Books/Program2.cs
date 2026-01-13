@@ -106,6 +106,8 @@ namespace CRM.Classes.ExternalServices.Zoho.Books
 
                 await zohoClient.SyncInvoicesAsync(invoices);
                 await zohoClient.UpdateInvoicesAsync(invoices);
+
+                await zohoClient.AttachInvoicePdfAsync(200, "sample-invoice.pdf");
             }
         }
 
