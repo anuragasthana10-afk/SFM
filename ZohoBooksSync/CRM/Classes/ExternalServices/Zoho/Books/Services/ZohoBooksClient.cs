@@ -435,7 +435,12 @@ public sealed class ZohoBooksClient
                 continue;
             }
 
-            var response = await GetAsync($"invoices/{invoiceId}/payments", cancellationToken);
+            var taxName = ResolveTaxName(item.TaxName);
+            if (!string.IsNullOrWhiteSpace(taxName))
+            {
+                lineItem["tax_name"] = taxName;
+            }
+
             var paymentsElement = response.GetProperty("payments");
             foreach (var payment in paymentsElement.EnumerateArray())
             {
@@ -521,6 +526,16 @@ public sealed class ZohoBooksClient
                 if (!string.Equals(code, accountCode, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
+    private string ResolveTaxName(string lineItemTaxName)
+    {
+        if (!string.IsNullOrWhiteSpace(lineItemTaxName))
+        {
+            return lineItemTaxName;
+        }
+
+        return _connectionOptions.Location == ZohoBooksLocation.Uae ? "Standard Rate" : "TVA";
+    }
+
                 }
 
                 var accountId = account.GetProperty("account_id").GetString() ?? string.Empty;
