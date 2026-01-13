@@ -150,6 +150,7 @@ public sealed class ZohoBooksClient
                 var reportingTagDetails = await BuildReportingTagDetailsAsync(invoice, cancellationToken);
                 var taxName = ResolveTaxName(invoice);
                 var taxTreatment = ResolveTaxTreatment(invoice);
+                var placeOfSupply = ResolvePlaceOfSupply(invoice);
                 var payload = new Dictionary<string, object>
                 {
                     ["customer_id"] = contactId,
@@ -158,7 +159,6 @@ public sealed class ZohoBooksClient
                     ["line_items"] = lineItems,
                     ["tags"] = reportingTagDetails,
                     ["tax_percentage"] = invoice.TaxPercentage,
-                    ["place_of_supply"] = invoice.PlaceOfSupply
                 };
 
                 if (!string.IsNullOrWhiteSpace(taxName))
@@ -169,6 +169,11 @@ public sealed class ZohoBooksClient
                 if (!string.IsNullOrWhiteSpace(taxTreatment))
                 {
                     payload["tax_treatment"] = taxTreatment;
+                }
+
+                if (!string.IsNullOrWhiteSpace(placeOfSupply))
+                {
+                    payload["place_of_supply"] = placeOfSupply;
                 }
 
                 if (!string.IsNullOrWhiteSpace(invoice.Subject))
@@ -292,6 +297,7 @@ public sealed class ZohoBooksClient
                 var reportingTagDetails = await BuildReportingTagDetailsAsync(invoice, cancellationToken);
                 var taxName = ResolveTaxName(invoice);
                 var taxTreatment = ResolveTaxTreatment(invoice);
+                var placeOfSupply = ResolvePlaceOfSupply(invoice);
                 var payload = new Dictionary<string, object>
                 {
                     ["customer_id"] = contactId,
@@ -300,7 +306,6 @@ public sealed class ZohoBooksClient
                     ["line_items"] = lineItems,
                     ["tags"] = reportingTagDetails,
                     ["tax_percentage"] = invoice.TaxPercentage,
-                    ["place_of_supply"] = invoice.PlaceOfSupply
                 };
 
                 if (!string.IsNullOrWhiteSpace(taxName))
@@ -311,6 +316,11 @@ public sealed class ZohoBooksClient
                 if (!string.IsNullOrWhiteSpace(taxTreatment))
                 {
                     payload["tax_treatment"] = taxTreatment;
+                }
+
+                if (!string.IsNullOrWhiteSpace(placeOfSupply))
+                {
+                    payload["place_of_supply"] = placeOfSupply;
                 }
 
                 if (!string.IsNullOrWhiteSpace(invoice.Subject))
@@ -554,6 +564,16 @@ public sealed class ZohoBooksClient
         }
 
         return _connectionOptions.Location == ZohoBooksLocation.Uae ? "vat_not_registered" : string.Empty;
+    }
+
+    private string ResolvePlaceOfSupply(Invoice invoice)
+    {
+        if (!string.IsNullOrWhiteSpace(invoice.PlaceOfSupply))
+        {
+            return invoice.PlaceOfSupply;
+        }
+
+        return _connectionOptions.Location == ZohoBooksLocation.Uae ? "DU" : string.Empty;
     }
 
     private async Task EnsureCurrencyAsync(string currencyCode, CancellationToken cancellationToken)
