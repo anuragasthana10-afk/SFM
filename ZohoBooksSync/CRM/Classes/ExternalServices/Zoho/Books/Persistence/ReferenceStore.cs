@@ -32,6 +32,7 @@ public sealed class ReferenceStore
     private const string ReportingTagTable = "ZohoBooks_ReportingTags";
     private const string CurrencyReferenceTable = "ZohoBooks_CurrencyReferences";
     private const string AccountReferenceTable = "ZohoBooks_AccountReferences";
+    private const string RunStartTimestampColumn = "RunStartTimestamp";
 
     private readonly Database _database;
     private readonly byte _location;
@@ -67,7 +68,8 @@ public sealed class ReferenceStore
                     Success BIT NOT NULL,
                     RemoteId NVARCHAR(100) NULL,
                     ErrorMessage NVARCHAR(MAX) NULL,
-                    OccurredAtUtc DATETIME2 NOT NULL
+                    OccurredAtUtc DATETIME2 NOT NULL,
+                    RunStartTimestamp DATETIME2 NOT NULL
                 );
             END
             IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = '{ReportingTagOptionTable}')
@@ -119,6 +121,7 @@ public sealed class ReferenceStore
         await EnsureLocationColumnAsync(ReportingTagTable, true, cancellationToken);
         await EnsureLocationColumnAsync(CurrencyReferenceTable, true, cancellationToken);
         await EnsureLocationColumnAsync(AccountReferenceTable, true, cancellationToken);
+        await EnsureRunStartTimestampColumnAsync(cancellationToken);
 
         await EnsurePrimaryKeyIncludesLocationAsync(ReferenceTable, "PK_ZohoBooks_ReferenceStore", "EntityType, LocalKey", cancellationToken);
         await EnsurePrimaryKeyIncludesLocationAsync(ReportingTagOptionTable, "PK_ZohoBooks_ReportingTagOptions", "OptionKey", cancellationToken);
@@ -178,6 +181,7 @@ public sealed class ReferenceStore
         string remoteId,
         string errorMessage,
         string localKeyText,
+        DateTime runStartTimestamp,
         CancellationToken cancellationToken = default)
     {
         var sql = $@"
@@ -190,7 +194,8 @@ public sealed class ReferenceStore
                 Success,
                 RemoteId,
                 ErrorMessage,
-                OccurredAtUtc
+                OccurredAtUtc,
+                RunStartTimestamp
             )
             VALUES (
                 @EntityType,
@@ -201,7 +206,8 @@ public sealed class ReferenceStore
                 @Success,
                 @RemoteId,
                 @ErrorMessage,
-                @OccurredAtUtc
+                @OccurredAtUtc,
+                @RunStartTimestamp
             );";
 
         await EnsureConnectionOpenAsync(cancellationToken);
@@ -216,7 +222,44 @@ public sealed class ReferenceStore
             AddParameter(command, "@RemoteId", string.IsNullOrWhiteSpace(remoteId) ? (object)DBNull.Value : remoteId);
             AddParameter(command, "@ErrorMessage", string.IsNullOrWhiteSpace(errorMessage) ? (object)DBNull.Value : errorMessage);
             AddParameter(command, "@OccurredAtUtc", DateTime.UtcNow);
+            AddParameter(command, "@RunStartTimestamp", runStartTimestamp);
             await command.ExecuteNonQueryAsync(cancellationToken);
+        }
+    }
+
+    public async Task<IReadOnlyList<SyncOperationRecord>> GetSyncOperationsAsync(DateTime runStartTimestamp, CancellationToken cancellationToken = default)
+    {
+        var sql = $@"
+            SELECT EntityType,
+                   LocalKey,
+                   LocalKeyText,
+                   Success,
+                   ErrorMessage
+            FROM {SyncLogTable}
+            WHERE RunStartTimestamp = @RunStartTimestamp
+            ORDER BY OccurredAtUtc;";
+
+        await EnsureConnectionOpenAsync(cancellationToken);
+        using (var command = CreateCommand(sql))
+        {
+            AddParameter(command, "@RunStartTimestamp", runStartTimestamp);
+            var results = new List<SyncOperationRecord>();
+            using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+            {
+                while (await reader.ReadAsync(cancellationToken))
+                {
+                    results.Add(new SyncOperationRecord
+                    {
+                        EntityType = reader.GetString(0),
+                        LocalKey = reader.GetInt32(1),
+                        LocalKeyText = reader.IsDBNull(2) ? null : reader.GetString(2),
+                        Success = reader.GetBoolean(3),
+                        ErrorMessage = reader.IsDBNull(4) ? null : reader.GetString(4)
+                    });
+                }
+            }
+
+            return results;
         }
     }
 
@@ -542,6 +585,51 @@ public sealed class ReferenceStore
             WHERE Location IS NULL OR Location = 0;";
 
         using (var command = CreateCommand(normalizeSql))
+        {
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
+    }
+
+    private async Task EnsureRunStartTimestampColumnAsync(CancellationToken cancellationToken)
+    {
+        var existsSql = @"
+            SELECT COUNT(*)
+            FROM sys.columns
+            WHERE name = @ColumnName AND object_id = OBJECT_ID(@TableName);";
+
+        using (var command = CreateCommand(existsSql))
+        {
+            AddParameter(command, "@ColumnName", RunStartTimestampColumn);
+            AddParameter(command, "@TableName", SyncLogTable);
+            var result = await command.ExecuteScalarAsync(cancellationToken);
+            var exists = result != null && result != DBNull.Value && Convert.ToInt32(result) > 0;
+            if (exists)
+            {
+                return;
+            }
+        }
+
+        var addColumnSql = $@"
+            ALTER TABLE {SyncLogTable}
+            ADD {RunStartTimestampColumn} DATETIME2 NULL;";
+        using (var command = CreateCommand(addColumnSql))
+        {
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        var backfillSql = $@"
+            UPDATE {SyncLogTable}
+            SET {RunStartTimestampColumn} = OccurredAtUtc
+            WHERE {RunStartTimestampColumn} IS NULL;";
+        using (var command = CreateCommand(backfillSql))
+        {
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        var alterSql = $@"
+            ALTER TABLE {SyncLogTable}
+            ALTER COLUMN {RunStartTimestampColumn} DATETIME2 NOT NULL;";
+        using (var command = CreateCommand(alterSql))
         {
             await command.ExecuteNonQueryAsync(cancellationToken);
         }

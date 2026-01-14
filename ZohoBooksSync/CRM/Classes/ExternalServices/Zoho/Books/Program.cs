@@ -4,6 +4,7 @@ using System.Net.Http;
 using System.Threading.Tasks;
 using CRM.Classes.ExternalServices.Zoho.Books.Models;
 using CRM.Classes.ExternalServices.Zoho.Books.Persistence;
+using CRM.Classes.ExternalServices.Zoho.Books.Reporting;
 using CRM.Classes.ExternalServices.Zoho.Persistence;
 using CRM.Classes.ExternalServices.Zoho.Books.Services;
 using CRM.Classes.ExternalServices.Zoho.Services;
@@ -36,6 +37,7 @@ namespace CRM.Classes.ExternalServices.Zoho.Books
             using (var dbContext = new ZohoBooksDbContext(context.ConnectionOptions.SqlConnectionString))
             using (var httpClient = new HttpClient())
             {
+                var runStartTimestamp = DateTime.UtcNow;
                 var referenceStore = new ReferenceStore(dbContext.Database, context.Location);
                 await referenceStore.InitializeAsync();
 
@@ -43,7 +45,7 @@ namespace CRM.Classes.ExternalServices.Zoho.Books
                 await tokenStore.InitializeAsync();
 
                 var tokenProvider = new ZohoTokenProvider(httpClient, context.Options, tokenStore);
-                var zohoClient = new ZohoBooksClient(httpClient, context.Options, context.ConnectionOptions, referenceStore, tokenProvider);
+                var zohoClient = new ZohoBooksClient(httpClient, context.Options, context.ConnectionOptions, referenceStore, tokenProvider, runStartTimestamp);
 
                 var inventoryItems = new List<InventoryItem>
                 {
@@ -124,7 +126,18 @@ namespace CRM.Classes.ExternalServices.Zoho.Books
                 {
                     Console.WriteLine($"Payment {payment.PaymentId} for {payment.Amount} on {payment.Date:d}");
                 }
+
+                var syncOperations = await referenceStore.GetSyncOperationsAsync(runStartTimestamp);
+                var htmlReport = SyncOperationReportBuilder.BuildHtmlTable(syncOperations, ResolveUserCode);
+                Console.WriteLine(htmlReport);
             }
         }
+    }
+
+    private static string ResolveUserCode(string entityType, int localKey, string localKeyText)
+    {
+        return string.IsNullOrWhiteSpace(localKeyText)
+            ? $"{entityType}-{localKey}"
+            : localKeyText;
     }
 }

@@ -21,6 +21,7 @@ public sealed class ZohoBooksClient
     private readonly ZohoBooksConnectionOptions _connectionOptions;
     private readonly ReferenceStore _referenceStore;
     private readonly ZohoTokenProvider _tokenProvider;
+    private readonly DateTime _runStartTimestamp;
     private readonly Dictionary<string, ReportingTag> _reportingTags = new Dictionary<string, ReportingTag>(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _reportingTagOptionCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _currencyCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -32,13 +33,15 @@ public sealed class ZohoBooksClient
         IZohoApiConfigurationOptions options,
         ZohoBooksConnectionOptions connectionOptions,
         ReferenceStore referenceStore,
-        ZohoTokenProvider tokenProvider)
+        ZohoTokenProvider tokenProvider,
+        DateTime runStartTimestamp)
     {
         _httpClient = httpClient;
         _options = options;
         _connectionOptions = connectionOptions;
         _referenceStore = referenceStore;
         _tokenProvider = tokenProvider;
+        _runStartTimestamp = runStartTimestamp;
     }
 
     public async Task SyncInventoryItemsAsync(IEnumerable<InventoryItem> items, CancellationToken cancellationToken = default)
@@ -63,11 +66,11 @@ public sealed class ZohoBooksClient
                     var response = await PostAsync("items", payload, cancellationToken);
                     var remoteId = ExtractId(response, "item", "item_id");
                     await _referenceStore.SetItemIdAsync(item.LocalId, remoteId, cancellationToken);
-                    await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.InventoryItem.ToString(), item.LocalId, "Create", true, remoteId, null, null, cancellationToken);
+                    await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.InventoryItem.ToString(), item.LocalId, "Create", true, remoteId, null, null, _runStartTimestamp,  cancellationToken);
                 }
                 catch (Exception ex)
                 {
-                    await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.InventoryItem.ToString(), item.LocalId, "Create", false, null, ex.Message, null, cancellationToken);
+                    await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.InventoryItem.ToString(), item.LocalId, "Create", false, null, ex.Message, null, _runStartTimestamp,  cancellationToken);
                     throw;
                 }
 
@@ -77,11 +80,11 @@ public sealed class ZohoBooksClient
             try
             {
                 await UpdateInventoryItemAsync(existingId, item, cancellationToken);
-                await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.InventoryItem.ToString(), item.LocalId, "Update", true, existingId, null, null, cancellationToken);
+                await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.InventoryItem.ToString(), item.LocalId, "Update", true, existingId, null, null, _runStartTimestamp,  cancellationToken);
             }
             catch (Exception ex)
             {
-                await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.InventoryItem.ToString(), item.LocalId, "Update", false, existingId, ex.Message, null, cancellationToken);
+                await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.InventoryItem.ToString(), item.LocalId, "Update", false, existingId, ex.Message, null, _runStartTimestamp,  cancellationToken);
                 throw;
             }
         }
@@ -111,11 +114,11 @@ public sealed class ZohoBooksClient
                     var response = await PostAsync("contacts", payload, cancellationToken);
                     var remoteId = ExtractId(response, "contact", "contact_id");
                     await _referenceStore.SetContactIdAsync(contact.LocalId, remoteId, cancellationToken);
-                    await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.Contact.ToString(), contact.LocalId, "Create", true, remoteId, null, null, cancellationToken);
+                    await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.Contact.ToString(), contact.LocalId, "Create", true, remoteId, null, null, _runStartTimestamp,  cancellationToken);
                 }
                 catch (Exception ex)
                 {
-                    await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.Contact.ToString(), contact.LocalId, "Create", false, null, ex.Message, null, cancellationToken);
+                    await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.Contact.ToString(), contact.LocalId, "Create", false, null, ex.Message, null, _runStartTimestamp,  cancellationToken);
                     throw;
                 }
         }
@@ -139,7 +142,7 @@ public sealed class ZohoBooksClient
             if (!contactIds.TryGetValue(invoice.ContactLocalId, out var contactId))
             {
                 var message = $"Missing contact reference for {invoice.ContactLocalId}.";
-                await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.Invoice.ToString(), invoice.LocalId, "Create", false, null, message, null, cancellationToken);
+                await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.Invoice.ToString(), invoice.LocalId, "Create", false, null, message, null, _runStartTimestamp,  cancellationToken);
                 throw new InvalidOperationException(message);
             }
 
@@ -172,14 +175,14 @@ public sealed class ZohoBooksClient
                     payload["tax_treatment"] = taxTreatment;
                 }
 
-                if (!string.IsNullOrWhiteSpace(placeOfSupply))
-                {
-                    payload["place_of_supply"] = placeOfSupply;
-                }
+                await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.Invoice.ToString(), invoice.LocalId, "Create", true, remoteId, null, null, _runStartTimestamp,  cancellationToken);
+                await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.Invoice.ToString(), invoice.LocalId, "Create", false, null, ex.Message, null, _runStartTimestamp,  cancellationToken);
+                await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.InventoryItem.ToString(), item.LocalId, "Update", true, remoteId, null, null, _runStartTimestamp,  cancellationToken);
+                await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.InventoryItem.ToString(), item.LocalId, "Update", false, remoteId, ex.Message, null, _runStartTimestamp,  cancellationToken);
 
-                if (!string.IsNullOrWhiteSpace(invoice.Subject))
-                {
-                    payload["subject"] = invoice.Subject;
+                await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.Contact.ToString(), contact.LocalId, "Update", true, remoteId, null, null, _runStartTimestamp,  cancellationToken);
+                await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.Contact.ToString(), contact.LocalId, "Update", false, remoteId, ex.Message, null, _runStartTimestamp,  cancellationToken);
+                await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.Invoice.ToString(), invoice.LocalId, "Update", false, remoteId, message, null, _runStartTimestamp,  cancellationToken);
                 }
 
                 if (!string.IsNullOrWhiteSpace(invoice.Notes))
@@ -311,9 +314,13 @@ public sealed class ZohoBooksClient
 
                 if (!string.IsNullOrWhiteSpace(taxName))
                 {
-                    payload["tax_name"] = taxName;
-                }
+                await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.Invoice.ToString(), invoice.LocalId, "Update", true, remoteId, null, null, _runStartTimestamp,  cancellationToken);
+                await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.Invoice.ToString(), invoice.LocalId, "Update", false, remoteId, ex.Message, null, _runStartTimestamp,  cancellationToken);
 
+                _runStartTimestamp,
+                _runStartTimestamp,
+                _runStartTimestamp,
+                _runStartTimestamp,
                 if (!string.IsNullOrWhiteSpace(taxTreatment))
                 {
                     payload["tax_treatment"] = taxTreatment;
@@ -570,6 +577,7 @@ public sealed class ZohoBooksClient
         if (!string.IsNullOrWhiteSpace(existingId))
         {
             _accountCache[accountCode] = existingId;
+            _runStartTimestamp,
             return existingId;
         }
 
@@ -829,12 +837,12 @@ public sealed class ZohoBooksClient
             });
         }
 
-        return details;
-    }
-
-    private async Task<ReportingTagOption> EnsureReportingTagOptionAsync(string tagName, string optionName, CancellationToken cancellationToken)
-    {
-        var optionKey = BuildReportingTagOptionKey(tagName, optionName);
+            await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.ReportingTagOption.ToString(), 0, "Create", false, null, message, optionKey, _runStartTimestamp,  cancellationToken);
+            await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.ReportingTagOption.ToString(), 0, "Create", true, createdOptionId, null, optionKey, _runStartTimestamp,  cancellationToken);
+            await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.ReportingTagOption.ToString(), 0, "Create", false, null, ex.Message, optionKey, _runStartTimestamp,  cancellationToken);
+            await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.ReportingTag.ToString(), 0, "Fetch", true, null, null, tagName, _runStartTimestamp,  cancellationToken);
+            await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.ReportingTag.ToString(), 0, "Fetch", false, null, ex.Message, tagName, _runStartTimestamp,  cancellationToken);
+            await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.ReportingTag.ToString(), 0, "Fetch", false, null, message, tagName, _runStartTimestamp,  cancellationToken);
         if (_reportingTagOptionCache.TryGetValue(optionKey, out var cachedOptionId))
         {
             var tag = await GetReportingTagAsync(tagName, cancellationToken);
