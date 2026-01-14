@@ -17,6 +17,7 @@ namespace CRM.Classes.ExternalServices.Zoho.Books.Models
         public decimal? TaxPercentage { get; set; }
         public string TaxTreatment { get; set; }
         public string PlaceOfSupply { get; set; }
+        public string Reason { get; set; }
     }
 
     public sealed class InvoiceLineItem

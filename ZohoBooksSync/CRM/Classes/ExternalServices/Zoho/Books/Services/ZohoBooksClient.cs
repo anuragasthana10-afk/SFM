@@ -271,7 +271,10 @@ public sealed class ZohoBooksClient
         }
     }
 
-    public async Task UpdateInvoicesAsync(IEnumerable<Invoice> invoices, CancellationToken cancellationToken = default)
+                var updateReason = string.IsNullOrWhiteSpace(invoice.Reason)
+                    ? "Invoice update."
+                    : invoice.Reason;
+                    ["reason"] = updateReason
     {
         var invoiceList = invoices.ToList();
         var existingInvoices = await _referenceStore.GetInvoiceIdsAsync(invoiceList.Select(invoice => invoice.LocalId), cancellationToken);
