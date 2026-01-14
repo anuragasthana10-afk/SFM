@@ -39,7 +39,7 @@ namespace CRM.Classes.ExternalServices.Zoho.Books
             using (var dbContext = new ZohoBooksDbContext(context.ConnectionOptions.SqlConnectionString))
             using (var httpClient = new HttpClient())
             {
-                var runStartTimestamp = DateTime.UtcNow;
+                var runId = Guid.NewGuid();
                 var referenceStore = new ReferenceStore(dbContext.Database, context.Location);
                 await referenceStore.InitializeAsync();
 
@@ -47,7 +47,7 @@ namespace CRM.Classes.ExternalServices.Zoho.Books
                 await tokenStore.InitializeAsync();
 
                 var tokenProvider = new ZohoTokenProvider(httpClient, context.Options, tokenStore);
-                var zohoClient = new ZohoBooksClient(httpClient, context.Options, context.ConnectionOptions, referenceStore, tokenProvider, runStartTimestamp);
+                var zohoClient = new ZohoBooksClient(httpClient, context.Options, context.ConnectionOptions, referenceStore, tokenProvider, runId);
 
                 var contacts = new List<Contact>
                 {
@@ -131,7 +131,7 @@ namespace CRM.Classes.ExternalServices.Zoho.Books
                 }
                 finally
                 {
-                    var syncOperations = await referenceStore.GetSyncOperationsAsync(runStartTimestamp);
+                    var syncOperations = await referenceStore.GetSyncOperationsAsync(runId);
                     var htmlReport = SyncOperationReportBuilder.BuildHtmlTable(syncOperations, ResolveUserCodes);
                     Console.WriteLine(htmlReport);
                 }
