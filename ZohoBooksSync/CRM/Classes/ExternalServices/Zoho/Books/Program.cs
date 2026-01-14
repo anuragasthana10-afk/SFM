@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Net.Http;
+using System.Runtime.ExceptionServices;
 using System.Threading.Tasks;
 using CRM.Classes.ExternalServices.Zoho.Books.Models;
 using CRM.Classes.ExternalServices.Zoho.Books.Persistence;
@@ -103,33 +104,49 @@ namespace CRM.Classes.ExternalServices.Zoho.Books
                     }
                 };
 
-                await zohoClient.SyncInventoryItemsAsync(inventoryItems);
-                await zohoClient.SyncContactsAsync(contacts);
-                await zohoClient.SyncInvoicesAsync(invoices);
-
-                await zohoClient.UpdateInventoryItemsAsync(inventoryItems);
-                await zohoClient.UpdateContactsAsync(contacts);
-                await zohoClient.UpdateInvoicesAsync(invoices);
-
-                var invoiceAttachments = new Dictionary<int, string>
+                Exception syncError = null;
+                try
                 {
-                    [100] = "sample-invoice.pdf"
-                };
+                    await zohoClient.SyncInventoryItemsAsync(inventoryItems);
+                    await zohoClient.SyncContactsAsync(contacts);
+                    await zohoClient.SyncInvoicesAsync(invoices);
 
-                foreach (var attachment in invoiceAttachments)
+                    await zohoClient.UpdateInventoryItemsAsync(inventoryItems);
+                    await zohoClient.UpdateContactsAsync(contacts);
+                    await zohoClient.UpdateInvoicesAsync(invoices);
+
+                    var invoiceAttachments = new Dictionary<int, string>
+                    {
+                        [100] = "sample-invoice.pdf"
+                    };
+
+                    foreach (var attachment in invoiceAttachments)
+                    {
+                        await zohoClient.AttachInvoicePdfAsync(attachment.Key, attachment.Value);
+                    }
+
+                    var payments = await zohoClient.PullPaymentsAsync(new[] { 100 });
+                    foreach (var payment in payments)
+                    {
+                        Console.WriteLine($"Payment {payment.PaymentId} for {payment.Amount} on {payment.Date:d}");
+                    }
+                }
+                catch (Exception ex)
                 {
-                    await zohoClient.AttachInvoicePdfAsync(attachment.Key, attachment.Value);
+                    syncError = ex;
+                    Console.WriteLine(ex);
+                }
+                finally
+                {
+                    var syncOperations = await referenceStore.GetSyncOperationsAsync(runStartTimestamp);
+                    var htmlReport = SyncOperationReportBuilder.BuildHtmlTable(syncOperations, ResolveUserCodes);
+                    Console.WriteLine(htmlReport);
                 }
 
-                var payments = await zohoClient.PullPaymentsAsync(new[] { 100 });
-                foreach (var payment in payments)
+                if (syncError != null)
                 {
-                    Console.WriteLine($"Payment {payment.PaymentId} for {payment.Amount} on {payment.Date:d}");
+                    ExceptionDispatchInfo.Capture(syncError).Throw();
                 }
-
-                var syncOperations = await referenceStore.GetSyncOperationsAsync(runStartTimestamp);
-                var htmlReport = SyncOperationReportBuilder.BuildHtmlTable(syncOperations, ResolveUserCodes);
-                Console.WriteLine(htmlReport);
             }
         }
     }

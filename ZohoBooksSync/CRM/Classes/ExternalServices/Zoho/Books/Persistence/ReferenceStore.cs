@@ -229,6 +229,8 @@ public sealed class ReferenceStore
 
     public async Task<IReadOnlyList<SyncOperationRecord>> GetSyncOperationsAsync(DateTime runStartTimestamp, CancellationToken cancellationToken = default)
     {
+        var runStartFloor = new DateTime(runStartTimestamp.Ticks - (runStartTimestamp.Ticks % TimeSpan.TicksPerSecond), DateTimeKind.Utc);
+        var runStartCeiling = runStartFloor.AddSeconds(1);
         var sql = $@"
             SELECT EntityType,
                    LocalKey,
@@ -236,13 +238,15 @@ public sealed class ReferenceStore
                    Success,
                    ErrorMessage
             FROM {SyncLogTable}
-            WHERE RunStartTimestamp = @RunStartTimestamp
+            WHERE RunStartTimestamp >= @RunStartFloor
+              AND RunStartTimestamp < @RunStartCeiling
             ORDER BY OccurredAtUtc;";
 
         await EnsureConnectionOpenAsync(cancellationToken);
         using (var command = CreateCommand(sql))
         {
-            AddParameter(command, "@RunStartTimestamp", runStartTimestamp);
+            AddParameter(command, "@RunStartFloor", runStartFloor);
+            AddParameter(command, "@RunStartCeiling", runStartCeiling);
             var results = new List<SyncOperationRecord>();
             using (var reader = await command.ExecuteReaderAsync(cancellationToken))
             {

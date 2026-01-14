@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
+using System.Runtime.ExceptionServices;
 using System.Threading.Tasks;
 using CRM.Classes.ExternalServices.Zoho.Books.Models;
 using CRM.Classes.ExternalServices.Zoho.Books.Persistence;
@@ -104,25 +105,41 @@ namespace CRM.Classes.ExternalServices.Zoho.Books
                     }
                 };
 
-                await EnsureContactsAsync(zohoClient, referenceStore, contacts);
-                await EnsureInventoryItemsAsync(zohoClient, referenceStore, inventoryItems);
-
-                await zohoClient.SyncInvoicesAsync(invoices);
-                await zohoClient.UpdateInvoicesAsync(invoices);
-
-                var invoiceAttachments = new Dictionary<int, string>
+                Exception syncError = null;
+                try
                 {
-                    [200] = "sample-invoice.pdf"
-                };
+                    await EnsureContactsAsync(zohoClient, referenceStore, contacts);
+                    await EnsureInventoryItemsAsync(zohoClient, referenceStore, inventoryItems);
 
-                foreach (var attachment in invoiceAttachments)
+                    await zohoClient.SyncInvoicesAsync(invoices);
+                    await zohoClient.UpdateInvoicesAsync(invoices);
+
+                    var invoiceAttachments = new Dictionary<int, string>
+                    {
+                        [200] = "sample-invoice.pdf"
+                    };
+
+                    foreach (var attachment in invoiceAttachments)
+                    {
+                        await zohoClient.AttachInvoicePdfAsync(attachment.Key, attachment.Value);
+                    }
+                }
+                catch (Exception ex)
                 {
-                    await zohoClient.AttachInvoicePdfAsync(attachment.Key, attachment.Value);
+                    syncError = ex;
+                    Console.WriteLine(ex);
+                }
+                finally
+                {
+                    var syncOperations = await referenceStore.GetSyncOperationsAsync(runStartTimestamp);
+                    var htmlReport = SyncOperationReportBuilder.BuildHtmlTable(syncOperations, ResolveUserCodes);
+                    Console.WriteLine(htmlReport);
                 }
 
-                var syncOperations = await referenceStore.GetSyncOperationsAsync(runStartTimestamp);
-                var htmlReport = SyncOperationReportBuilder.BuildHtmlTable(syncOperations, ResolveUserCodes);
-                Console.WriteLine(htmlReport);
+                if (syncError != null)
+                {
+                    ExceptionDispatchInfo.Capture(syncError).Throw();
+                }
             }
         }
 
