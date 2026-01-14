@@ -16,6 +16,7 @@ namespace CRM.Classes.ExternalServices.Zoho.Books.Reporting
             builder.AppendLine("<table>");
             builder.AppendLine("  <thead>");
             builder.AppendLine("    <tr>");
+            builder.AppendLine("      <th>Entity</th>");
             builder.AppendLine("      <th>Code</th>");
             builder.AppendLine("      <th>Status</th>");
             builder.AppendLine("      <th>Error</th>");
@@ -30,6 +31,7 @@ namespace CRM.Classes.ExternalServices.Zoho.Books.Reporting
                 var error = operation.Success ? string.Empty : operation.ErrorMessage ?? string.Empty;
 
                 builder.AppendLine("    <tr>");
+                builder.AppendLine($"      <td>{WebUtility.HtmlEncode(operation.EntityType)}</td>");
                 builder.AppendLine($"      <td>{WebUtility.HtmlEncode(code)}</td>");
                 builder.AppendLine($"      <td>{WebUtility.HtmlEncode(status)}</td>");
                 builder.AppendLine($"      <td>{WebUtility.HtmlEncode(error)}</td>");
