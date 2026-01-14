@@ -279,7 +279,8 @@ public sealed class ZohoBooksClient
         var itemLocalIds = invoiceList.SelectMany(invoice => invoice.LineItems.Select(item => item.ItemLocalId)).Distinct();
         var itemIds = await _referenceStore.GetItemIdsAsync(itemLocalIds, cancellationToken);
 
-        foreach (var invoice in invoiceList)
+                    ["place_of_supply"] = invoice.PlaceOfSupply,
+                    ["reason"] = "Invoice update."
         {
             if (!existingInvoices.TryGetValue(invoice.LocalId, out var remoteId))
             {
