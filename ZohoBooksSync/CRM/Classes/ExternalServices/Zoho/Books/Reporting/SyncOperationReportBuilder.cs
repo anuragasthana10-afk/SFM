@@ -45,13 +45,15 @@ namespace CRM.Classes.ExternalServices.Zoho.Books.Reporting
                     ? ResolveMissingCode(operation, codeLookup)
                     : operation.LocalKeyText;
                 var status = operation.Success ? "Success" : "Failure";
+                var statusColor = operation.Success ? "green" : "red";
+                var errorColor = operation.Success ? string.Empty : "red";
                 var error = operation.Success ? string.Empty : operation.ErrorMessage ?? string.Empty;
 
                 builder.AppendLine("    <tr>");
                 builder.AppendLine($"      <td>{WebUtility.HtmlEncode(operation.EntityType)}</td>");
                 builder.AppendLine($"      <td>{WebUtility.HtmlEncode(code)}</td>");
-                builder.AppendLine($"      <td>{WebUtility.HtmlEncode(status)}</td>");
-                builder.AppendLine($"      <td>{WebUtility.HtmlEncode(error)}</td>");
+                builder.AppendLine($"      <td style=\"color: {statusColor};\">{WebUtility.HtmlEncode(status)}</td>");
+                builder.AppendLine($"      <td{(string.IsNullOrEmpty(errorColor) ? string.Empty : $" style=\"color: {errorColor};\"")}>{WebUtility.HtmlEncode(error)}</td>");
                 builder.AppendLine("    </tr>");
             }
 
