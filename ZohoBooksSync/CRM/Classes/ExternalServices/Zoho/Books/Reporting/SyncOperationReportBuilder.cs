@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Text;
 using CRM.Classes.ExternalServices.Zoho.Books.Persistence;
@@ -10,7 +11,7 @@ namespace CRM.Classes.ExternalServices.Zoho.Books.Reporting
     {
         public static string BuildHtmlTable(
             IReadOnlyList<SyncOperationRecord> operations,
-            Func<string, int, string, string> resolveUserCode)
+            Func<string, IReadOnlyCollection<int>, IDictionary<int, string>> resolveUserCodes)
         {
             var builder = new StringBuilder();
             builder.AppendLine("<table>");
@@ -24,9 +25,25 @@ namespace CRM.Classes.ExternalServices.Zoho.Books.Reporting
             builder.AppendLine("  </thead>");
             builder.AppendLine("  <tbody>");
 
+            var codeLookup = new Dictionary<string, IDictionary<int, string>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var operationGroup in operations.GroupBy(operation => operation.EntityType))
+            {
+                var missingCodes = operationGroup
+                    .Where(operation => string.IsNullOrWhiteSpace(operation.LocalKeyText))
+                    .Select(operation => operation.LocalKey)
+                    .Distinct()
+                    .ToList();
+
+                codeLookup[operationGroup.Key] = missingCodes.Count == 0
+                    ? new Dictionary<int, string>()
+                    : resolveUserCodes(operationGroup.Key, missingCodes);
+            }
+
             foreach (var operation in operations)
             {
-                var code = resolveUserCode(operation.EntityType, operation.LocalKey, operation.LocalKeyText);
+                var code = string.IsNullOrWhiteSpace(operation.LocalKeyText)
+                    ? ResolveMissingCode(operation, codeLookup)
+                    : operation.LocalKeyText;
                 var status = operation.Success ? "Success" : "Failure";
                 var error = operation.Success ? string.Empty : operation.ErrorMessage ?? string.Empty;
 
@@ -41,6 +58,20 @@ namespace CRM.Classes.ExternalServices.Zoho.Books.Reporting
             builder.AppendLine("  </tbody>");
             builder.AppendLine("</table>");
             return builder.ToString();
+        }
+
+        private static string ResolveMissingCode(
+            SyncOperationRecord operation,
+            IReadOnlyDictionary<string, IDictionary<int, string>> codeLookup)
+        {
+            if (codeLookup.TryGetValue(operation.EntityType, out var entityCodes)
+                && entityCodes.TryGetValue(operation.LocalKey, out var resolvedCode)
+                && !string.IsNullOrWhiteSpace(resolvedCode))
+            {
+                return resolvedCode;
+            }
+
+            return $"{operation.EntityType}-{operation.LocalKey}";
         }
     }
 }

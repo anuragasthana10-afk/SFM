@@ -121,16 +121,20 @@ namespace CRM.Classes.ExternalServices.Zoho.Books
                 }
 
                 var syncOperations = await referenceStore.GetSyncOperationsAsync(runStartTimestamp);
-                var htmlReport = SyncOperationReportBuilder.BuildHtmlTable(syncOperations, ResolveUserCode);
+                var htmlReport = SyncOperationReportBuilder.BuildHtmlTable(syncOperations, ResolveUserCodes);
                 Console.WriteLine(htmlReport);
             }
         }
 
-        private static string ResolveUserCode(string entityType, int localKey, string localKeyText)
+        private static IDictionary<int, string> ResolveUserCodes(string entityType, IReadOnlyCollection<int> localKeys)
         {
-            return string.IsNullOrWhiteSpace(localKeyText)
-                ? $"{entityType}-{localKey}"
-                : localKeyText;
+            var resolvedCodes = new Dictionary<int, string>();
+            foreach (var localKey in localKeys)
+            {
+                resolvedCodes[localKey] = $"{entityType}-{localKey}";
+            }
+
+            return resolvedCodes;
         }
 
         private static async Task EnsureContactsAsync(ZohoBooksClient zohoClient, ReferenceStore referenceStore, IReadOnlyCollection<Contact> contacts)
