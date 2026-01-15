@@ -571,7 +571,16 @@ public sealed class ZohoBooksClient
                 continue;
             }
 
-            var taxName = ResolveLineItemTaxName(item.TaxName);
+            if (item.TaxPercentage.HasValue)
+            {
+                lineItem["tax_percentage"] = item.TaxPercentage.Value;
+            }
+
+            if (item.TaxAmount.HasValue)
+            {
+                lineItem["tax_amount"] = item.TaxAmount.Value;
+            }
+
             if (!string.IsNullOrWhiteSpace(taxName))
             {
             var taxName = ResolveLineItemTaxName(item.TaxName, item.TaxPercentage);
