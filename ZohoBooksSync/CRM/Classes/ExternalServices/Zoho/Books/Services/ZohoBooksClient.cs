@@ -154,7 +154,11 @@ public sealed class ZohoBooksClient
                 var reportingTagDetails = await BuildReportingTagDetailsAsync(invoice, cancellationToken);
                 var taxName = ResolveTaxName(invoice);
                 var taxTreatment = ResolveTaxTreatment(invoice);
-                var placeOfSupply = ResolvePlaceOfSupply(invoice);
+                if (invoice.TaxPercentage.HasValue)
+                {
+                    payload["tax_percentage"] = invoice.TaxPercentage.Value;
+                }
+
                 var payload = new Dictionary<string, object>
                 {
                     ["customer_id"] = contactId,
@@ -282,7 +286,11 @@ public sealed class ZohoBooksClient
         var itemLocalIds = invoiceList.SelectMany(invoice => invoice.LineItems.Select(item => item.ItemLocalId)).Distinct();
         var itemIds = await _referenceStore.GetItemIdsAsync(itemLocalIds, cancellationToken);
 
-                    ["place_of_supply"] = invoice.PlaceOfSupply,
+                if (invoice.TaxPercentage.HasValue)
+                {
+                    payload["tax_percentage"] = invoice.TaxPercentage.Value;
+                }
+
                     ["reason"] = "Invoice update."
         {
             if (!existingInvoices.TryGetValue(invoice.LocalId, out var remoteId))
