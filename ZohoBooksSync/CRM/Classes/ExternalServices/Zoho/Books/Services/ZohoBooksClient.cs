@@ -154,11 +154,19 @@ public sealed class ZohoBooksClient
                 var reportingTagDetails = await BuildReportingTagDetailsAsync(invoice, cancellationToken);
                 var taxName = ResolveTaxName(invoice);
                 var taxTreatment = ResolveTaxTreatment(invoice);
-                if (invoice.TaxPercentage.HasValue)
-                {
+                    ["tags"] = reportingTagDetails
                     payload["tax_percentage"] = invoice.TaxPercentage.Value;
                 }
 
+                if (!string.IsNullOrWhiteSpace(invoice.PlaceOfSupply))
+                {
+                    payload["place_of_supply"] = invoice.PlaceOfSupply;
+                }
+
+                if (!string.IsNullOrWhiteSpace(invoice.InvoiceFileAttachment_FileName))
+                {
+                    await AttachInvoicePdfAsync(invoice.LocalId, invoice.InvoiceFileAttachment_FileName, cancellationToken);
+                }
                 var payload = new Dictionary<string, object>
                 {
                     ["customer_id"] = contactId,
@@ -286,11 +294,19 @@ public sealed class ZohoBooksClient
         var itemLocalIds = invoiceList.SelectMany(invoice => invoice.LineItems.Select(item => item.ItemLocalId)).Distinct();
         var itemIds = await _referenceStore.GetItemIdsAsync(itemLocalIds, cancellationToken);
 
-                if (invoice.TaxPercentage.HasValue)
                 {
                     payload["tax_percentage"] = invoice.TaxPercentage.Value;
                 }
 
+                if (!string.IsNullOrWhiteSpace(invoice.PlaceOfSupply))
+                {
+                    payload["place_of_supply"] = invoice.PlaceOfSupply;
+                }
+
+                if (!string.IsNullOrWhiteSpace(invoice.InvoiceFileAttachment_FileName))
+                {
+                    await AttachInvoicePdfAsync(invoice.LocalId, invoice.InvoiceFileAttachment_FileName, cancellationToken);
+                }
                     ["reason"] = "Invoice update."
         {
             if (!existingInvoices.TryGetValue(invoice.LocalId, out var remoteId))

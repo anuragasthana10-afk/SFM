@@ -18,6 +18,7 @@ namespace CRM.Classes.ExternalServices.Zoho.Books.Models
         public string TaxTreatment { get; set; }
         public string PlaceOfSupply { get; set; }
         public string Reason { get; set; }
+        public string InvoiceFileAttachment_FileName { get; set; }
     }
 
     public sealed class InvoiceLineItem
