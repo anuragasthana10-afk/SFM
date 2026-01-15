@@ -148,6 +148,7 @@ public sealed class ZohoBooksClient
 
             var lineItems = await BuildLineItemsAsync(invoice, itemIds, cancellationToken);
 
+            string remoteId = null;
             try
             {
                 await EnsureCurrencyAsync(invoice.CurrencyCode, cancellationToken);
@@ -179,13 +180,41 @@ public sealed class ZohoBooksClient
 
                 if (!string.IsNullOrWhiteSpace(taxName))
                 {
-                    payload["tax_name"] = taxName;
-                }
+                remoteId = ExtractId(response, "invoice", "invoice_id");
+                await _referenceStore.LogSyncOperationAsync(
+                    ReferenceStore.SyncEntityType.Invoice.ToString(),
+                    invoice.LocalId,
+                    "Create",
+                    true,
+                    remoteId,
+                    null,
+                    null,
+                    _runId,
+                    cancellationToken);
 
-                if (!string.IsNullOrWhiteSpace(taxTreatment))
-                {
-                    payload["tax_treatment"] = taxTreatment;
-                }
+            if (!string.IsNullOrWhiteSpace(invoice.InvoiceFileAttachment_FileName))
+            {
+                await AttachInvoicePdfAsync(invoice.LocalId, invoice.InvoiceFileAttachment_FileName, cancellationToken);
+            }
+
+            try
+            {
+                await MarkInvoiceSentAsync(remoteId, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                await _referenceStore.LogSyncOperationAsync(
+                    ReferenceStore.SyncEntityType.Invoice.ToString(),
+                    invoice.LocalId,
+                    "MarkSent",
+                    false,
+                    remoteId,
+                    ex.Message,
+                    null,
+                    _runId,
+                    cancellationToken);
+                throw;
+            }
 
                 await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.Invoice.ToString(), invoice.LocalId, "Create", true, remoteId, null, null, _runId,  cancellationToken);
                 await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.Invoice.ToString(), invoice.LocalId, "Create", false, null, ex.Message, null, _runId,  cancellationToken);
@@ -337,13 +366,32 @@ public sealed class ZohoBooksClient
                     ["currency_code"] = invoice.CurrencyCode,
                     ["line_items"] = lineItems,
                     ["tags"] = reportingTagDetails,
-                    ["tax_percentage"] = invoice.TaxPercentage,
-                };
-
-                if (!string.IsNullOrWhiteSpace(taxName))
-                {
                 await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.Invoice.ToString(), invoice.LocalId, "Update", true, remoteId, null, null, _runId,  cancellationToken);
                 await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.Invoice.ToString(), invoice.LocalId, "Update", false, remoteId, ex.Message, null, _runId,  cancellationToken);
+
+            if (!string.IsNullOrWhiteSpace(invoice.InvoiceFileAttachment_FileName))
+            {
+                await AttachInvoicePdfAsync(invoice.LocalId, invoice.InvoiceFileAttachment_FileName, cancellationToken);
+            }
+
+            try
+            {
+                await MarkInvoiceSentAsync(remoteId, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                await _referenceStore.LogSyncOperationAsync(
+                    ReferenceStore.SyncEntityType.Invoice.ToString(),
+                    invoice.LocalId,
+                    "MarkSent",
+                    false,
+                    remoteId,
+                    ex.Message,
+                    null,
+                    _runId,
+                    cancellationToken);
+                throw;
+            }
 
                 _runId,
                 _runId,
