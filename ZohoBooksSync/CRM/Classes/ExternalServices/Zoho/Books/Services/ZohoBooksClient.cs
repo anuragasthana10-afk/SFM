@@ -329,7 +329,7 @@ public sealed class ZohoBooksClient
             if (!contactIds.TryGetValue(invoice.ContactLocalId, out var contactId))
             {
                 var message = $"Missing contact reference for {invoice.ContactLocalId}.";
-                await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.Invoice.ToString(), invoice.LocalId, "Update", false, remoteId, message, null, _runId,  cancellationToken);
+                await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.Invoice.ToString(), invoice.LocalId, "Update", false, remoteId, message, invoice.InvoiceNumber, _runId,  cancellationToken);
                 throw new InvalidOperationException(message);
             }
 
@@ -395,11 +395,11 @@ public sealed class ZohoBooksClient
                 }
 
                 await PutAsync($"invoices/{remoteId}", payload, cancellationToken);
-                await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.Invoice.ToString(), invoice.LocalId, "Update", true, remoteId, null, null, _runId,  cancellationToken);
+                await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.Invoice.ToString(), invoice.LocalId, "Update", true, remoteId, null, invoice.InvoiceNumber, _runId,  cancellationToken);
             }
             catch (Exception ex)
             {
-                await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.Invoice.ToString(), invoice.LocalId, "Update", false, remoteId, ex.Message, null, _runId,  cancellationToken);
+                await _referenceStore.LogSyncOperationAsync(ReferenceStore.SyncEntityType.Invoice.ToString(), invoice.LocalId, "Update", false, remoteId, ex.Message, invoice.InvoiceNumber, _runId,  cancellationToken);
                 throw;
             }
 
