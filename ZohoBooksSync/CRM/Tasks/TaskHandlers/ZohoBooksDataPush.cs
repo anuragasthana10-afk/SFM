@@ -57,98 +57,25 @@ namespace CRM.Tasks.TaskHandlers
                 var listAllInvoices = dbContext.Database.SqlQuery<vwZBInvoice>(strSQLInvoiceUpdate, new object[] { }).ToList();
 
 
-                ///////////////// Process UAE invoices.
-                var locationArg = "uae";
-                var lstUAEInvoices = listAllInvoices.Where(i => i.AccountingLocation == locationArg);
-                if (!ZohoBooksRunContext.TryCreate(locationArg, out var context, out var error))
+                Exception syncError = null;
+                var locations = new[] { "uae", "swiss" };
+                foreach (var locationArg in locations)
                 {
-                    throw new Exception("CRM:Job:ZohoBooksDataPush::RunTask() - " + error);
-                }
-                if (string.IsNullOrWhiteSpace(context.ConnectionOptions.ActiveOrganizationId))
-                {
-                    throw new Exception($"CRM:Job:ZohoBooksDataPush::RunTask() - Configure {context.OrganizationIdEnvironmentVariable} to run the sync for {context.LocationName}.");
-                }
-
-                var referenceStore = new ReferenceStore(dbContext.Database, context.Location);
-                await referenceStore.InitializeAsync();
-
-                var tokenStore = new TokenStore(dbContext.Database, context.TokenCode);
-                await tokenStore.InitializeAsync();
-
-                var tokenProvider = new ZohoTokenProvider(httpClient, context.Options, tokenStore);
-                var zohoClient = new ZohoBooksClient(httpClient, context.Options, context.ConnectionOptions, referenceStore, tokenProvider, runId);
-
-
-                //Contacts / Account
-                List<Contact> contacts;
-                contacts = lstUAEInvoices.Select(i => new Contact { LocalId = i.ContactAccID, Name = i.CompanyName}).Distinct(new ContactComparer()).ToList();
-                if (m_bTrialMode)
-                {
-                    foreach(var contact in contacts)
+                    try
                     {
-                        contact.Name = contact.Name.MaskChars('x', 60, ExtensionMethods.MaskOption.InTheMiddleOfString);
+                        await ProcessLocationAsync(listAllInvoices, dbContext, httpClient, runId, locationArg);
+                    }
+                    catch (Exception ex)
+                    {
+                        syncError = ex;
+                        break;
                     }
                 }
 
-                //Inventory
-                List<InventoryItem> inventoryItems;
-                inventoryItems = lstUAEInvoices.Select(i => new InventoryItem { LocalId = i.InventoryItemID, Name = i.InventoryItemName, Sku = i.InventoryItemCode }).Distinct(new InventoryItemComparer()).ToList();
-
-
-                //Invoices
-                List<Invoice> invoices = new List<Invoice>();
-                var groupList = lstUAEInvoices.GroupBy(v => v.InvoiceNumber).Select(v => v.ToList()).OrderBy(v => v.Max(i => i.InvoiceModifyDate)).ToList();
-                foreach(var group in groupList)
-                {
-                    List<InvoiceLineItem> lstLineItems;
-                    lstLineItems = group.Select(l => new InvoiceLineItem { 
-                        ItemLocalId = l.InventoryItemID, 
-                        Description = (l.InvoiceItemDescription).Truncate(m_iMaxInvoiceLineItemDescriptionLength, true), 
-                        AccountCode = l.Accounting_AccountCode, 
-                        Quantity = l.Quantity,
-                        Rate = l.UnitAmount,
-                        TaxPercentage= l.TaxRate,
-                        TaxAmount = l.TaxAmount,
-                        Discount = l.ItemDiscount
-                    }).ToList();
-
-                    var invoice = new Invoice
-                    {
-                        LocalId = group[0].InvoiceID,
-                        ContactLocalId = group[0].ContactAccID,
-                        InvoiceDate = group[0].InvoiceDate ?? DateTime.UtcNow,
-                        InvoiceNumber = group[0].InvoiceNumber,
-                        CurrencyCode = group[0].Currency,
-                        Jurisdiction = group[0].Jurisdiction,
-                        RelationshipManager = group[0].AccountManager,
-                        //PlaceOfSupply = "DU",
-                        Subject = group[0].InvoiceSubject,
-                        LineItems = lstLineItems,
-                        InvoiceFileAttachment_FileName = group[0].InvoiceDocument_FileName
-                    };
-
-                    invoices.Add(invoice);
-                }
-
-                Exception syncError = null;
-                try
-                {
-                    await EnsureContactsAsync(zohoClient, referenceStore, contacts);
-                    await EnsureInventoryItemsAsync(zohoClient, referenceStore, inventoryItems);
-
-                    await zohoClient.SyncInvoicesAsync(invoices);
-                    await zohoClient.UpdateInvoicesAsync(invoices);
-                }
-                catch (Exception ex)
-                {
-                    syncError = ex;
-                }
-                finally
-                {
-                    var syncOperations = await referenceStore.GetSyncOperationsAsync(runId);
-                    var htmlReport = SyncOperationReportBuilder.BuildHtmlTable(syncOperations, ResolveUserCodes);
-                    //Console.WriteLine(htmlReport);
-                }
+                var syncOperations = await new ReferenceStore(dbContext.Database, ZohoBooksLocation.Uae)
+                    .GetSyncOperationsAsync(runId);
+                var htmlReport = SyncOperationReportBuilder.BuildHtmlTable(syncOperations, ResolveUserCodes);
+                //Console.WriteLine(htmlReport);
 
                 if (syncError != null)
                 {
@@ -157,6 +84,91 @@ namespace CRM.Tasks.TaskHandlers
                 }
             }
             return iRetVal;
+        }
+
+        private static async Task ProcessLocationAsync(
+            IReadOnlyCollection<vwZBInvoice> listAllInvoices,
+            SharedModel dbContext,
+            HttpClient httpClient,
+            Guid runId,
+            string locationArg)
+        {
+            var locationInvoices = listAllInvoices.Where(i => i.AccountingLocation == locationArg).ToList();
+            if (locationInvoices.Count == 0)
+            {
+                return;
+            }
+
+            if (!ZohoBooksRunContext.TryCreate(locationArg, out var context, out var error))
+            {
+                throw new Exception("CRM:Job:ZohoBooksDataPush::RunTask() - " + error);
+            }
+            if (string.IsNullOrWhiteSpace(context.ConnectionOptions.ActiveOrganizationId))
+            {
+                throw new Exception($"CRM:Job:ZohoBooksDataPush::RunTask() - Configure {context.OrganizationIdEnvironmentVariable} to run the sync for {context.LocationName}.");
+            }
+
+            var referenceStore = new ReferenceStore(dbContext.Database, context.Location);
+            await referenceStore.InitializeAsync();
+
+            var tokenStore = new TokenStore(dbContext.Database, context.TokenCode);
+            await tokenStore.InitializeAsync();
+
+            var tokenProvider = new ZohoTokenProvider(httpClient, context.Options, tokenStore);
+            var zohoClient = new ZohoBooksClient(httpClient, context.Options, context.ConnectionOptions, referenceStore, tokenProvider, runId);
+
+            List<Contact> contacts;
+            contacts = locationInvoices.Select(i => new Contact { LocalId = i.ContactAccID, Name = i.CompanyName}).Distinct(new ContactComparer()).ToList();
+            if (m_bTrialMode)
+            {
+                foreach (var contact in contacts)
+                {
+                    contact.Name = contact.Name.MaskChars('x', 60, ExtensionMethods.MaskOption.InTheMiddleOfString);
+                }
+            }
+
+            List<InventoryItem> inventoryItems;
+            inventoryItems = locationInvoices.Select(i => new InventoryItem { LocalId = i.InventoryItemID, Name = i.InventoryItemName, Sku = i.InventoryItemCode }).Distinct(new InventoryItemComparer()).ToList();
+
+            var invoices = new List<Invoice>();
+            var groupList = locationInvoices.GroupBy(v => v.InvoiceNumber).Select(v => v.ToList()).OrderBy(v => v.Max(i => i.InvoiceModifyDate)).ToList();
+            foreach (var group in groupList)
+            {
+                List<InvoiceLineItem> lstLineItems;
+                lstLineItems = group.Select(l => new InvoiceLineItem { 
+                    ItemLocalId = l.InventoryItemID, 
+                    Description = (l.InvoiceItemDescription).Truncate(m_iMaxInvoiceLineItemDescriptionLength, true), 
+                    AccountCode = l.Accounting_AccountCode, 
+                    Quantity = l.Quantity,
+                    Rate = l.UnitAmount,
+                    TaxPercentage= l.TaxRate,
+                    TaxAmount = l.TaxAmount,
+                    Discount = l.ItemDiscount
+                }).ToList();
+
+                var invoice = new Invoice
+                {
+                    LocalId = group[0].InvoiceID,
+                    ContactLocalId = group[0].ContactAccID,
+                    InvoiceDate = group[0].InvoiceDate ?? DateTime.UtcNow,
+                    InvoiceNumber = group[0].InvoiceNumber,
+                    CurrencyCode = group[0].Currency,
+                    Jurisdiction = group[0].Jurisdiction,
+                    RelationshipManager = group[0].AccountManager,
+                    //PlaceOfSupply = "DU",
+                    Subject = group[0].InvoiceSubject,
+                    LineItems = lstLineItems,
+                    InvoiceFileAttachment_FileName = group[0].InvoiceDocument_FileName
+                };
+
+                invoices.Add(invoice);
+            }
+
+            await EnsureContactsAsync(zohoClient, referenceStore, contacts);
+            await EnsureInventoryItemsAsync(zohoClient, referenceStore, inventoryItems);
+
+            await zohoClient.SyncInvoicesAsync(invoices);
+            await zohoClient.UpdateInvoicesAsync(invoices);
         }
 
         private static IDictionary<int, string> ResolveUserCodes(string entityType, IReadOnlyCollection<int> localKeys)
@@ -447,4 +459,3 @@ ORDER BY InvoiceModifyDate ASC, InvoiceID ASC
         }
     }
 }
-
