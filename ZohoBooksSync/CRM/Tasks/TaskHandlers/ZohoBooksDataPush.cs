@@ -1,6 +1,4 @@
-using Amazon.Runtime.Internal.Transform;
 using CRM.Classes;
-using CRM.Classes.ExternalServices.Xero.IO;
 using CRM.Classes.ExternalServices.Zoho.Books;
 using CRM.Classes.ExternalServices.Zoho.Books.Models;
 using CRM.Classes.ExternalServices.Zoho.Books.Persistence;
@@ -16,13 +14,11 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
-using System.IO;
 using System.Linq;
 using System.Linq.Dynamic;
 using System.Net.Http;
 using System.Runtime.ExceptionServices;
 using System.Threading.Tasks;
-using Xero.NetStandard.OAuth2.Api;
 using Invoice = CRM.Classes.ExternalServices.Zoho.Books.Models.Invoice;
 
 namespace CRM.Tasks.TaskHandlers
@@ -75,7 +71,9 @@ namespace CRM.Tasks.TaskHandlers
                 var syncOperations = await new ReferenceStore(dbContext.Database, ZohoBooksLocation.Uae)
                     .GetSyncOperationsAsync(runId);
                 var htmlReport = SyncOperationReportBuilder.BuildHtmlTable(syncOperations, ResolveUserCodes);
-                //Console.WriteLine(htmlReport);
+
+                string NotificationType_ZohoBooksDataPush = AppSettings.SysConfiguration["NotificationType_ZohoBooksDataPush"];
+                Business.Communication.Helper.Notify(NotificationType_ZohoBooksDataPush, "Zoho Books data push report", htmlReport, _dbConnection: dbContext.Database.Connection);
 
                 if (syncError != null)
                 {
@@ -118,7 +116,7 @@ namespace CRM.Tasks.TaskHandlers
             var zohoClient = new ZohoBooksClient(httpClient, context.Options, context.ConnectionOptions, referenceStore, tokenProvider, runId);
 
             List<Contact> contacts;
-            contacts = locationInvoices.Select(i => new Contact { LocalId = i.ContactAccID, Name = i.CompanyName}).Distinct(new ContactComparer()).ToList();
+            contacts = locationInvoices.Select(i => new Contact { LocalId = i.ContactAccID, Name = i.CompanyName }).Distinct(new ContactComparer()).ToList();
             if (m_bTrialMode)
             {
                 foreach (var contact in contacts)
@@ -135,13 +133,14 @@ namespace CRM.Tasks.TaskHandlers
             foreach (var group in groupList)
             {
                 List<InvoiceLineItem> lstLineItems;
-                lstLineItems = group.Select(l => new InvoiceLineItem { 
-                    ItemLocalId = l.InventoryItemID, 
-                    Description = (l.InvoiceItemDescription).Truncate(m_iMaxInvoiceLineItemDescriptionLength, true), 
-                    AccountCode = l.Accounting_AccountCode, 
+                lstLineItems = group.Select(l => new InvoiceLineItem
+                {
+                    ItemLocalId = l.InventoryItemID,
+                    Description = (l.InvoiceItemDescription).Truncate(m_iMaxInvoiceLineItemDescriptionLength, true),
+                    AccountCode = l.Accounting_AccountCode,
                     Quantity = l.Quantity,
                     Rate = l.UnitAmount,
-                    TaxPercentage= l.TaxRate,
+                    TaxPercentage = l.TaxRate,
                     TaxAmount = l.TaxAmount,
                     Discount = l.ItemDiscount
                 }).ToList();
@@ -357,7 +356,7 @@ AND ISNULL(INV.PaidFlag, 0)=1 AND ISNULL(INV.IsPending, 0)=0
                 }
             }
 
-            if(m_bMigrationMode)
+            if (m_bMigrationMode)
             {
                 strSQL += @"
 AND INVP.PaymentDate <= '" + m_AccountingMigration_EndDate + @"' 
