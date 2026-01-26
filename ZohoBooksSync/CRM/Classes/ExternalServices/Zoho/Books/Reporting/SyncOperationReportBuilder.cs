@@ -17,6 +17,7 @@ namespace CRM.Classes.ExternalServices.Zoho.Books.Reporting
             builder.AppendLine("<table>");
             builder.AppendLine("  <thead>");
             builder.AppendLine("    <tr>");
+            builder.AppendLine("      <th>Location</th>");
             builder.AppendLine("      <th>Entity</th>");
             builder.AppendLine("      <th>Code</th>");
             builder.AppendLine("      <th>Status</th>");
@@ -48,8 +49,10 @@ namespace CRM.Classes.ExternalServices.Zoho.Books.Reporting
                 var statusColor = operation.Success ? "green" : "red";
                 var errorColor = operation.Success ? string.Empty : "red";
                 var error = operation.Success ? string.Empty : operation.ErrorMessage ?? string.Empty;
+                var location = ResolveLocationLabel(operation.Location);
 
                 builder.AppendLine("    <tr>");
+                builder.AppendLine($"      <td>{WebUtility.HtmlEncode(location)}</td>");
                 builder.AppendLine($"      <td>{WebUtility.HtmlEncode(operation.EntityType)}</td>");
                 builder.AppendLine($"      <td>{WebUtility.HtmlEncode(code)}</td>");
                 builder.AppendLine($"      <td style=\"color: {statusColor};\">{WebUtility.HtmlEncode(status)}</td>");
@@ -74,6 +77,16 @@ namespace CRM.Classes.ExternalServices.Zoho.Books.Reporting
             }
 
             return $"{operation.EntityType}-{operation.LocalKey}";
+        }
+
+        private static string ResolveLocationLabel(byte location)
+        {
+            if (Enum.IsDefined(typeof(ZohoBooksLocation), location))
+            {
+                return ((ZohoBooksLocation)location).ToString();
+            }
+
+            return location.ToString();
         }
     }
 }

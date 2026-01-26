@@ -235,6 +235,7 @@ public sealed class ReferenceStore
             SELECT EntityType,
                    LocalKey,
                    LocalKeyText,
+                   Location,
                    Success,
                    ErrorMessage
             FROM {SyncLogTable}
@@ -255,8 +256,9 @@ public sealed class ReferenceStore
                         EntityType = reader.GetString(0),
                         LocalKey = reader.GetInt32(1),
                         LocalKeyText = reader.IsDBNull(2) ? null : reader.GetString(2),
-                        Success = reader.GetBoolean(3),
-                        ErrorMessage = reader.IsDBNull(4) ? null : reader.GetString(4)
+                        Location = reader.GetByte(3),
+                        Success = reader.GetBoolean(4),
+                        ErrorMessage = reader.IsDBNull(5) ? null : reader.GetString(5)
                     });
                 }
             }
