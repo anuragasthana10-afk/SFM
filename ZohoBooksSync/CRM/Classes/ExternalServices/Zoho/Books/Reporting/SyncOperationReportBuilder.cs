@@ -14,14 +14,14 @@ namespace CRM.Classes.ExternalServices.Zoho.Books.Reporting
             Func<string, IReadOnlyCollection<int>, IDictionary<int, string>> resolveUserCodes)
         {
             var builder = new StringBuilder();
-            builder.AppendLine("<table>");
+            builder.AppendLine("<table style=\"border-collapse: collapse; width: 100%;\">");
             builder.AppendLine("  <thead>");
             builder.AppendLine("    <tr>");
-            builder.AppendLine("      <th>Location</th>");
-            builder.AppendLine("      <th>Entity</th>");
-            builder.AppendLine("      <th>Code</th>");
-            builder.AppendLine("      <th>Status</th>");
-            builder.AppendLine("      <th>Error</th>");
+            builder.AppendLine("      <th style=\"text-align: center; vertical-align: middle; border: 1px solid #e6e6e6; padding: 6px;\">Location</th>");
+            builder.AppendLine("      <th style=\"text-align: center; vertical-align: middle; border: 1px solid #e6e6e6; padding: 6px;\">Entity</th>");
+            builder.AppendLine("      <th style=\"text-align: center; vertical-align: middle; border: 1px solid #e6e6e6; padding: 6px;\">Code</th>");
+            builder.AppendLine("      <th style=\"text-align: center; vertical-align: middle; border: 1px solid #e6e6e6; padding: 6px;\">Status</th>");
+            builder.AppendLine("      <th style=\"text-align: center; vertical-align: middle; border: 1px solid #e6e6e6; padding: 6px;\">Error</th>");
             builder.AppendLine("    </tr>");
             builder.AppendLine("  </thead>");
             builder.AppendLine("  <tbody>");
@@ -52,11 +52,11 @@ namespace CRM.Classes.ExternalServices.Zoho.Books.Reporting
                 var location = ResolveLocationLabel(operation.Location);
 
                 builder.AppendLine("    <tr>");
-                builder.AppendLine($"      <td>{WebUtility.HtmlEncode(location)}</td>");
-                builder.AppendLine($"      <td>{WebUtility.HtmlEncode(operation.EntityType)}</td>");
-                builder.AppendLine($"      <td>{WebUtility.HtmlEncode(code)}</td>");
-                builder.AppendLine($"      <td style=\"color: {statusColor};\">{WebUtility.HtmlEncode(status)}</td>");
-                builder.AppendLine($"      <td{(string.IsNullOrEmpty(errorColor) ? string.Empty : $" style=\"color: {errorColor};\"")}>{WebUtility.HtmlEncode(error)}</td>");
+                builder.AppendLine($"      <td style=\"text-align: left; vertical-align: middle; border: 1px solid #e6e6e6; padding: 6px;\">{WebUtility.HtmlEncode(location)}</td>");
+                builder.AppendLine($"      <td style=\"text-align: left; vertical-align: middle; border: 1px solid #e6e6e6; padding: 6px;\">{WebUtility.HtmlEncode(operation.EntityType)}</td>");
+                builder.AppendLine($"      <td style=\"text-align: left; vertical-align: middle; border: 1px solid #e6e6e6; padding: 6px;\">{WebUtility.HtmlEncode(code)}</td>");
+                builder.AppendLine($"      <td style=\"text-align: center; vertical-align: middle; border: 1px solid #e6e6e6; padding: 6px; color: {statusColor};\">{WebUtility.HtmlEncode(status)}</td>");
+                builder.AppendLine($"      <td style=\"text-align: left; vertical-align: middle; border: 1px solid #e6e6e6; padding: 6px;{(string.IsNullOrEmpty(errorColor) ? string.Empty : $" color: {errorColor};")}\">{WebUtility.HtmlEncode(error)}</td>");
                 builder.AppendLine("    </tr>");
             }
 
