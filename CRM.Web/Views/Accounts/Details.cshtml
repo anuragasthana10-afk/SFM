@@ -1,0 +1,73 @@
+@model AccountEmailsViewModel
+
+<section class="panel">
+    <h2>Emails for @Model.Account.Name</h2>
+    <div class="actions">
+        <a href="/Emails/Compose?accountId=@Model.Account.Id">Compose Email</a>
+        <a href="/Accounts">Back to Accounts</a>
+    </div>
+</section>
+
+<section class="panel">
+    <h3>Threads</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Subject</th>
+                <th>Messages</th>
+                <th>Last Received</th>
+                <th>Move To</th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var thread in Model.Threads)
+        {
+            <tr>
+                <td>@thread.Subject</td>
+                <td>@thread.MessageCount</td>
+                <td>@thread.LastReceivedAt</td>
+                <td>
+                    <form method="post" action="/Emails/MoveThread">
+                        <input type="hidden" name="conversationId" value="@thread.ConversationId" />
+                        <input type="hidden" name="currentAccountId" value="@Model.Account.Id" />
+                        <select name="accountId">
+                            @foreach (var account in (IReadOnlyList<Account>)ViewBag.Accounts)
+                            {
+                                if (account.Id != Model.Account.Id)
+                                {
+                                    <option value="@account.Id">@account.Name</option>
+                                }
+                            }
+                        </select>
+                        <button type="submit">Move</button>
+                    </form>
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+</section>
+
+<table>
+    <thead>
+        <tr>
+            <th>Subject</th>
+            <th>Received</th>
+            <th>Participants</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+    @foreach (var message in Model.Messages)
+    {
+        <tr>
+            <td>@message.Subject</td>
+            <td>@message.ReceivedAt</td>
+            <td>@string.Join(", ", message.Participants.Select(p => p.Address))</td>
+            <td>
+                <a href="/Emails/Content?messageId=@message.MessageId">View</a>
+            </td>
+        </tr>
+    }
+    </tbody>
+</table>

@@ -1,0 +1,39 @@
+@model OrphanEmailsViewModel
+
+<section class="panel">
+    <h2>Orphan Emails</h2>
+    <p>These messages are not yet linked to an account.</p>
+</section>
+
+<table>
+    <thead>
+        <tr>
+            <th>Subject</th>
+            <th>Received</th>
+            <th>Participants</th>
+            <th>Map to Account</th>
+        </tr>
+    </thead>
+    <tbody>
+    @foreach (var message in Model.OrphanMessages)
+    {
+        <tr>
+            <td>@message.Subject</td>
+            <td>@message.ReceivedAt</td>
+            <td>@string.Join(", ", message.Participants.Select(p => p.Address))</td>
+            <td>
+                <form method="post" action="/Emails/MapOrphan">
+                    <input type="hidden" name="messageId" value="@message.MessageId" />
+                    <select name="accountId">
+                        @foreach (var account in (IReadOnlyList<Account>)ViewBag.Accounts)
+                        {
+                            <option value="@account.Id">@account.Name</option>
+                        }
+                    </select>
+                    <button type="submit">Link</button>
+                </form>
+            </td>
+        </tr>
+    }
+    </tbody>
+</table>

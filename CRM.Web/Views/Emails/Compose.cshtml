@@ -1,0 +1,30 @@
+@model ComposeEmailViewModel
+
+<section class="panel">
+    <h2>Compose Email</h2>
+</section>
+
+<form method="post">
+    <div class="panel">
+        <label>From</label>
+        <input type="text" name="From" value="@Model.From" />
+    </div>
+    <div class="panel">
+        <label>To (comma separated)</label>
+        <input type="text" name="To" value="@Model.To" />
+    </div>
+    <div class="panel">
+        <label>Cc (comma separated)</label>
+        <input type="text" name="Cc" value="@Model.Cc" />
+    </div>
+    <div class="panel">
+        <label>Subject</label>
+        <input type="text" name="Subject" value="@Model.Subject" />
+    </div>
+    <div class="panel">
+        <label>Body</label>
+        <textarea name="Body" rows="6">@Model.Body</textarea>
+    </div>
+    <input type="hidden" name="AccountGuid" value="@Model.AccountGuid" />
+    <button type="submit">Send</button>
+</form>

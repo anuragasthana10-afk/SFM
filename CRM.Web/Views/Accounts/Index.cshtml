@@ -1,0 +1,35 @@
+@model AccountListViewModel
+
+<section class="panel">
+    <h2>Accounts</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Id</th>
+                <th>Name</th>
+                <th>Account GUID</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var account in Model.Accounts)
+        {
+            <tr>
+                <td>@account.Id</td>
+                <td>@account.Name</td>
+                <td>@account.AccountGuid</td>
+                <td>
+                    <a href="/Accounts/Details/@account.Id">View Emails</a>
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+</section>
+
+<section class="panel">
+    <h3>Sync mailbox</h3>
+    <form method="post" action="/Emails/Sync">
+        <button type="submit">Sync last 7 days</button>
+    </form>
+</section>
