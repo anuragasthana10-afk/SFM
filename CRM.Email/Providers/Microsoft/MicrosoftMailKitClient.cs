@@ -43,7 +43,10 @@ public sealed class MicrosoftMailKitClient : IEmailProvider, IEmailService
             : SearchQuery.All;
 
         var uids = await inbox.SearchAsync(searchQuery, cancellationToken);
-        var summaries = await inbox.FetchAsync(uids, MessageSummaryItems.Envelope | MessageSummaryItems.UniqueId | MessageSummaryItems.BodyStructure, cancellationToken);
+        var summaries = await inbox.FetchAsync(
+            uids,
+            MessageSummaryItems.Envelope | MessageSummaryItems.UniqueId | MessageSummaryItems.BodyStructure,
+            cancellationToken);
 
         var results = new List<EmailMessageMetadata>();
         foreach (var summary in summaries)
@@ -54,7 +57,7 @@ public sealed class MicrosoftMailKitClient : IEmailProvider, IEmailService
             }
 
             var messageId = summary.Envelope.MessageId ?? summary.UniqueId.Id.ToString();
-            var conversationId = ResolveConversationId(summary.Envelope.References, messageId);
+            var conversationId = ResolveConversationId(summary.Headers["References"], messageId);
 
             results.Add(new EmailMessageMetadata
             {
@@ -64,7 +67,7 @@ public sealed class MicrosoftMailKitClient : IEmailProvider, IEmailService
                 Snippet = summary.Envelope.Subject,
                 ReceivedAt = summary.Envelope.Date ?? DateTimeOffset.UtcNow,
                 Participants = BuildParticipants(summary.Envelope),
-                HasAttachments = summary.Body?.Attachments?.Count > 0
+                HasAttachments = summary.Attachments != null && summary.Attachments.Any()
             });
         }
 
@@ -141,11 +144,15 @@ public sealed class MicrosoftMailKitClient : IEmailProvider, IEmailService
         await client.DisconnectAsync(true, cancellationToken);
     }
 
-    private static string ResolveConversationId(IList<string>? references, string messageId)
+    private static string ResolveConversationId(string? referencesHeader, string messageId)
     {
-        if (references is { Count: > 0 })
+        if (!string.IsNullOrWhiteSpace(referencesHeader))
         {
-            return references[0];
+            var references = referencesHeader.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            if (references.Length > 0)
+            {
+                return references[0];
+            }
         }
 
         return messageId;
