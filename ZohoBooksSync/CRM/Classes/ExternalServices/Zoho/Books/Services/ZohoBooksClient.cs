@@ -592,6 +592,7 @@ public sealed class ZohoBooksClient
         IReadOnlyDictionary<int, string> itemIds,
         CancellationToken cancellationToken)
     {
+        var reportingTagDetails = await BuildReportingTagDetailsAsync(invoice, cancellationToken);
         var lineItems = new List<Dictionary<string, object>>();
 
         foreach (var item in invoice.LineItems)
@@ -604,6 +605,7 @@ public sealed class ZohoBooksClient
                 ["name"] = item.Description,
                 ["rate"] = item.Rate,
                 ["quantity"] = item.Quantity,
+                ["tags"] = reportingTagDetails
             };
 
             if (item.TaxPercentage.HasValue)
