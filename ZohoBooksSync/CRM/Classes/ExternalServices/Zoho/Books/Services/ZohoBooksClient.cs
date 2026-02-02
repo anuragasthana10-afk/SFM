@@ -167,6 +167,11 @@ public sealed class ZohoBooksClient
                     payload["tags"] = reportingTagDetails;
                 }
 
+                if (invoice.ExchangeRate.HasValue)
+                {
+                    payload["exchange_rate"] = invoice.ExchangeRate.Value;
+                }
+
                 if (invoice.TaxPercentage.HasValue)
                 {
                     payload["tax_percentage"] = invoice.TaxPercentage.Value;
@@ -358,6 +363,11 @@ public sealed class ZohoBooksClient
                 if (!_connectionOptions.ApplyReportingTagsToLineItems)
                 {
                     payload["tags"] = reportingTagDetails;
+                }
+
+                if (invoice.ExchangeRate.HasValue)
+                {
+                    payload["exchange_rate"] = invoice.ExchangeRate.Value;
                 }
 
                 if (invoice.TaxPercentage.HasValue)
