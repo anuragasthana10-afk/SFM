@@ -160,9 +160,12 @@ public sealed class ZohoBooksClient
                     ["customer_id"] = contactId,
                     ["date"] = invoice.InvoiceDate.ToString("yyyy-MM-dd"),
                     ["currency_code"] = invoice.CurrencyCode,
-                    ["line_items"] = lineItems,
-                    ["tags"] = reportingTagDetails
+                    ["line_items"] = lineItems
                 };
+                if (!_connectionOptions.ApplyReportingTagsToLineItems)
+                {
+                    payload["tags"] = reportingTagDetails;
+                }
 
                 if (invoice.TaxPercentage.HasValue)
                 {
@@ -350,9 +353,12 @@ public sealed class ZohoBooksClient
                     ["date"] = invoice.InvoiceDate.ToString("yyyy-MM-dd"),
                     ["currency_code"] = invoice.CurrencyCode,
                     ["line_items"] = lineItems,
-                    ["tags"] = reportingTagDetails,
                     ["reason"] = updateReason
                 };
+                if (!_connectionOptions.ApplyReportingTagsToLineItems)
+                {
+                    payload["tags"] = reportingTagDetails;
+                }
 
                 if (invoice.TaxPercentage.HasValue)
                 {
@@ -592,7 +598,9 @@ public sealed class ZohoBooksClient
         IReadOnlyDictionary<int, string> itemIds,
         CancellationToken cancellationToken)
     {
-        var reportingTagDetails = await BuildReportingTagDetailsAsync(invoice, cancellationToken);
+        var reportingTagDetails = _connectionOptions.ApplyReportingTagsToLineItems
+            ? await BuildReportingTagDetailsAsync(invoice, cancellationToken)
+            : null;
         var lineItems = new List<Dictionary<string, object>>();
 
         foreach (var item in invoice.LineItems)
@@ -604,9 +612,12 @@ public sealed class ZohoBooksClient
                     : throw new InvalidOperationException($"Missing item reference for {item.ItemLocalId}."),
                 ["name"] = item.Description,
                 ["rate"] = item.Rate,
-                ["quantity"] = item.Quantity,
-                ["tags"] = reportingTagDetails
+                ["quantity"] = item.Quantity
             };
+            if (_connectionOptions.ApplyReportingTagsToLineItems)
+            {
+                lineItem["tags"] = reportingTagDetails;
+            }
 
             if (item.TaxPercentage.HasValue)
             {
