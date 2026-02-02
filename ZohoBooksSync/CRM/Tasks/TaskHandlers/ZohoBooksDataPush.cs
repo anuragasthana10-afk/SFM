@@ -152,6 +152,7 @@ namespace CRM.Tasks.TaskHandlers
                     InvoiceDate = group[0].InvoiceDate ?? DateTime.UtcNow,
                     InvoiceNumber = group[0].InvoiceNumber,
                     CurrencyCode = group[0].Currency,
+                    ExchangeRate = group[0].ExchangeRate,
                     Jurisdiction = group[0].Jurisdiction,
                     RelationshipManager = group[0].AccountManager,
                     //PlaceOfSupply = "DU",
@@ -211,6 +212,9 @@ namespace CRM.Tasks.TaskHandlers
         {
             string strSQL = "";
             strSQL += @"
+DECLARE @SwissProducts TABLE (ProdID int);
+INSERT @SwissProducts(ProdID) VALUES(32); --,(32),(0);
+
 SELECT 
 InvoiceID, RNDenseInvoiceNumber, InvoiceModifyDate, LastInvoiceSyncDate, ContactAccID, AccountModifyDate
  ,CompanyName, Jurisdiction, AccountCode AS ContactAccountCode, '' AS EmailAddress
@@ -231,7 +235,9 @@ InvoiceID, RNDenseInvoiceNumber, InvoiceModifyDate, LastInvoiceSyncDate, Contact
 
             strSQL += @"
 , Total AS Total, ItemDiscount, ProductID AS InventoryItemID, UPPER(InventoryItemCode) AS InventoryItemCode, InventoryItemName, InventoryItemModifyDate, ISNULL(InvoiceItemDescription, ProdDescription) AS [InvoiceItemDescription], Quantity AS Quantity, Price AS UnitAmount, Accounting_AccountCode, 'VAT' AS TaxType, ISNULL(VAT, 0.0) AS TaxAmount, ISNULL(VATRate, 0) AS TaxRate
-, AccountManager, IntroducerName, Currency AS Currency, PaymentAmounts, PaymentDates, HasMultiplePayments, AccountingLocation, InvoiceDocument_FileName
+, AccountManager, IntroducerName, Currency AS Currency, PaymentAmounts
+, CAST(((SELECT EXCH_CONVERT.ExchangeRate FROM fnCurrencyExchangeRate(ConvertedBaseCurrencyCode, InvoiceDate) AS EXCH_CONVERT) / OriginExchangeRate) AS DECIMAL(7, 4)) AS ExchangeRate
+, ConvertedBaseCurrencyCode AS BaseCurrencyCode, PaymentDates, HasMultiplePayments, AccountingLocation, InvoiceDocument_FileName
 FROM
 (
 SELECT  
@@ -290,7 +296,10 @@ INVP.ID AS PaymentRowID	/* Required for the DISTINCT keyword to correctly remove
 , FORMAT(INVP.PaymentDate, 'dd-MMMM-yyyy') AS [PaymentDate_Formatted]
 , INVP.PaymentAmount
 , PMODE.[Name]
-, CEXCH.BaseCurrencyCode
+, (CASE WHEN ACC.Product_ID IN (SELECT ProdID FROM @SwissProducts) THEN 'CHF' ELSE 'AED' END) AS ConvertedBaseCurrencyCode
+--, ((SELECT EXCH_CONVERT.ExchangeRate FROM fnCurrencyExchangeRate('AED', INV.[Date]) AS EXCH_CONVERT) / CEXCH.ExchangeRate) AS ConvertedExchangeRate
+, CEXCH.BaseCurrencyCode AS OriginBaseCurrencyCode
+, CEXCH.ExchangeRate AS OriginExchangeRate
 , CAST(ROUND(INVP.PaymentAmount / CEXCH.ExchangeRate, 0) AS DECIMAL(16,2)) AS PaymentAmountInBaseCurrency
 , CLIORD.CompanyLocation_ID
 , COLOC.[name] AS InvoiceLocation
@@ -320,141 +329,4 @@ LEFT OUTER JOIN Products PROD ON PROD.ID=ORDITEMS.Products_ID
 LEFT OUTER JOIN CompanyLocations COLOC ON COLOC.ID=CLIORD.CompanyLocation_ID
 LEFT OUTER JOIN InvoicePayments INVP ON INVP.Invoice_ID=INV.ID AND ISNULL(INVP.DelFlag, 0)=0 AND INVP.PaymentMode_ID NOT IN (6,7) /*Exclude Adjustment entries and 'NA' entry*/
 LEFT OUTER JOIN PaymentModes PMODE ON PMODE.ID=INVP.PaymentMode_ID
-LEFT OUTER JOIN ObjectRelations OBJRACC ON OBJRACC.ObjectScreen_Code IN ('" + AppSettings.ScreenCode_Accounts + @"', '" + AppSettings.ScreenCode_OtherServices + @"') AND OBJRACC.AssociatedObject_Code='" + new Models.Clients.Invoice().GetThisObjectCode() + @"' AND OBJRACC.AssociatedObject_RefID=INV.ID AND ISNULL(OBJRACC.DelFlag, 0)=0 
-LEFT OUTER JOIN Accounts ACC ON ACC.ID=OBJRACC.ObjectScreen_RefID AND ISNULL(ACC.DelFlag, 0)=0 AND ACC.AccountStatus_Code NOT IN ('PROSPECT', 'LEAD')
-LEFT OUTER JOIN vwCurrencyExchangeRate CEXCH ON CEXCH.CurrencyCode=INV.InvoiceCurrencyCode
-LEFT OUTER JOIN
-(
-	SELECT * FROM
-	(
-	  SELECT *, ROW_NUMBER() OVER(PARTITION BY EntityType, LocalKey ORDER BY OccurredAtUtc DESC) AS EntityRN
-	  FROM [ZohoBooks_SyncOperationLog]
-	  WHERE ISNULL(Success, 0)=1 AND EntityType='Invoice' AND Operation IN ('Create', 'Update')
-	) AS TMP
-	WHERE EntityRN=1
-) INV_SYNC_LOG ON INV_SYNC_LOG.LocalKey=INV.ID
-
-WHERE ISNULL(INV.DelFlag, 0)=0
-AND ISNULL(COLOC.Accounting_IncludeInAccounting, 0)=1
-";
-
-            if (m_bIsCashBasedAccountingSystem)
-            {
-                strSQL += @"
-/** Only the one with payments **/
-AND (INVP.PaymentDate IS NOT NULL OR /* OR invoices paid and closed only using credit. */(INVP.PaymentDate IS NULL AND ISNULL(INV.PaidFlag, 0)=1 AND ISNULL(INV.IsPending, 0)=0))
-
-/** Apply lower limit to payment dates from the date integration starts. **/
-AND (INVP.PaymentDate >= '" + m_AccountingIntegration_StartDate + @"' OR /* OR invoices paid and closed only using credit. */(INVP.PaymentDate IS NULL AND ISNULL(INV.ModifyDate, INV.CreateDate) >= '" + m_AccountingIntegration_StartDate + @"' AND ISNULL(INV.PaidFlag, 0)=1 AND ISNULL(INV.IsPending, 0)=0))
-";
-                if (m_bOnlyPaymentClosedInvoicesToBeConsideredAsPaid)
-                {
-                    strSQL += @"
-/** Payment added and closed invoices **/
-AND ISNULL(INV.PaidFlag, 0)=1 AND ISNULL(INV.IsPending, 0)=0
-";
-                }
-            }
-
-            if (m_bMigrationMode)
-            {
-                strSQL += @"
-AND INVP.PaymentDate <= '" + m_AccountingMigration_EndDate + @"' 
-";
-            }
-
-            strSQL += @"
-AND ISNULL(ACC.TestAccount, 0)=0
-AND ACC.ID IS NOT NULL AND CLIORD.ID IS NOT NULL AND ORDITEMS.ID IS NOT NULL
-";
-
-            if (p_listInvoiceIDs != null)
-            {
-                strSQL += @"
-AND INV.ID IN (" + string.Join(",", p_listInvoiceIDs) + @")
-";
-            }
-
-            strSQL += @"
-) AS TMP
-) AS TMP2
-) AS INVPYMTS
-WHERE 1=1
-AND RNDensePaymentNumber=1
-AND (LastInvoiceSyncDate IS NULL OR InvoiceModifyDate > LastInvoiceSyncDate)
-ORDER BY InvoiceModifyDate ASC, InvoiceID ASC
-";
-
-            return strSQL;
-        }
-
-    }
-
-    internal class vwZBInvoice
-    {
-        public int InvoiceID { get; set; }
-        public long RNDenseInvoiceNumber { get; set; }
-        public DateTime InvoiceModifyDate { get; set; }
-        public int ContactAccID { get; set; }
-        public DateTime AccountModifyDate { get; set; }
-        public string CompanyName { get; set; }
-        public string Jurisdiction { get; set; }
-        public string ContactAccountCode { get; set; }
-        public string EmailAddress { get; set; }
-        public string InvoiceNumber { get; set; }
-        public string InvoiceSubject { get; set; }
-        public DateTime? InvoiceDate { get; set; }
-        public DateTime? DueDate { get; set; }
-        public decimal Total { get; set; }
-        public decimal? ItemDiscount { get; set; }
-        public int InventoryItemID { get; set; }
-        public string InventoryItemCode { get; set; }
-        public string InventoryItemName { get; set; }
-        public DateTime InventoryItemModifyDate { get; set; }
-        public string InvoiceItemDescription { get; set; }
-        public int Quantity { get; set; }
-        public decimal UnitAmount { get; set; }
-        public string TaxType { get; set; }
-        public decimal TaxAmount { get; set; }
-        public decimal TaxRate { get; set; }
-        public string AccountManager { get; set; }
-        public string IntroducerName { get; set; }
-        public string Currency { get; set; }
-        public string PaymentAmounts { get; set; }
-        public string PaymentDates { get; set; }
-        public string HasMultiplePayments { get; set; }
-        public string Accounting_AccountCode { get; set; }
-        public string AccountingLocation { get; set; }
-        public string InvoiceDocument_FileName { get; set; }
-    }
-
-    public class ContactComparer : IEqualityComparer<Contact>
-    {
-        public bool Equals(Contact x, Contact y)
-        {
-            // Check if the Ids are equal for distinctness
-            return x?.LocalId == y?.LocalId;
-        }
-
-        public int GetHashCode(Contact obj)
-        {
-            // Return the hash code of the property being compared
-            return obj.LocalId.GetHashCode();
-        }
-    }
-
-    public class InventoryItemComparer : IEqualityComparer<InventoryItem>
-    {
-        public bool Equals(InventoryItem x, InventoryItem y)
-        {
-            // Check if the Ids are equal for distinctness
-            return x?.LocalId == y?.LocalId;
-        }
-
-        public int GetHashCode(InventoryItem obj)
-        {
-            // Return the hash code of the property being compared
-            return obj.LocalId.GetHashCode();
-        }
-    }
-}
+LEFT OUTER JOIN ObjectRelations OBJRACC ON OBJRACC.ObjectScreen_Code IN ('

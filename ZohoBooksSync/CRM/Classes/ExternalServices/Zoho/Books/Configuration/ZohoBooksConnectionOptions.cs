@@ -22,7 +22,7 @@ namespace CRM.Classes.ExternalServices.Zoho.Books.Configuration
             SwissOrganizationId = string.Empty;
             SqlConnectionString = string.Empty;
             AllowReportingTagOptionCreate = false;
-            ApplyReportingTagsToLineItems = false;
+            ApplyReportingTagsToLineItems = true;
             Location = ZohoBooksLocation.Uae;
         }
 
@@ -43,9 +43,9 @@ namespace CRM.Classes.ExternalServices.Zoho.Books.Configuration
                     Environment.GetEnvironmentVariable("ZOHO_BOOKS_ALLOW_REPORTING_TAG_OPTION_CREATE"),
                     "true",
                     StringComparison.OrdinalIgnoreCase),
-                ApplyReportingTagsToLineItems = string.Equals(
+                ApplyReportingTagsToLineItems = !string.Equals(
                     Environment.GetEnvironmentVariable("ZOHO_BOOKS_APPLY_REPORTING_TAGS_TO_LINE_ITEMS"),
-                    "true",
+                    "false",
                     StringComparison.OrdinalIgnoreCase),
                 Location = ZohoBooksLocation.Uae
             };
