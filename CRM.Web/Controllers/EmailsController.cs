@@ -206,8 +206,8 @@ public sealed class EmailsController : Controller
         {
             From = model.From,
             To = model.To.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),
-            Cc = model.Cc.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),
-            Bcc = model.Bcc.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),
+            Cc = SplitRecipients(model.Cc),
+            Bcc = SplitRecipients(model.Bcc),
             Subject = model.Subject,
             TextBody = model.Body,
             HtmlBody = string.IsNullOrWhiteSpace(model.HtmlBody) ? $"<pre>{System.Net.WebUtility.HtmlEncode(model.Body)}</pre>" : model.HtmlBody,
@@ -243,7 +243,7 @@ public sealed class EmailsController : Controller
             var body = !string.IsNullOrWhiteSpace(content.TextBody)
                 ? content.TextBody
                 : StripHtml(content.HtmlBody);
-            body = SanitizeQuotedBody(body);
+            body = NormalizeQuotedBody(body);
 
             builder.AppendLine($"Subject: {message.Subject}");
             builder.AppendLine($"Received: {message.ReceivedAt:u}");
@@ -257,6 +257,43 @@ public sealed class EmailsController : Controller
 
 
     private static readonly Regex StampTokenRegex = new(@"\[\[CRM-ACCOUNT:[0-9a-fA-F-]{36}\]\]", RegexOptions.Compiled);
+    private static readonly string[] ThreadQuoteMarkers = ["--- Original Thread ---", "--- Forwarded Thread ---"];
+
+    private static List<string> SplitRecipients(string? recipients)
+    {
+        if (string.IsNullOrWhiteSpace(recipients))
+        {
+            return [];
+        }
+
+        return recipients
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToList();
+    }
+
+    private static string NormalizeQuotedBody(string? body)
+    {
+        var stripped = StripPreviouslyQuotedThreadSections(body);
+        return SanitizeQuotedBody(stripped);
+    }
+
+    private static string StripPreviouslyQuotedThreadSections(string? body)
+    {
+        if (string.IsNullOrWhiteSpace(body))
+        {
+            return string.Empty;
+        }
+
+        var normalizedBody = body.Replace("\r\n", "\n");
+        var cutoff = ThreadQuoteMarkers
+            .Select(marker => normalizedBody.IndexOf(marker, StringComparison.OrdinalIgnoreCase))
+            .Where(index => index >= 0)
+            .DefaultIfEmpty(-1)
+            .Min();
+
+        var trimmed = cutoff >= 0 ? normalizedBody[..cutoff] : normalizedBody;
+        return trimmed.Trim();
+    }
 
     private static string SanitizeQuotedBody(string? body)
     {
