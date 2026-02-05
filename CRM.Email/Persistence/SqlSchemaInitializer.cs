@@ -57,6 +57,24 @@ BEGIN
     );
 END;
 
+IF OBJECT_ID('dbo.Messaging_Contacts', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.Messaging_Contacts (
+        Id INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        Name NVARCHAR(200) NOT NULL,
+        EmailAddress NVARCHAR(320) NOT NULL UNIQUE
+    );
+END;
+
+IF OBJECT_ID('dbo.Messaging_ContactAccounts', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.Messaging_ContactAccounts (
+        ContactId INT NOT NULL,
+        AccountId INT NOT NULL,
+        CONSTRAINT PK_Messaging_ContactAccounts PRIMARY KEY (ContactId, AccountId)
+    );
+END;
+
 IF OBJECT_ID('dbo.Messaging_EmailContent', 'U') IS NULL
 BEGIN
     CREATE TABLE dbo.Messaging_EmailContent (
@@ -104,7 +122,37 @@ END;
 IF NOT EXISTS (SELECT 1 FROM dbo.Messaging_Accounts)
 BEGIN
     INSERT INTO dbo.Messaging_Accounts (Name, AccountGuid)
-    VALUES ('Contoso Ltd', NEWID()), ('Fabrikam Inc', NEWID());
+    VALUES ('Contoso Ltd', NEWID()), ('Fabrikam Inc', NEWID()), ('Northwind Traders', NEWID());
+END;
+
+IF NOT EXISTS (SELECT 1 FROM dbo.Messaging_Contacts)
+BEGIN
+    INSERT INTO dbo.Messaging_Contacts (Name, EmailAddress)
+    VALUES
+        ('Alex Johnson', 'alex.johnson@contoso-example.com'),
+        ('Priya Patel', 'priya.patel@fabrikam-example.com'),
+        ('Morgan Lee', 'morgan.lee@shared-client.com');
+END;
+
+IF NOT EXISTS (SELECT 1 FROM dbo.Messaging_ContactAccounts)
+BEGIN
+    INSERT INTO dbo.Messaging_ContactAccounts (ContactId, AccountId)
+    SELECT c.Id, a.Id
+    FROM dbo.Messaging_Contacts c
+    JOIN dbo.Messaging_Accounts a ON a.Name IN ('Contoso Ltd', 'Northwind Traders')
+    WHERE c.EmailAddress = 'morgan.lee@shared-client.com';
+
+    INSERT INTO dbo.Messaging_ContactAccounts (ContactId, AccountId)
+    SELECT c.Id, a.Id
+    FROM dbo.Messaging_Contacts c
+    JOIN dbo.Messaging_Accounts a ON a.Name = 'Contoso Ltd'
+    WHERE c.EmailAddress = 'alex.johnson@contoso-example.com';
+
+    INSERT INTO dbo.Messaging_ContactAccounts (ContactId, AccountId)
+    SELECT c.Id, a.Id
+    FROM dbo.Messaging_Contacts c
+    JOIN dbo.Messaging_Accounts a ON a.Name = 'Fabrikam Inc'
+    WHERE c.EmailAddress = 'priya.patel@fabrikam-example.com';
 END;
 ";
         await seedCommand.ExecuteNonQueryAsync(cancellationToken);

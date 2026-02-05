@@ -59,12 +59,35 @@ public sealed class EmailsController : Controller
 
     public async Task<IActionResult> Orphans(CancellationToken cancellationToken)
     {
+        var orphanMessages = await _threadQuery.GetOrphanMessagesAsync(cancellationToken);
+        var accounts = await _accountStore.GetAllAsync(cancellationToken);
+        var candidates = new List<OrphanMessageCandidateViewModel>();
+
+        foreach (var message in orphanMessages)
+        {
+            var senderAddress = message.Participants
+                .Select(participant => participant.Address)
+                .FirstOrDefault(address => !string.IsNullOrWhiteSpace(address))
+                ?? string.Empty;
+
+            var suggestions = string.IsNullOrWhiteSpace(senderAddress)
+                ? Array.Empty<int>()
+                : await _threadQuery.GetAccountSuggestionsBySenderAsync(senderAddress, cancellationToken);
+
+            candidates.Add(new OrphanMessageCandidateViewModel
+            {
+                Message = message,
+                SenderAddress = senderAddress,
+                SuggestedAccountIds = suggestions
+            });
+        }
+
         var model = new OrphanEmailsViewModel
         {
-            OrphanMessages = await _threadQuery.GetOrphanMessagesAsync(cancellationToken)
+            OrphanMessages = candidates,
+            AllAccounts = accounts
         };
 
-        ViewBag.Accounts = await _accountStore.GetAllAsync(cancellationToken);
         return View(model);
     }
 

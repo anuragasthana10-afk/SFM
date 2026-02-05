@@ -304,6 +304,35 @@ ORDER BY ReceivedAt DESC", connection);
         return results;
     }
 
+    public async Task<IReadOnlyList<int>> GetAccountSuggestionsBySenderAsync(string senderAddress, CancellationToken cancellationToken)
+    {
+        var results = new List<int>();
+
+        if (string.IsNullOrWhiteSpace(senderAddress))
+        {
+            return results;
+        }
+
+        await using var connection = _connectionFactory.CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        var command = new SqlCommand(@"
+SELECT ca.AccountId
+FROM dbo.Messaging_Contacts c
+JOIN dbo.Messaging_ContactAccounts ca ON ca.ContactId = c.Id
+WHERE LOWER(c.EmailAddress) = LOWER(@SenderAddress)
+ORDER BY ca.AccountId", connection);
+        command.Parameters.AddWithValue("@SenderAddress", senderAddress.Trim());
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            results.Add(reader.GetInt32(0));
+        }
+
+        return results;
+    }
+
     public async Task<EmailMessageMetadata?> GetMessageByIdAsync(string messageId, CancellationToken cancellationToken)
     {
         await using var connection = _connectionFactory.CreateConnection();
