@@ -1,3 +1,4 @@
+using System.Text;
 using CRM.Core.Models;
 using CRM.Core.Storage;
 using CRM.Email.Abstractions;
@@ -135,6 +136,8 @@ public sealed class EmailsController : Controller
         }
 
         var replyTo = original.Participants.Select(p => p.Address).FirstOrDefault() ?? string.Empty;
+        var threadText = await BuildThreadTextAsync(original.ConversationId, cancellationToken);
+
         var model = new ComposeEmailViewModel
         {
             From = _providerOptions.ServiceMailboxAddress,
@@ -142,7 +145,7 @@ public sealed class EmailsController : Controller
             Subject = original.Subject.StartsWith("RE:", StringComparison.OrdinalIgnoreCase)
                 ? original.Subject
                 : $"RE: {original.Subject}",
-            Body = $"\n\n--- Original Message ---\n{original.Snippet}",
+            Body = $"\n\n--- Original Thread ---\n{threadText}",
             AccountGuid = account.AccountGuid,
             ConversationId = original.ConversationId,
             InReplyToMessageId = original.MessageId,
@@ -162,13 +165,15 @@ public sealed class EmailsController : Controller
             return NotFound();
         }
 
+        var threadText = await BuildThreadTextAsync(original.ConversationId, cancellationToken);
+
         var model = new ComposeEmailViewModel
         {
             From = _providerOptions.ServiceMailboxAddress,
             Subject = original.Subject.StartsWith("FW:", StringComparison.OrdinalIgnoreCase)
                 ? original.Subject
                 : $"FW: {original.Subject}",
-            Body = $"\n\n--- Forwarded Message ---\n{original.Snippet}",
+            Body = $"\n\n--- Forwarded Thread ---\n{threadText}",
             AccountGuid = account.AccountGuid,
             ConversationId = original.ConversationId,
             InReplyToMessageId = original.MessageId,
@@ -201,5 +206,44 @@ public sealed class EmailsController : Controller
 
         await _emailService.SendAsync(message, cancellationToken);
         return RedirectToAction("Index", "Accounts");
+    }
+
+    private async Task<string> BuildThreadTextAsync(string conversationId, CancellationToken cancellationToken)
+    {
+        var messages = await _threadQuery.GetMessagesByConversationAsync(conversationId, cancellationToken);
+        var builder = new StringBuilder();
+
+        foreach (var message in messages)
+        {
+            var content = await _threadStore.GetContentAsync(message.MessageId, cancellationToken)
+                         ?? await _provider.FetchContentAsync(message.MessageId, cancellationToken);
+
+            if (content is null)
+            {
+                continue;
+            }
+
+            var body = !string.IsNullOrWhiteSpace(content.TextBody)
+                ? content.TextBody
+                : StripHtml(content.HtmlBody);
+
+            builder.AppendLine($"Subject: {message.Subject}");
+            builder.AppendLine($"Received: {message.ReceivedAt:u}");
+            builder.AppendLine($"From/To: {string.Join(", ", message.Participants.Select(p => p.Address))}");
+            builder.AppendLine(body);
+            builder.AppendLine();
+        }
+
+        return builder.ToString().Trim();
+    }
+
+    private static string StripHtml(string? html)
+    {
+        if (string.IsNullOrWhiteSpace(html))
+        {
+            return string.Empty;
+        }
+
+        return System.Text.RegularExpressions.Regex.Replace(html, "<.*?>", string.Empty);
     }
 }

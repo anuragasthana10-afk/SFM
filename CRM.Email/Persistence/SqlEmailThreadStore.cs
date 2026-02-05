@@ -336,6 +336,43 @@ WHERE MessageId = @MessageId", connection);
         return message;
     }
 
+    public async Task<IReadOnlyList<EmailMessageMetadata>> GetMessagesByConversationAsync(string conversationId, CancellationToken cancellationToken)
+    {
+        var results = new List<EmailMessageMetadata>();
+
+        await using var connection = _connectionFactory.CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        var command = new SqlCommand(@"
+SELECT MessageId, ConversationId, Subject, Snippet, ReceivedAt, AccountId, HasAttachments
+FROM dbo.Messaging_EmailMessageMetadata
+WHERE ConversationId = @ConversationId
+ORDER BY ReceivedAt ASC", connection);
+        command.Parameters.AddWithValue("@ConversationId", conversationId);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            results.Add(new EmailMessageMetadata
+            {
+                MessageId = reader.GetString(0),
+                ConversationId = reader.GetString(1),
+                Subject = reader.GetString(2),
+                Snippet = reader.IsDBNull(3) ? null : reader.GetString(3),
+                ReceivedAt = reader.GetDateTimeOffset(4),
+                AccountId = reader.IsDBNull(5) ? null : reader.GetInt32(5),
+                HasAttachments = reader.GetBoolean(6)
+            });
+        }
+
+        foreach (var message in results)
+        {
+            message.Participants = await GetParticipantsAsync(message.MessageId, cancellationToken);
+        }
+
+        return results;
+    }
+
     public async Task ReassignThreadAsync(string conversationId, int newAccountId, CancellationToken cancellationToken)
     {
         await using var connection = _connectionFactory.CreateConnection();
