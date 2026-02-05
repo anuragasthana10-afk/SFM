@@ -79,6 +79,7 @@ public sealed class EmailsController : Controller
     public async Task<IActionResult> Content(string messageId, CancellationToken cancellationToken)
     {
         var content = await _threadStore.GetContentAsync(messageId, cancellationToken);
+        var source = "Database";
         if (content is null)
         {
             content = await _provider.FetchContentAsync(messageId, cancellationToken);
@@ -86,6 +87,8 @@ public sealed class EmailsController : Controller
             {
                 await _threadStore.SaveContentAsync(content, cancellationToken);
             }
+
+            source = "Provider";
         }
 
         if (content is null)
@@ -93,6 +96,7 @@ public sealed class EmailsController : Controller
             return NotFound();
         }
 
+        ViewBag.ContentSource = source;
         return View(content);
     }
 

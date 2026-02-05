@@ -40,7 +40,8 @@ Attachment persistence is off by default to avoid rapid DB growth.
 ```
 Email:
   Storage:
+    StoreFullMessages: true
     StoreAttachments: false
 ```
 
-When enabled, the sync service will persist attachments while honoring optional max size and content-type allowlist settings.
+When `StoreFullMessages` is enabled, the sync service stores full message content. When `StoreAttachments` is enabled, the sync service persists attachments while honoring optional max size and content-type allowlist settings.

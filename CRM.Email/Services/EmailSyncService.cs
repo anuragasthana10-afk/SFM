@@ -27,7 +27,7 @@ public sealed class EmailSyncService
         var messages = await _provider.SyncAsync(request, cancellationToken);
         await _threadStore.UpsertMessagesAsync(messages, cancellationToken);
 
-        if (_storageOptions.StoreAttachments)
+        if (_storageOptions.StoreFullMessages)
         {
             foreach (var message in messages)
             {
@@ -37,7 +37,7 @@ public sealed class EmailSyncService
                     continue;
                 }
 
-                if (_storageOptions.MaxAttachmentSizeMb is { } maxSize)
+                if (_storageOptions.StoreAttachments && _storageOptions.MaxAttachmentSizeMb is { } maxSize)
                 {
                     var maxSizeBytes = maxSize * 1024L * 1024L;
                     content.Attachments = content.Attachments
@@ -45,11 +45,16 @@ public sealed class EmailSyncService
                         .ToList();
                 }
 
-                if (_storageOptions.AllowedAttachmentTypes.Count > 0)
+                if (_storageOptions.StoreAttachments && _storageOptions.AllowedAttachmentTypes.Count > 0)
                 {
                     content.Attachments = content.Attachments
                         .Where(att => _storageOptions.AllowedAttachmentTypes.Contains(att.ContentType))
                         .ToList();
+                }
+
+                if (!_storageOptions.StoreAttachments)
+                {
+                    content.Attachments = new List<EmailAttachment>();
                 }
 
                 await _threadStore.SaveContentAsync(content, cancellationToken);

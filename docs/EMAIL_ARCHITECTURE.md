@@ -7,6 +7,7 @@ To avoid rapid database growth from large attachments, keep attachment persisten
 **Recommended configuration keys**
 
 - `Email:StoreAttachments` (boolean, default: `false`)
+- `Email:StoreFullMessages` (boolean, default: `true`)
 - `Email:MaxAttachmentSizeMb` (integer, optional guardrail)
 - `Email:AllowedAttachmentTypes` (string list, optional allowlist)
 
@@ -14,6 +15,7 @@ To avoid rapid database growth from large attachments, keep attachment persisten
 
 - When `Email:StoreAttachments=false`:
   - Message metadata is stored as normal.
+  - Full message content is stored if `Email:StoreFullMessages=true`.
   - Attachments are not persisted in the database.
   - UI should show attachments as "available on mailbox" and fetch on-demand if the provider supports it.
 - When `Email:StoreAttachments=true`:
