@@ -41,7 +41,7 @@
         </div>
         <div id="editor"
              contenteditable="true"
-             style="min-height:180px;border:1px solid #ccc;padding:10px;background:#fff;">@Html.Raw(string.IsNullOrWhiteSpace(Model.HtmlBody) ? System.Net.WebUtility.HtmlEncode(Model.Body) : Model.HtmlBody)</div>
+             style="min-height:180px;border:1px solid #ccc;padding:10px;background:#fff;white-space:pre-wrap;">@Html.Raw(string.IsNullOrWhiteSpace(Model.HtmlBody) ? System.Net.WebUtility.HtmlEncode(Model.Body) : Model.HtmlBody)</div>
     </div>
 
     <input type="hidden" name="Body" id="Body" value="@Model.Body" />

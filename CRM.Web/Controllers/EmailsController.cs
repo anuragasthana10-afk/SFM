@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.RegularExpressions;
 using CRM.Core.Models;
 using CRM.Core.Storage;
 using CRM.Email.Abstractions;
@@ -151,6 +152,7 @@ public sealed class EmailsController : Controller
                 ? original.Subject
                 : $"RE: {original.Subject}",
             Body = $"\n\n--- Original Thread ---\n{threadText}",
+            HtmlBody = ToHtmlWithLineBreaks($"\n\n--- Original Thread ---\n{threadText}"),
             AccountGuid = account.AccountGuid,
             ConversationId = original.ConversationId,
             InReplyToMessageId = original.MessageId,
@@ -180,6 +182,7 @@ public sealed class EmailsController : Controller
                 ? original.Subject
                 : $"FW: {original.Subject}",
             Body = $"\n\n--- Forwarded Thread ---\n{threadText}",
+            HtmlBody = ToHtmlWithLineBreaks($"\n\n--- Forwarded Thread ---\n{threadText}"),
             AccountGuid = account.AccountGuid,
             ConversationId = original.ConversationId,
             InReplyToMessageId = original.MessageId,
@@ -240,6 +243,7 @@ public sealed class EmailsController : Controller
             var body = !string.IsNullOrWhiteSpace(content.TextBody)
                 ? content.TextBody
                 : StripHtml(content.HtmlBody);
+            body = SanitizeQuotedBody(body);
 
             builder.AppendLine($"Subject: {message.Subject}");
             builder.AppendLine($"Received: {message.ReceivedAt:u}");
@@ -249,6 +253,25 @@ public sealed class EmailsController : Controller
         }
 
         return builder.ToString().Trim();
+    }
+
+
+    private static readonly Regex StampTokenRegex = new(@"\[\[CRM-ACCOUNT:[0-9a-fA-F-]{36}\]\]", RegexOptions.Compiled);
+
+    private static string SanitizeQuotedBody(string? body)
+    {
+        if (string.IsNullOrWhiteSpace(body))
+        {
+            return string.Empty;
+        }
+
+        return StampTokenRegex.Replace(body, string.Empty).Trim();
+    }
+
+    private static string ToHtmlWithLineBreaks(string plainText)
+    {
+        var encoded = System.Net.WebUtility.HtmlEncode(plainText ?? string.Empty);
+        return encoded.Replace("\r\n", "\n").Replace("\n", "<br />");
     }
 
     private static string StripHtml(string? html)
