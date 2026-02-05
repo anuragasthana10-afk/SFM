@@ -227,7 +227,9 @@ public sealed class EmailsController : Controller
 
     private async Task<string> BuildThreadTextAsync(string conversationId, CancellationToken cancellationToken)
     {
-        var messages = await _threadQuery.GetMessagesByConversationAsync(conversationId, cancellationToken);
+        var messages = (await _threadQuery.GetMessagesByConversationAsync(conversationId, cancellationToken))
+            .OrderByDescending(message => message.ReceivedAt)
+            .ToList();
         var builder = new StringBuilder();
 
         foreach (var message in messages)
