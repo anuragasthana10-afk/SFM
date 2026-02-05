@@ -177,6 +177,7 @@ public sealed class MicrosoftMailKitClient : IEmailProvider, IEmailService
         participants.AddRange(ToParticipants(envelope.From, "From"));
         participants.AddRange(ToParticipants(envelope.To, "To"));
         participants.AddRange(ToParticipants(envelope.Cc, "Cc"));
+        participants.AddRange(ToParticipants(envelope.Bcc, "Bcc"));
 
         return participants;
     }

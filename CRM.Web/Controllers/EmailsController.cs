@@ -60,10 +60,47 @@ public sealed class EmailsController : Controller
     public async Task<IActionResult> Orphans(CancellationToken cancellationToken)
     {
         var orphanMessages = await _threadQuery.GetOrphanMessagesAsync(cancellationToken);
+        var discardedMessages = await _threadQuery.GetDiscardedMessagesAsync(cancellationToken);
         var accounts = await _accountStore.GetAllAsync(cancellationToken);
+        var candidates = await BuildOrphanCandidatesAsync(orphanMessages, cancellationToken);
+        var discardedCandidates = await BuildOrphanCandidatesAsync(discardedMessages, cancellationToken);
+
+        var model = new OrphanEmailsViewModel
+        {
+            OrphanMessages = candidates,
+            DiscardedMessages = discardedCandidates,
+            AllAccounts = accounts
+        };
+
+        return View(model);
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> DiscardOrphan(string messageId, CancellationToken cancellationToken)
+    {
+        await _threadQuery.DiscardMessageAsync(messageId, cancellationToken);
+        return RedirectToAction("Orphans");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> RestoreDiscarded(string messageId, CancellationToken cancellationToken)
+    {
+        await _threadQuery.RestoreDiscardedMessageAsync(messageId, cancellationToken);
+        return RedirectToAction("Orphans");
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> DisassociateMessage(string messageId, int accountId, CancellationToken cancellationToken)
+    {
+        await _threadQuery.DisassociateMessageAsync(messageId, cancellationToken);
+        return RedirectToAction("Details", "Accounts", new { id = accountId });
+    }
+
+    private async Task<List<OrphanMessageCandidateViewModel>> BuildOrphanCandidatesAsync(IReadOnlyList<EmailMessageMetadata> messages, CancellationToken cancellationToken)
+    {
         var candidates = new List<OrphanMessageCandidateViewModel>();
 
-        foreach (var message in orphanMessages)
+        foreach (var message in messages)
         {
             var senderAddress = message.Participants
                 .Where(participant => participant.ParticipantType.Equals("From", StringComparison.OrdinalIgnoreCase))
@@ -86,13 +123,7 @@ public sealed class EmailsController : Controller
             });
         }
 
-        var model = new OrphanEmailsViewModel
-        {
-            OrphanMessages = candidates,
-            AllAccounts = accounts
-        };
-
-        return View(model);
+        return candidates;
     }
 
     [HttpPost]

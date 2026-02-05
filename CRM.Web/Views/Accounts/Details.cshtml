@@ -54,7 +54,7 @@
             <th>Subject</th>
             <th>Received</th>
             <th>Participants</th>
-            <th></th>
+            <th>Actions</th>
         </tr>
     </thead>
     <tbody>
@@ -66,6 +66,11 @@
             <td>@string.Join(", ", message.Participants.Select(p => p.Address))</td>
             <td>
                 <a href="/Emails/Content?messageId=@message.MessageId&accountId=@Model.Account.Id">View</a>
+                <form method="post" action="/Emails/DisassociateMessage" style="display:inline" onsubmit="return confirm('Disassociate this message from the account?');">
+                    <input type="hidden" name="messageId" value="@message.MessageId" />
+                    <input type="hidden" name="accountId" value="@Model.Account.Id" />
+                    <button type="submit">Disassociate</button>
+                </form>
             </td>
         </tr>
     }

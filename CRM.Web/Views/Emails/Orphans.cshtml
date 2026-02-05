@@ -14,6 +14,7 @@
             <th>Suggested Accounts</th>
             <th>Message</th>
             <th>Map to Account</th>
+            <th>Discard</th>
         </tr>
     </thead>
     <tbody>
@@ -64,6 +65,47 @@
                         }
                     </select>
                     <button type="submit">Link</button>
+                </form>
+            </td>
+            <td>
+                <form method="post" action="/Emails/DiscardOrphan">
+                    <input type="hidden" name="messageId" value="@message.MessageId" />
+                    <button type="submit">Discard</button>
+                </form>
+            </td>
+        </tr>
+    }
+    </tbody>
+</table>
+
+<section class="panel" style="margin-top: 1.5rem;">
+    <h3>Discarded Messages</h3>
+    <p>Restore a discarded message to send it back to the orphan queue for account association.</p>
+</section>
+
+<table>
+    <thead>
+        <tr>
+            <th>Subject</th>
+            <th>Received</th>
+            <th>Participants</th>
+            <th>Message</th>
+            <th>Restore</th>
+        </tr>
+    </thead>
+    <tbody>
+    @foreach (var candidate in Model.DiscardedMessages)
+    {
+        var message = candidate.Message;
+        <tr>
+            <td>@message.Subject</td>
+            <td>@message.ReceivedAt</td>
+            <td>@string.Join(", ", message.Participants.Select(p => $"{p.ParticipantType}:{p.Address}"))</td>
+            <td><a href="/Emails/Content?messageId=@message.MessageId">View Message</a></td>
+            <td>
+                <form method="post" action="/Emails/RestoreDiscarded">
+                    <input type="hidden" name="messageId" value="@message.MessageId" />
+                    <button type="submit">Restore</button>
                 </form>
             </td>
         </tr>

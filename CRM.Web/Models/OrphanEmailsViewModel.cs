@@ -6,6 +6,7 @@ public sealed class OrphanEmailsViewModel
 {
     public IReadOnlyList<OrphanMessageCandidateViewModel> OrphanMessages { get; init; } = Array.Empty<OrphanMessageCandidateViewModel>();
     public IReadOnlyList<Account> AllAccounts { get; init; } = Array.Empty<Account>();
+    public IReadOnlyList<OrphanMessageCandidateViewModel> DiscardedMessages { get; init; } = Array.Empty<OrphanMessageCandidateViewModel>();
 }
 
 public sealed class OrphanMessageCandidateViewModel

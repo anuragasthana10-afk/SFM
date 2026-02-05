@@ -280,6 +280,7 @@ ORDER BY MAX(ReceivedAt) DESC", connection);
 SELECT MessageId, ConversationId, Subject, Snippet, ReceivedAt, AccountId, HasAttachments
 FROM dbo.Messaging_EmailMessageMetadata
 WHERE AccountId IS NULL
+  AND AccountAssociationSource <> 'Discarded'
 ORDER BY ReceivedAt DESC", connection);
         
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -329,6 +330,44 @@ ORDER BY ca.AccountId", connection);
         while (await reader.ReadAsync(cancellationToken))
         {
             results.Add(reader.GetInt32(0));
+        }
+
+        return results;
+    }
+
+
+    public async Task<IReadOnlyList<EmailMessageMetadata>> GetDiscardedMessagesAsync(CancellationToken cancellationToken)
+    {
+        var results = new List<EmailMessageMetadata>();
+
+        await using var connection = _connectionFactory.CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        var command = new SqlCommand(@"
+SELECT MessageId, ConversationId, Subject, Snippet, ReceivedAt, AccountId, HasAttachments
+FROM dbo.Messaging_EmailMessageMetadata
+WHERE AccountId IS NULL
+  AND AccountAssociationSource = 'Discarded'
+ORDER BY ReceivedAt DESC", connection);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            results.Add(new EmailMessageMetadata
+            {
+                MessageId = reader.GetString(0),
+                ConversationId = reader.GetString(1),
+                Subject = reader.GetString(2),
+                Snippet = reader.IsDBNull(3) ? null : reader.GetString(3),
+                ReceivedAt = reader.GetDateTimeOffset(4),
+                AccountId = reader.IsDBNull(5) ? null : reader.GetInt32(5),
+                HasAttachments = reader.GetBoolean(6)
+            });
+        }
+
+        foreach (var message in results)
+        {
+            message.Participants = await GetParticipantsAsync(message.MessageId, cancellationToken);
         }
 
         return results;
@@ -439,6 +478,42 @@ WHEN NOT MATCHED THEN
             "UPDATE dbo.Messaging_EmailMessageMetadata SET AccountId = @AccountId, AccountAssociationSource = 'ManualMessage' WHERE MessageId = @MessageId",
             connection);
         command.Parameters.AddWithValue("@AccountId", accountId);
+        command.Parameters.AddWithValue("@MessageId", messageId);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task DiscardMessageAsync(string messageId, CancellationToken cancellationToken)
+    {
+        await using var connection = _connectionFactory.CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        var command = new SqlCommand(
+            "UPDATE dbo.Messaging_EmailMessageMetadata SET AccountId = NULL, AccountAssociationSource = 'Discarded' WHERE MessageId = @MessageId",
+            connection);
+        command.Parameters.AddWithValue("@MessageId", messageId);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task RestoreDiscardedMessageAsync(string messageId, CancellationToken cancellationToken)
+    {
+        await using var connection = _connectionFactory.CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        var command = new SqlCommand(
+            "UPDATE dbo.Messaging_EmailMessageMetadata SET AccountId = NULL, AccountAssociationSource = 'Unknown' WHERE MessageId = @MessageId AND AccountAssociationSource = 'Discarded'",
+            connection);
+        command.Parameters.AddWithValue("@MessageId", messageId);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task DisassociateMessageAsync(string messageId, CancellationToken cancellationToken)
+    {
+        await using var connection = _connectionFactory.CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        var command = new SqlCommand(
+            "UPDATE dbo.Messaging_EmailMessageMetadata SET AccountId = NULL, AccountAssociationSource = 'Unknown' WHERE MessageId = @MessageId",
+            connection);
         command.Parameters.AddWithValue("@MessageId", messageId);
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
