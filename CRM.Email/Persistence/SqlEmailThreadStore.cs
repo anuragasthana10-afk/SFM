@@ -67,11 +67,22 @@ WHEN MATCHED THEN
                Subject = @Subject,
                Snippet = @Snippet,
                ReceivedAt = @ReceivedAt,
-               AccountId = @AccountId,
+               AccountId = CASE
+                    WHEN target.AccountAssociationSource IN ('ManualMessage', 'ManualThread') THEN target.AccountId
+                    WHEN @AccountId IS NOT NULL THEN @AccountId
+                    ELSE target.AccountId
+               END,
+               AccountAssociationSource = CASE
+                    WHEN target.AccountAssociationSource IN ('ManualMessage', 'ManualThread') THEN target.AccountAssociationSource
+                    WHEN @AccountId IS NOT NULL THEN 'StampHint'
+                    ELSE target.AccountAssociationSource
+               END,
                HasAttachments = @HasAttachments
 WHEN NOT MATCHED THEN
-    INSERT (MessageId, ConversationId, Subject, Snippet, ReceivedAt, AccountId, HasAttachments)
-    VALUES (@MessageId, @ConversationId, @Subject, @Snippet, @ReceivedAt, @AccountId, @HasAttachments);
+    INSERT (MessageId, ConversationId, Subject, Snippet, ReceivedAt, AccountId, AccountAssociationSource, HasAttachments)
+    VALUES (@MessageId, @ConversationId, @Subject, @Snippet, @ReceivedAt, @AccountId,
+            CASE WHEN @AccountId IS NOT NULL THEN 'StampHint' ELSE 'Unknown' END,
+            @HasAttachments);
 ", connection);
 
             command.Parameters.AddWithValue("@MessageId", message.MessageId);
@@ -332,7 +343,8 @@ WHERE MessageId = @MessageId", connection);
 
         var updateMessages = new SqlCommand(@"
 UPDATE dbo.Messaging_EmailMessageMetadata
-SET AccountId = @AccountId
+SET AccountId = @AccountId,
+    AccountAssociationSource = 'ManualThread'
 WHERE ConversationId = @ConversationId", connection);
         updateMessages.Parameters.AddWithValue("@AccountId", newAccountId);
         updateMessages.Parameters.AddWithValue("@ConversationId", conversationId);
@@ -357,7 +369,7 @@ WHEN NOT MATCHED THEN
         await connection.OpenAsync(cancellationToken);
 
         var command = new SqlCommand(
-            "UPDATE dbo.Messaging_EmailMessageMetadata SET AccountId = @AccountId WHERE MessageId = @MessageId",
+            "UPDATE dbo.Messaging_EmailMessageMetadata SET AccountId = @AccountId, AccountAssociationSource = 'ManualMessage' WHERE MessageId = @MessageId",
             connection);
         command.Parameters.AddWithValue("@AccountId", accountId);
         command.Parameters.AddWithValue("@MessageId", messageId);

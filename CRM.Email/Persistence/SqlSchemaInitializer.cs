@@ -36,8 +36,15 @@ BEGIN
         Snippet NVARCHAR(500) NULL,
         ReceivedAt DATETIMEOFFSET NOT NULL,
         AccountId INT NULL,
+        AccountAssociationSource NVARCHAR(30) NOT NULL DEFAULT('Unknown'),
         HasAttachments BIT NOT NULL
     );
+END;
+
+IF COL_LENGTH('dbo.Messaging_EmailMessageMetadata', 'AccountAssociationSource') IS NULL
+BEGIN
+    ALTER TABLE dbo.Messaging_EmailMessageMetadata
+    ADD AccountAssociationSource NVARCHAR(30) NOT NULL CONSTRAINT DF_Messaging_EmailMessageMetadata_AccountAssociationSource DEFAULT('Unknown');
 END;
 
 IF OBJECT_ID('dbo.Messaging_EmailParticipants', 'U') IS NULL

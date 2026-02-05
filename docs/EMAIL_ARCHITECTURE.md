@@ -35,3 +35,10 @@ Add a separate attachment table to avoid inflating your message content rows:
   - `Content` (varbinary or blob)
 
 This keeps metadata queries fast while still allowing optional attachment persistence.
+
+## Association policy (stamp hint vs manual mapping)
+
+- Incoming message body stamp (`[[CRM-ACCOUNT:<guid>]]`) is treated as an **initial routing hint** during sync.
+- Manual message mapping and thread reassignment in CRM are treated as **authoritative**.
+- During subsequent syncs, stamped hints do **not** overwrite records already marked as manually mapped/reassigned.
+- Reassignment updates CRM metadata only; historical message body stamps are preserved.
