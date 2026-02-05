@@ -124,7 +124,7 @@ public sealed class EmailsController : Controller
         return View(model);
     }
 
-    [HttpGet]
+    [HttpGet("/Emails/Reply")]
     public async Task<IActionResult> Reply(string messageId, int accountId, CancellationToken cancellationToken)
     {
         var account = await _accountStore.GetByIdAsync(accountId, cancellationToken);
@@ -152,7 +152,7 @@ public sealed class EmailsController : Controller
         return View("Compose", model);
     }
 
-    [HttpGet]
+    [HttpGet("/Emails/Forward")]
     public async Task<IActionResult> Forward(string messageId, int accountId, CancellationToken cancellationToken)
     {
         var account = await _accountStore.GetByIdAsync(accountId, cancellationToken);
