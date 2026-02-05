@@ -20,7 +20,7 @@ public sealed class SqlAccountStore : IAccountStore
         await using var connection = _connectionFactory.CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
-        var command = new SqlCommand("SELECT Id, Name, AccountGuid FROM dbo.Accounts ORDER BY Id", connection);
+        var command = new SqlCommand("SELECT Id, Name, AccountGuid FROM dbo.Messaging_Accounts ORDER BY Id", connection);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
         while (await reader.ReadAsync(cancellationToken))
@@ -41,7 +41,7 @@ public sealed class SqlAccountStore : IAccountStore
         await using var connection = _connectionFactory.CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
-        var command = new SqlCommand("SELECT Id, Name, AccountGuid FROM dbo.Accounts WHERE Id = @Id", connection);
+        var command = new SqlCommand("SELECT Id, Name, AccountGuid FROM dbo.Messaging_Accounts WHERE Id = @Id", connection);
         command.Parameters.AddWithValue("@Id", id);
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -63,7 +63,7 @@ public sealed class SqlAccountStore : IAccountStore
         await using var connection = _connectionFactory.CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
-        var command = new SqlCommand(@"INSERT INTO dbo.Accounts (Name, AccountGuid) VALUES (@Name, @AccountGuid);", connection);
+        var command = new SqlCommand(@"INSERT INTO dbo.Messaging_Accounts (Name, AccountGuid) VALUES (@Name, @AccountGuid);", connection);
         command.Parameters.AddWithValue("@Name", account.Name);
         command.Parameters.AddWithValue("@AccountGuid", account.AccountGuid == Guid.Empty ? Guid.NewGuid() : account.AccountGuid);
 

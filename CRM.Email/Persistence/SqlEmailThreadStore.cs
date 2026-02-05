@@ -19,7 +19,7 @@ public sealed class SqlEmailThreadStore : IEmailThreadStore, IEmailThreadQuery
         await connection.OpenAsync(cancellationToken);
 
         var command = new SqlCommand(@"
-MERGE dbo.EmailThreads AS target
+MERGE dbo.Messaging_EmailThreads AS target
 USING (SELECT @ConversationId AS ConversationId) AS source
 ON target.ConversationId = source.ConversationId
 WHEN MATCHED THEN
@@ -35,14 +35,14 @@ WHEN NOT MATCHED THEN
 
         if (thread.MessageIds.Count > 0)
         {
-            var deleteCommand = new SqlCommand("DELETE FROM dbo.EmailThreadMessages WHERE ConversationId = @ConversationId", connection);
+            var deleteCommand = new SqlCommand("DELETE FROM dbo.Messaging_EmailThreadMessages WHERE ConversationId = @ConversationId", connection);
             deleteCommand.Parameters.AddWithValue("@ConversationId", thread.ConversationId);
             await deleteCommand.ExecuteNonQueryAsync(cancellationToken);
 
             foreach (var messageId in thread.MessageIds)
             {
                 var insertCommand = new SqlCommand(
-                    "INSERT INTO dbo.EmailThreadMessages (ConversationId, MessageId) VALUES (@ConversationId, @MessageId)",
+                    "INSERT INTO dbo.Messaging_EmailThreadMessages (ConversationId, MessageId) VALUES (@ConversationId, @MessageId)",
                     connection);
                 insertCommand.Parameters.AddWithValue("@ConversationId", thread.ConversationId);
                 insertCommand.Parameters.AddWithValue("@MessageId", messageId);
@@ -59,7 +59,7 @@ WHEN NOT MATCHED THEN
         foreach (var message in messages)
         {
             var command = new SqlCommand(@"
-MERGE dbo.EmailMessageMetadata AS target
+MERGE dbo.Messaging_EmailMessageMetadata AS target
 USING (SELECT @MessageId AS MessageId) AS source
 ON target.MessageId = source.MessageId
 WHEN MATCHED THEN
@@ -83,14 +83,14 @@ WHEN NOT MATCHED THEN
             command.Parameters.AddWithValue("@HasAttachments", message.HasAttachments);
             await command.ExecuteNonQueryAsync(cancellationToken);
 
-            var deleteParticipants = new SqlCommand("DELETE FROM dbo.EmailParticipants WHERE MessageId = @MessageId", connection);
+            var deleteParticipants = new SqlCommand("DELETE FROM dbo.Messaging_EmailParticipants WHERE MessageId = @MessageId", connection);
             deleteParticipants.Parameters.AddWithValue("@MessageId", message.MessageId);
             await deleteParticipants.ExecuteNonQueryAsync(cancellationToken);
 
             foreach (var participant in message.Participants)
             {
                 var insertParticipant = new SqlCommand(
-                    "INSERT INTO dbo.EmailParticipants (MessageId, Address, DisplayName) VALUES (@MessageId, @Address, @DisplayName)",
+                    "INSERT INTO dbo.Messaging_EmailParticipants (MessageId, Address, DisplayName) VALUES (@MessageId, @Address, @DisplayName)",
                     connection);
                 insertParticipant.Parameters.AddWithValue("@MessageId", message.MessageId);
                 insertParticipant.Parameters.AddWithValue("@Address", participant.Address);
@@ -105,7 +105,7 @@ WHEN NOT MATCHED THEN
         await using var connection = _connectionFactory.CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
-        var command = new SqlCommand("SELECT HtmlBody, TextBody FROM dbo.EmailContent WHERE MessageId = @MessageId", connection);
+        var command = new SqlCommand("SELECT HtmlBody, TextBody FROM dbo.Messaging_EmailContent WHERE MessageId = @MessageId", connection);
         command.Parameters.AddWithValue("@MessageId", messageId);
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -124,7 +124,7 @@ WHEN NOT MATCHED THEN
         await reader.CloseAsync();
 
         var attachmentCommand = new SqlCommand(
-            "SELECT AttachmentId, FileName, ContentType, SizeBytes, Content FROM dbo.EmailAttachments WHERE MessageId = @MessageId",
+            "SELECT AttachmentId, FileName, ContentType, SizeBytes, Content FROM dbo.Messaging_EmailAttachments WHERE MessageId = @MessageId",
             connection);
         attachmentCommand.Parameters.AddWithValue("@MessageId", messageId);
 
@@ -150,7 +150,7 @@ WHEN NOT MATCHED THEN
         await connection.OpenAsync(cancellationToken);
 
         var command = new SqlCommand(@"
-MERGE dbo.EmailContent AS target
+MERGE dbo.Messaging_EmailContent AS target
 USING (SELECT @MessageId AS MessageId) AS source
 ON target.MessageId = source.MessageId
 WHEN MATCHED THEN
@@ -164,14 +164,14 @@ WHEN NOT MATCHED THEN
         command.Parameters.AddWithValue("@TextBody", (object?)content.TextBody ?? DBNull.Value);
         await command.ExecuteNonQueryAsync(cancellationToken);
 
-        var deleteAttachments = new SqlCommand("DELETE FROM dbo.EmailAttachments WHERE MessageId = @MessageId", connection);
+        var deleteAttachments = new SqlCommand("DELETE FROM dbo.Messaging_EmailAttachments WHERE MessageId = @MessageId", connection);
         deleteAttachments.Parameters.AddWithValue("@MessageId", content.MessageId);
         await deleteAttachments.ExecuteNonQueryAsync(cancellationToken);
 
         foreach (var attachment in content.Attachments)
         {
             var insertAttachment = new SqlCommand(@"
-INSERT INTO dbo.EmailAttachments (AttachmentId, MessageId, FileName, ContentType, SizeBytes, Content)
+INSERT INTO dbo.Messaging_EmailAttachments (AttachmentId, MessageId, FileName, ContentType, SizeBytes, Content)
 VALUES (@AttachmentId, @MessageId, @FileName, @ContentType, @SizeBytes, @Content);
 ", connection);
 
@@ -194,7 +194,7 @@ VALUES (@AttachmentId, @MessageId, @FileName, @ContentType, @SizeBytes, @Content
 
         var command = new SqlCommand(@"
 SELECT MessageId, ConversationId, Subject, Snippet, ReceivedAt, AccountId, HasAttachments
-FROM dbo.EmailMessageMetadata
+FROM dbo.Messaging_EmailMessageMetadata
 WHERE AccountId = @AccountId
 ORDER BY ReceivedAt DESC", connection);
         command.Parameters.AddWithValue("@AccountId", accountId);
@@ -235,7 +235,7 @@ SELECT ConversationId,
        MAX(ReceivedAt) AS LastReceivedAt,
        COUNT(*) AS MessageCount,
        MAX(AccountId) AS AccountId
-FROM dbo.EmailMessageMetadata
+FROM dbo.Messaging_EmailMessageMetadata
 WHERE AccountId = @AccountId
 GROUP BY ConversationId
 ORDER BY MAX(ReceivedAt) DESC", connection);
@@ -266,7 +266,7 @@ ORDER BY MAX(ReceivedAt) DESC", connection);
 
         var command = new SqlCommand(@"
 SELECT MessageId, ConversationId, Subject, Snippet, ReceivedAt, AccountId, HasAttachments
-FROM dbo.EmailMessageMetadata
+FROM dbo.Messaging_EmailMessageMetadata
 WHERE AccountId IS NULL
 ORDER BY ReceivedAt DESC", connection);
         command.Parameters.AddWithValue("@AccountId", DBNull.Value);
@@ -300,7 +300,7 @@ ORDER BY ReceivedAt DESC", connection);
         await connection.OpenAsync(cancellationToken);
 
         var updateMessages = new SqlCommand(@"
-UPDATE dbo.EmailMessageMetadata
+UPDATE dbo.Messaging_EmailMessageMetadata
 SET AccountId = @AccountId
 WHERE ConversationId = @ConversationId", connection);
         updateMessages.Parameters.AddWithValue("@AccountId", newAccountId);
@@ -308,7 +308,7 @@ WHERE ConversationId = @ConversationId", connection);
         await updateMessages.ExecuteNonQueryAsync(cancellationToken);
 
         var upsertThread = new SqlCommand(@"
-MERGE dbo.EmailThreads AS target
+MERGE dbo.Messaging_EmailThreads AS target
 USING (SELECT @ConversationId AS ConversationId) AS source
 ON target.ConversationId = source.ConversationId
 WHEN MATCHED THEN
@@ -326,7 +326,7 @@ WHEN NOT MATCHED THEN
         await connection.OpenAsync(cancellationToken);
 
         var command = new SqlCommand(
-            "UPDATE dbo.EmailMessageMetadata SET AccountId = @AccountId WHERE MessageId = @MessageId",
+            "UPDATE dbo.Messaging_EmailMessageMetadata SET AccountId = @AccountId WHERE MessageId = @MessageId",
             connection);
         command.Parameters.AddWithValue("@AccountId", accountId);
         command.Parameters.AddWithValue("@MessageId", messageId);
@@ -341,7 +341,7 @@ WHEN NOT MATCHED THEN
         var participants = new List<EmailParticipant>();
         var command = new SqlCommand(@"
 SELECT Address, DisplayName
-FROM dbo.EmailParticipants
+FROM dbo.Messaging_EmailParticipants
 WHERE MessageId = @MessageId", connection);
         command.Parameters.AddWithValue("@MessageId", messageId);
 
