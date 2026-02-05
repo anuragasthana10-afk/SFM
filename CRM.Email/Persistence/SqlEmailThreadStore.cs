@@ -216,7 +216,7 @@ ORDER BY ReceivedAt DESC", connection);
 
         foreach (var message in results)
         {
-            message.Participants = await GetParticipantsAsync(connection, message.MessageId, cancellationToken);
+            message.Participants = await GetParticipantsAsync(message.MessageId, cancellationToken);
         }
 
         return results;
@@ -269,8 +269,7 @@ SELECT MessageId, ConversationId, Subject, Snippet, ReceivedAt, AccountId, HasAt
 FROM dbo.Messaging_EmailMessageMetadata
 WHERE AccountId IS NULL
 ORDER BY ReceivedAt DESC", connection);
-        command.Parameters.AddWithValue("@AccountId", DBNull.Value);
-
+        
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
         {
@@ -288,7 +287,7 @@ ORDER BY ReceivedAt DESC", connection);
 
         foreach (var message in results)
         {
-            message.Participants = await GetParticipantsAsync(connection, message.MessageId, cancellationToken);
+            message.Participants = await GetParticipantsAsync(message.MessageId, cancellationToken);
         }
 
         return results;
@@ -333,12 +332,15 @@ WHEN NOT MATCHED THEN
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    private static async Task<List<EmailParticipant>> GetParticipantsAsync(
-        SqlConnection connection,
+    private async Task<List<EmailParticipant>> GetParticipantsAsync(
         string messageId,
         CancellationToken cancellationToken)
     {
         var participants = new List<EmailParticipant>();
+
+        await using var connection = _connectionFactory.CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
         var command = new SqlCommand(@"
 SELECT Address, DisplayName
 FROM dbo.Messaging_EmailParticipants
