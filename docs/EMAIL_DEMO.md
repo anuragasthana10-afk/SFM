@@ -14,6 +14,7 @@ This repository provides a three-project demo layout:
 - UI to move an email thread between accounts.
 - UI for mapping orphan emails to an account.
 - UI for composing and sending emails from CRM (with account GUID stamp).
+- UI for replying and forwarding emails.
 
 ## SQL Server persistence
 
@@ -45,3 +46,6 @@ Email:
 ```
 
 When `StoreFullMessages` is enabled, the sync service stores full message content. When `StoreAttachments` is enabled, the sync service persists attachments while honoring optional max size and content-type allowlist settings.
+
+
+Local and Microsoft providers stamp account GUID in message body to support reliable account association.

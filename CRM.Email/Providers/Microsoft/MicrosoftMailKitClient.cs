@@ -115,6 +115,17 @@ public sealed class MicrosoftMailKitClient : IEmailProvider, IEmailService
         mimeMessage.Cc.AddRange(message.Cc.Select(MailboxAddress.Parse));
         mimeMessage.Subject = message.Subject;
 
+        if (!string.IsNullOrWhiteSpace(message.InReplyToMessageId))
+        {
+            mimeMessage.InReplyTo = message.InReplyToMessageId;
+            mimeMessage.References.Add(message.InReplyToMessageId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(message.ConversationId))
+        {
+            mimeMessage.Headers.Replace("X-CRM-Conversation-Id", message.ConversationId);
+        }
+
         var builder = new BodyBuilder
         {
             HtmlBody = StampAccountGuid(message.HtmlBody, message.AccountGuidStamp, isHtml: true),

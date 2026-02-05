@@ -8,4 +8,7 @@ public sealed class ComposeEmailViewModel
     public string Subject { get; set; } = string.Empty;
     public string Body { get; set; } = string.Empty;
     public Guid? AccountGuid { get; set; }
+    public string? ConversationId { get; set; }
+    public string? InReplyToMessageId { get; set; }
+    public string Mode { get; set; } = "Compose";
 }

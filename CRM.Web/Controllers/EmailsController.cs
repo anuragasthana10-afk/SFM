@@ -76,7 +76,7 @@ public sealed class EmailsController : Controller
         return RedirectToAction("Details", "Accounts", new { id = currentAccountId });
     }
 
-    public async Task<IActionResult> Content(string messageId, CancellationToken cancellationToken)
+    public async Task<IActionResult> Content(string messageId, int? accountId, CancellationToken cancellationToken)
     {
         var content = await _threadStore.GetContentAsync(messageId, cancellationToken);
         var source = "Database";
@@ -96,7 +96,12 @@ public sealed class EmailsController : Controller
             return NotFound();
         }
 
+        var metadata = await _threadQuery.GetMessageByIdAsync(messageId, cancellationToken);
         ViewBag.ContentSource = source;
+        ViewBag.MessageId = messageId;
+        ViewBag.ConversationId = metadata?.ConversationId;
+        ViewBag.AccountId = accountId ?? metadata?.AccountId;
+
         return View(content);
     }
 
@@ -112,10 +117,65 @@ public sealed class EmailsController : Controller
         var model = new ComposeEmailViewModel
         {
             From = _providerOptions.ServiceMailboxAddress,
-            AccountGuid = account.AccountGuid
+            AccountGuid = account.AccountGuid,
+            Mode = "Compose"
         };
 
         return View(model);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> Reply(string messageId, int accountId, CancellationToken cancellationToken)
+    {
+        var account = await _accountStore.GetByIdAsync(accountId, cancellationToken);
+        var original = await _threadQuery.GetMessageByIdAsync(messageId, cancellationToken);
+        if (account is null || original is null)
+        {
+            return NotFound();
+        }
+
+        var replyTo = original.Participants.Select(p => p.Address).FirstOrDefault() ?? string.Empty;
+        var model = new ComposeEmailViewModel
+        {
+            From = _providerOptions.ServiceMailboxAddress,
+            To = replyTo,
+            Subject = original.Subject.StartsWith("RE:", StringComparison.OrdinalIgnoreCase)
+                ? original.Subject
+                : $"RE: {original.Subject}",
+            Body = $"\n\n--- Original Message ---\n{original.Snippet}",
+            AccountGuid = account.AccountGuid,
+            ConversationId = original.ConversationId,
+            InReplyToMessageId = original.MessageId,
+            Mode = "Reply"
+        };
+
+        return View("Compose", model);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> Forward(string messageId, int accountId, CancellationToken cancellationToken)
+    {
+        var account = await _accountStore.GetByIdAsync(accountId, cancellationToken);
+        var original = await _threadQuery.GetMessageByIdAsync(messageId, cancellationToken);
+        if (account is null || original is null)
+        {
+            return NotFound();
+        }
+
+        var model = new ComposeEmailViewModel
+        {
+            From = _providerOptions.ServiceMailboxAddress,
+            Subject = original.Subject.StartsWith("FW:", StringComparison.OrdinalIgnoreCase)
+                ? original.Subject
+                : $"FW: {original.Subject}",
+            Body = $"\n\n--- Forwarded Message ---\n{original.Snippet}",
+            AccountGuid = account.AccountGuid,
+            ConversationId = original.ConversationId,
+            InReplyToMessageId = original.MessageId,
+            Mode = "Forward"
+        };
+
+        return View("Compose", model);
     }
 
     [HttpPost]
@@ -133,7 +193,10 @@ public sealed class EmailsController : Controller
             Cc = model.Cc.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),
             Subject = model.Subject,
             TextBody = model.Body,
-            AccountGuidStamp = model.AccountGuid
+            HtmlBody = $"<pre>{System.Net.WebUtility.HtmlEncode(model.Body)}</pre>",
+            AccountGuidStamp = model.AccountGuid,
+            ConversationId = model.ConversationId,
+            InReplyToMessageId = model.InReplyToMessageId
         };
 
         await _emailService.SendAsync(message, cancellationToken);

@@ -1,7 +1,7 @@
 @model ComposeEmailViewModel
 
 <section class="panel">
-    <h2>Compose Email</h2>
+    <h2>@Model.Mode Email</h2>
 </section>
 
 <form method="post">
@@ -26,5 +26,8 @@
         <textarea name="Body" rows="6">@Model.Body</textarea>
     </div>
     <input type="hidden" name="AccountGuid" value="@Model.AccountGuid" />
+    <input type="hidden" name="ConversationId" value="@Model.ConversationId" />
+    <input type="hidden" name="InReplyToMessageId" value="@Model.InReplyToMessageId" />
+    <input type="hidden" name="Mode" value="@Model.Mode" />
     <button type="submit">Send</button>
 </form>

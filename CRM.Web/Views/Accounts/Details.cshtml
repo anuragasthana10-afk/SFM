@@ -65,7 +65,7 @@
             <td>@message.ReceivedAt</td>
             <td>@string.Join(", ", message.Participants.Select(p => p.Address))</td>
             <td>
-                <a href="/Emails/Content?messageId=@message.MessageId">View</a>
+                <a href="/Emails/Content?messageId=@message.MessageId&accountId=@Model.Account.Id">View</a>
             </td>
         </tr>
     }

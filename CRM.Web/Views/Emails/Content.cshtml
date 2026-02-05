@@ -4,6 +4,11 @@
     <h2>Email Content</h2>
     <div class="actions">
         <a href="/Emails/Orphans">Back</a>
+        @if (ViewBag.AccountId != null)
+        {
+            <a href="/Emails/Reply?messageId=@ViewBag.MessageId&accountId=@ViewBag.AccountId">Reply</a>
+            <a href="/Emails/Forward?messageId=@ViewBag.MessageId&accountId=@ViewBag.AccountId">Forward</a>
+        }
     </div>
     <p><strong>Source:</strong> @ViewBag.ContentSource</p>
 </section>

@@ -53,7 +53,7 @@ public sealed class LocalEmailProvider : IEmailProvider, IEmailService
     {
         var accountId = await ResolveAccountIdAsync(message.AccountGuidStamp, cancellationToken);
         var messageId = Guid.NewGuid().ToString("N");
-        var conversationId = Guid.NewGuid().ToString("N");
+        var conversationId = string.IsNullOrWhiteSpace(message.ConversationId) ? Guid.NewGuid().ToString("N") : message.ConversationId;
 
         var metadata = new EmailMessageMetadata
         {
@@ -72,8 +72,8 @@ public sealed class LocalEmailProvider : IEmailProvider, IEmailService
         var content = new EmailContent
         {
             MessageId = messageId,
-            HtmlBody = message.HtmlBody,
-            TextBody = message.TextBody,
+            HtmlBody = StampAccountGuid(message.HtmlBody, message.AccountGuidStamp, isHtml: true),
+            TextBody = StampAccountGuid(message.TextBody, message.AccountGuidStamp, isHtml: false),
             Attachments = message.Attachments
         };
 
@@ -89,6 +89,25 @@ public sealed class LocalEmailProvider : IEmailProvider, IEmailService
 
         var accounts = await _accountStore.GetAllAsync(cancellationToken);
         return accounts.FirstOrDefault(a => a.AccountGuid == accountGuid.Value)?.Id;
+    }
+
+
+    private static string? StampAccountGuid(string? body, Guid? accountGuid, bool isHtml)
+    {
+        if (accountGuid is null)
+        {
+            return body;
+        }
+
+        var stamp = $"[[CRM-ACCOUNT:{accountGuid}]]";
+        if (string.IsNullOrWhiteSpace(body))
+        {
+            return stamp;
+        }
+
+        return isHtml
+            ? $"{body}\n<!-- {stamp} -->"
+            : $"{body}\n{stamp}";
     }
 
     private static List<EmailParticipant> BuildParticipants(EmailMessage message)
