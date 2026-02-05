@@ -4,7 +4,7 @@
     <h2>@Model.Mode Email</h2>
 </section>
 
-<form method="post" action="/Emails/Compose">
+<form method="post" action="/Emails/Compose" id="composeForm">
     <div class="panel">
         <label>From</label>
         <input type="text" name="From" value="@Model.From" />
@@ -14,20 +14,55 @@
         <input type="text" name="To" value="@Model.To" />
     </div>
     <div class="panel">
-        <label>Cc (comma separated)</label>
+        <label>Cc (optional, comma separated)</label>
         <input type="text" name="Cc" value="@Model.Cc" />
     </div>
+    @if ((bool?)ViewBag.ShowBccField == true)
+    {
+        <div class="panel">
+            <label>Bcc (optional, comma separated)</label>
+            <input type="text" name="Bcc" value="@Model.Bcc" />
+        </div>
+    }
+
     <div class="panel">
         <label>Subject</label>
         <input type="text" name="Subject" value="@Model.Subject" />
     </div>
+
     <div class="panel">
-        <label>Body</label>
-        <textarea name="Body" rows="6">@Model.Body</textarea>
+        <label>Body (Rich Text)</label>
+        <div class="actions" style="margin-bottom:8px;">
+            <button type="button" onclick="formatDoc('bold')"><b>B</b></button>
+            <button type="button" onclick="formatDoc('italic')"><i>I</i></button>
+            <button type="button" onclick="formatDoc('underline')"><u>U</u></button>
+            <button type="button" onclick="formatDoc('insertUnorderedList')">• List</button>
+            <button type="button" onclick="formatDoc('insertOrderedList')">1. List</button>
+        </div>
+        <div id="editor"
+             contenteditable="true"
+             style="min-height:180px;border:1px solid #ccc;padding:10px;background:#fff;">@Html.Raw(string.IsNullOrWhiteSpace(Model.HtmlBody) ? System.Net.WebUtility.HtmlEncode(Model.Body) : Model.HtmlBody)</div>
     </div>
+
+    <input type="hidden" name="Body" id="Body" value="@Model.Body" />
+    <input type="hidden" name="HtmlBody" id="HtmlBody" value="@Model.HtmlBody" />
     <input type="hidden" name="AccountGuid" value="@Model.AccountGuid" />
     <input type="hidden" name="ConversationId" value="@Model.ConversationId" />
     <input type="hidden" name="InReplyToMessageId" value="@Model.InReplyToMessageId" />
     <input type="hidden" name="Mode" value="@Model.Mode" />
     <button type="submit">Send</button>
 </form>
+
+<script>
+    function formatDoc(command) {
+        document.execCommand(command, false, null);
+    }
+
+    function syncEditorValues() {
+        const editor = document.getElementById('editor');
+        document.getElementById('HtmlBody').value = editor.innerHTML;
+        document.getElementById('Body').value = editor.innerText;
+    }
+
+    document.getElementById('composeForm').addEventListener('submit', syncEditorValues);
+</script>

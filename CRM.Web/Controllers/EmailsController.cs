@@ -5,6 +5,7 @@ using CRM.Email.Abstractions;
 using CRM.Email.Services;
 using CRM.Web.Models;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
 
 namespace CRM.Web.Controllers;
 
@@ -17,6 +18,7 @@ public sealed class EmailsController : Controller
     private readonly IEmailProvider _provider;
     private readonly IEmailService _emailService;
     private readonly EmailProviderOptions _providerOptions;
+    private readonly IConfiguration _configuration;
 
     public EmailsController(
         IAccountStore accountStore,
@@ -25,7 +27,8 @@ public sealed class EmailsController : Controller
         EmailSyncService syncService,
         IEmailProvider provider,
         IEmailService emailService,
-        EmailProviderOptions providerOptions)
+        EmailProviderOptions providerOptions,
+        IConfiguration configuration)
     {
         _accountStore = accountStore;
         _threadQuery = threadQuery;
@@ -34,6 +37,7 @@ public sealed class EmailsController : Controller
         _provider = provider;
         _emailService = emailService;
         _providerOptions = providerOptions;
+        _configuration = configuration;
     }
 
     [HttpPost]
@@ -122,6 +126,7 @@ public sealed class EmailsController : Controller
             Mode = "Compose"
         };
 
+        ViewBag.ShowBccField = IsBccVisible();
         return View(model);
     }
 
@@ -152,6 +157,7 @@ public sealed class EmailsController : Controller
             Mode = "Reply"
         };
 
+        ViewBag.ShowBccField = IsBccVisible();
         return View("Compose", model);
     }
 
@@ -180,6 +186,7 @@ public sealed class EmailsController : Controller
             Mode = "Forward"
         };
 
+        ViewBag.ShowBccField = IsBccVisible();
         return View("Compose", model);
     }
 
@@ -188,6 +195,7 @@ public sealed class EmailsController : Controller
     {
         if (!ModelState.IsValid)
         {
+            ViewBag.ShowBccField = IsBccVisible();
             return View(model);
         }
 
@@ -196,9 +204,10 @@ public sealed class EmailsController : Controller
             From = model.From,
             To = model.To.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),
             Cc = model.Cc.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),
+            Bcc = model.Bcc.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),
             Subject = model.Subject,
             TextBody = model.Body,
-            HtmlBody = $"<pre>{System.Net.WebUtility.HtmlEncode(model.Body)}</pre>",
+            HtmlBody = string.IsNullOrWhiteSpace(model.HtmlBody) ? $"<pre>{System.Net.WebUtility.HtmlEncode(model.Body)}</pre>" : model.HtmlBody,
             AccountGuidStamp = model.AccountGuid,
             ConversationId = model.ConversationId,
             InReplyToMessageId = model.InReplyToMessageId
@@ -206,6 +215,11 @@ public sealed class EmailsController : Controller
 
         await _emailService.SendAsync(message, cancellationToken);
         return RedirectToAction("Index", "Accounts");
+    }
+
+    private bool IsBccVisible()
+    {
+        return bool.TryParse(_configuration["Email:UI:ShowBccField"], out var show) && show;
     }
 
     private async Task<string> BuildThreadTextAsync(string conversationId, CancellationToken cancellationToken)

@@ -113,6 +113,7 @@ public sealed class MicrosoftMailKitClient : IEmailProvider, IEmailService
         mimeMessage.From.Add(MailboxAddress.Parse(message.From));
         mimeMessage.To.AddRange(message.To.Select(MailboxAddress.Parse));
         mimeMessage.Cc.AddRange(message.Cc.Select(MailboxAddress.Parse));
+        mimeMessage.Bcc.AddRange(message.Bcc.Select(MailboxAddress.Parse));
         mimeMessage.Subject = message.Subject;
 
         if (!string.IsNullOrWhiteSpace(message.InReplyToMessageId))

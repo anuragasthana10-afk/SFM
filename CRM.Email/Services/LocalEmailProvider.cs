@@ -119,6 +119,7 @@ public sealed class LocalEmailProvider : IEmailProvider, IEmailService
 
         participants.AddRange(message.To.Select(to => new EmailParticipant { Address = to }));
         participants.AddRange(message.Cc.Select(cc => new EmailParticipant { Address = cc }));
+        participants.AddRange(message.Bcc.Select(bcc => new EmailParticipant { Address = bcc }));
 
         return participants;
     }

@@ -49,3 +49,9 @@ When `StoreFullMessages` is enabled, the sync service stores full message conten
 
 
 Local and Microsoft providers stamp account GUID in message body to support reliable account association.
+
+
+## Compose UI options
+
+- `Email:UI:ShowBccField` controls optional Bcc field visibility in compose/reply/forward forms.
+- Compose screen uses a built-in rich text editor and posts both plain text and HTML body.
