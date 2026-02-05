@@ -174,14 +174,14 @@ public sealed class MicrosoftMailKitClient : IEmailProvider, IEmailService
     {
         var participants = new List<EmailParticipant>();
 
-        participants.AddRange(ToParticipants(envelope.From));
-        participants.AddRange(ToParticipants(envelope.To));
-        participants.AddRange(ToParticipants(envelope.Cc));
+        participants.AddRange(ToParticipants(envelope.From, "From"));
+        participants.AddRange(ToParticipants(envelope.To, "To"));
+        participants.AddRange(ToParticipants(envelope.Cc, "Cc"));
 
         return participants;
     }
 
-    private static IEnumerable<EmailParticipant> ToParticipants(InternetAddressList? list)
+    private static IEnumerable<EmailParticipant> ToParticipants(InternetAddressList? list, string participantType)
     {
         if (list is null)
         {
@@ -193,7 +193,8 @@ public sealed class MicrosoftMailKitClient : IEmailProvider, IEmailService
             yield return new EmailParticipant
             {
                 Address = address.Address,
-                DisplayName = address.Name
+                DisplayName = address.Name,
+                ParticipantType = participantType
             };
         }
     }

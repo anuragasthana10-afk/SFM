@@ -1,0 +1,36 @@
+@model ContactListViewModel
+
+<section class="panel">
+    <h2>Contacts</h2>
+    <a href="/Contacts/Create">Create Contact</a>
+</section>
+
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Associated Accounts</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+    @foreach (var contact in Model.Contacts)
+    {
+        var accountIds = Model.ContactAccountIds.TryGetValue(contact.Id, out var ids) ? ids : Array.Empty<int>();
+        var names = Model.Accounts.Where(a => accountIds.Contains(a.Id)).Select(a => a.Name);
+        <tr>
+            <td>@contact.Name</td>
+            <td>@contact.EmailAddress</td>
+            <td>@string.Join(", ", names)</td>
+            <td>
+                <a href="/Contacts/Edit/@contact.Id">Edit</a>
+                <form method="post" action="/Contacts/Delete" style="display:inline">
+                    <input type="hidden" name="id" value="@contact.Id" />
+                    <button type="submit">Delete</button>
+                </form>
+            </td>
+        </tr>
+    }
+    </tbody>
+</table>

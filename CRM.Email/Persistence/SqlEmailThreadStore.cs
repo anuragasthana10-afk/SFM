@@ -101,11 +101,12 @@ WHEN NOT MATCHED THEN
             foreach (var participant in message.Participants)
             {
                 var insertParticipant = new SqlCommand(
-                    "INSERT INTO dbo.Messaging_EmailParticipants (MessageId, Address, DisplayName) VALUES (@MessageId, @Address, @DisplayName)",
+                    "INSERT INTO dbo.Messaging_EmailParticipants (MessageId, Address, DisplayName, ParticipantType) VALUES (@MessageId, @Address, @DisplayName, @ParticipantType)",
                     connection);
                 insertParticipant.Parameters.AddWithValue("@MessageId", message.MessageId);
                 insertParticipant.Parameters.AddWithValue("@Address", participant.Address);
                 insertParticipant.Parameters.AddWithValue("@DisplayName", (object?)participant.DisplayName ?? DBNull.Value);
+                insertParticipant.Parameters.AddWithValue("@ParticipantType", participant.ParticipantType);
                 await insertParticipant.ExecuteNonQueryAsync(cancellationToken);
             }
         }
@@ -452,7 +453,7 @@ WHEN NOT MATCHED THEN
         await connection.OpenAsync(cancellationToken);
 
         var command = new SqlCommand(@"
-SELECT Address, DisplayName
+SELECT Address, DisplayName, ParticipantType
 FROM dbo.Messaging_EmailParticipants
 WHERE MessageId = @MessageId", connection);
         command.Parameters.AddWithValue("@MessageId", messageId);
@@ -463,7 +464,8 @@ WHERE MessageId = @MessageId", connection);
             participants.Add(new EmailParticipant
             {
                 Address = reader.GetString(0),
-                DisplayName = reader.IsDBNull(1) ? null : reader.GetString(1)
+                DisplayName = reader.IsDBNull(1) ? null : reader.GetString(1),
+                ParticipantType = reader.IsDBNull(2) ? "Unknown" : reader.GetString(2)
             });
         }
 

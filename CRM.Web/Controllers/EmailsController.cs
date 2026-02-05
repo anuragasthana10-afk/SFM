@@ -66,8 +66,12 @@ public sealed class EmailsController : Controller
         foreach (var message in orphanMessages)
         {
             var senderAddress = message.Participants
+                .Where(participant => participant.ParticipantType.Equals("From", StringComparison.OrdinalIgnoreCase))
                 .Select(participant => participant.Address)
                 .FirstOrDefault(address => !string.IsNullOrWhiteSpace(address))
+                ?? message.Participants
+                    .Select(participant => participant.Address)
+                    .FirstOrDefault(address => !string.IsNullOrWhiteSpace(address))
                 ?? string.Empty;
 
             var suggestions = string.IsNullOrWhiteSpace(senderAddress)

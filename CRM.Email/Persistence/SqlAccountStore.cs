@@ -69,4 +69,30 @@ public sealed class SqlAccountStore : IAccountStore
 
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
+
+    public async Task UpdateAsync(Account account, CancellationToken cancellationToken)
+    {
+        await using var connection = _connectionFactory.CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        var command = new SqlCommand(@"UPDATE dbo.Messaging_Accounts SET Name=@Name, AccountGuid=@AccountGuid WHERE Id=@Id", connection);
+        command.Parameters.AddWithValue("@Id", account.Id);
+        command.Parameters.AddWithValue("@Name", account.Name);
+        command.Parameters.AddWithValue("@AccountGuid", account.AccountGuid);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task DeleteAsync(int id, CancellationToken cancellationToken)
+    {
+        await using var connection = _connectionFactory.CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        var command = new SqlCommand(@"
+DELETE FROM dbo.Messaging_ContactAccounts WHERE AccountId = @Id;
+UPDATE dbo.Messaging_EmailMessageMetadata SET AccountId = NULL, AccountAssociationSource = 'Unknown' WHERE AccountId = @Id;
+DELETE FROM dbo.Messaging_EmailThreads WHERE AccountId = @Id;
+DELETE FROM dbo.Messaging_Accounts WHERE Id = @Id;", connection);
+        command.Parameters.AddWithValue("@Id", id);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
 }

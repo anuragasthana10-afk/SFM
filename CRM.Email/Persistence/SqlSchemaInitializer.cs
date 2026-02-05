@@ -53,7 +53,8 @@ BEGIN
         Id INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
         MessageId NVARCHAR(200) NOT NULL,
         Address NVARCHAR(320) NOT NULL,
-        DisplayName NVARCHAR(200) NULL
+        DisplayName NVARCHAR(200) NULL,
+        ParticipantType NVARCHAR(20) NOT NULL CONSTRAINT DF_Messaging_EmailParticipants_ParticipantType DEFAULT('Unknown')
     );
 END;
 
@@ -73,6 +74,13 @@ BEGIN
         AccountId INT NOT NULL,
         CONSTRAINT PK_Messaging_ContactAccounts PRIMARY KEY (ContactId, AccountId)
     );
+END;
+
+
+IF COL_LENGTH('dbo.Messaging_EmailParticipants', 'ParticipantType') IS NULL
+BEGIN
+    ALTER TABLE dbo.Messaging_EmailParticipants
+    ADD ParticipantType NVARCHAR(20) NOT NULL CONSTRAINT DF_Messaging_EmailParticipants_ParticipantType DEFAULT('Unknown');
 END;
 
 IF OBJECT_ID('dbo.Messaging_EmailContent', 'U') IS NULL
@@ -154,6 +162,21 @@ BEGIN
     JOIN dbo.Messaging_Accounts a ON a.Name = 'Fabrikam Inc'
     WHERE c.EmailAddress = 'priya.patel@fabrikam-example.com';
 END;
+
+
+IF NOT EXISTS (SELECT 1 FROM dbo.Messaging_EmailMessageMetadata WHERE MessageId = 'demo-orphan-001')
+BEGIN
+    INSERT INTO dbo.Messaging_EmailMessageMetadata
+        (MessageId, ConversationId, Subject, Snippet, ReceivedAt, AccountId, AccountAssociationSource, HasAttachments)
+    VALUES
+        ('demo-orphan-001', 'demo-orphan-conv-001', 'Need quote for shared-client service', 'Hello, please send service proposal.', SYSUTCDATETIME(), NULL, 'Unknown', 0);
+
+    INSERT INTO dbo.Messaging_EmailParticipants (MessageId, Address, DisplayName, ParticipantType)
+    VALUES
+        ('demo-orphan-001', 'morgan.lee@shared-client.com', 'Morgan Lee', 'From'),
+        ('demo-orphan-001', 'service@crm-demo.local', 'CRM Service Mailbox', 'To');
+END;
+
 ";
         await seedCommand.ExecuteNonQueryAsync(cancellationToken);
     }

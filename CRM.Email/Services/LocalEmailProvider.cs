@@ -114,12 +114,12 @@ public sealed class LocalEmailProvider : IEmailProvider, IEmailService
     {
         var participants = new List<EmailParticipant>
         {
-            new() { Address = message.From, DisplayName = message.From }
+            new() { Address = message.From, DisplayName = message.From, ParticipantType = "From" }
         };
 
-        participants.AddRange(message.To.Select(to => new EmailParticipant { Address = to }));
-        participants.AddRange(message.Cc.Select(cc => new EmailParticipant { Address = cc }));
-        participants.AddRange(message.Bcc.Select(bcc => new EmailParticipant { Address = bcc }));
+        participants.AddRange(message.To.Select(to => new EmailParticipant { Address = to, ParticipantType = "To" }));
+        participants.AddRange(message.Cc.Select(cc => new EmailParticipant { Address = cc, ParticipantType = "Cc" }));
+        participants.AddRange(message.Bcc.Select(bcc => new EmailParticipant { Address = bcc, ParticipantType = "Bcc" }));
 
         return participants;
     }

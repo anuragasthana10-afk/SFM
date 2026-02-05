@@ -29,12 +29,21 @@
         <tr>
             <td>@message.Subject</td>
             <td>@message.ReceivedAt</td>
-            <td>@string.Join(", ", message.Participants.Select(p => p.Address))</td>
+            <td>@string.Join(", ", message.Participants.Select(p => $"{p.ParticipantType}:{p.Address}"))</td>
             <td>
                 @if (suggestedAccounts.Count > 0)
                 {
-                    <span>Sender: <strong>@candidate.SenderAddress</strong><br />
-                    Suggested: @string.Join(", ", suggestedAccounts.Select(a => a.Name))</span>
+                    <div>Sender: <strong>@candidate.SenderAddress</strong></div>
+                    <div class="actions" style="margin-top:0.25rem; flex-wrap:wrap;">
+                        @foreach (var account in suggestedAccounts)
+                        {
+                            <form method="post" action="/Emails/MapOrphan" style="display:inline;">
+                                <input type="hidden" name="messageId" value="@message.MessageId" />
+                                <input type="hidden" name="accountId" value="@account.Id" />
+                                <button type="submit">Link to @account.Name</button>
+                            </form>
+                        }
+                    </div>
                 }
                 else
                 {
@@ -45,14 +54,6 @@
                 <form method="post" action="/Emails/MapOrphan">
                     <input type="hidden" name="messageId" value="@message.MessageId" />
                     <select name="accountId">
-                        @foreach (var account in suggestedAccounts)
-                        {
-                            <option value="@account.Id">Suggested: @account.Name</option>
-                        }
-                        @if (suggestedAccounts.Count > 0 && nonSuggestedAccounts.Count > 0)
-                        {
-                            <option disabled="disabled">──────────</option>
-                        }
                         @foreach (var account in nonSuggestedAccounts)
                         {
                             <option value="@account.Id">@account.Name</option>

@@ -15,6 +15,7 @@ builder.Services.AddSingleton(new SqlConnectionFactory(connectionString));
 builder.Services.AddSingleton<SqlSchemaInitializer>();
 
 builder.Services.AddSingleton<IAccountStore, SqlAccountStore>();
+builder.Services.AddSingleton<IContactStore, SqlContactStore>();
 builder.Services.AddSingleton<IEmailThreadStore, SqlEmailThreadStore>();
 builder.Services.AddSingleton<IEmailThreadQuery, SqlEmailThreadStore>();
 

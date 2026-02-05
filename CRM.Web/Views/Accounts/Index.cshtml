@@ -2,13 +2,14 @@
 
 <section class="panel">
     <h2>Accounts</h2>
+    <a href="/Accounts/Create">Create Account</a>
     <table>
         <thead>
             <tr>
                 <th>Id</th>
                 <th>Name</th>
                 <th>Account GUID</th>
-                <th></th>
+                <th>Actions</th>
             </tr>
         </thead>
         <tbody>
@@ -20,6 +21,11 @@
                 <td>@account.AccountGuid</td>
                 <td>
                     <a href="/Accounts/Details/@account.Id">View Emails</a>
+                    <a href="/Accounts/Edit/@account.Id">Edit</a>
+                    <form method="post" action="/Accounts/Delete" style="display:inline">
+                        <input type="hidden" name="id" value="@account.Id" />
+                        <button type="submit">Delete</button>
+                    </form>
                 </td>
             </tr>
         }
