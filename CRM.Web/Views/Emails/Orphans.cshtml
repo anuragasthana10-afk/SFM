@@ -12,6 +12,7 @@
             <th>Received</th>
             <th>Participants</th>
             <th>Suggested Accounts</th>
+            <th>Message</th>
             <th>Map to Account</th>
         </tr>
     </thead>
@@ -49,6 +50,9 @@
                 {
                     <span>No suggestion available</span>
                 }
+            </td>
+            <td>
+                <a href="/Emails/Content?messageId=@message.MessageId">View Message</a>
             </td>
             <td>
                 <form method="post" action="/Emails/MapOrphan">
