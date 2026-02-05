@@ -42,6 +42,8 @@ builder.Services.AddSingleton<IAccessTokenProvider>(sp =>
         : new DemoAccessTokenProvider();
 });
 
+builder.Services.AddSingleton<LocalEmailProvider>();
+
 builder.Services.AddSingleton<IEmailProvider>(sp =>
 {
     var providerKey = builder.Configuration["Email:ProviderType"] ?? "Local";
@@ -49,7 +51,7 @@ builder.Services.AddSingleton<IEmailProvider>(sp =>
         ? new MicrosoftMailKitClient(
             sp.GetRequiredService<EmailProviderOptions>(),
             sp.GetRequiredService<IAccessTokenProvider>())
-        : new LocalEmailProvider();
+        : sp.GetRequiredService<LocalEmailProvider>();
 });
 
 builder.Services.AddSingleton<IEmailService>(sp =>
@@ -59,7 +61,7 @@ builder.Services.AddSingleton<IEmailService>(sp =>
         ? (IEmailService)new MicrosoftMailKitClient(
             sp.GetRequiredService<EmailProviderOptions>(),
             sp.GetRequiredService<IAccessTokenProvider>())
-        : new LocalEmailProvider();
+        : sp.GetRequiredService<LocalEmailProvider>();
 });
 
 builder.Services.AddSingleton<EmailSyncService>();

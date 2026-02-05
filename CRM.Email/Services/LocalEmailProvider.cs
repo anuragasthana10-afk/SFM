@@ -1,10 +1,20 @@
 using CRM.Core.Models;
+using CRM.Core.Storage;
 using CRM.Email.Abstractions;
 
 namespace CRM.Email.Services;
 
 public sealed class LocalEmailProvider : IEmailProvider, IEmailService
 {
+    private readonly IAccountStore _accountStore;
+    private readonly IEmailThreadStore _threadStore;
+
+    public LocalEmailProvider(IAccountStore accountStore, IEmailThreadStore threadStore)
+    {
+        _accountStore = accountStore;
+        _threadStore = threadStore;
+    }
+
     public Task<IReadOnlyList<EmailMessageMetadata>> SyncAsync(
         EmailSyncRequest request,
         CancellationToken cancellationToken)
@@ -39,8 +49,58 @@ public sealed class LocalEmailProvider : IEmailProvider, IEmailService
         return Task.FromResult<EmailContent?>(content);
     }
 
-    public Task SendAsync(EmailMessage message, CancellationToken cancellationToken)
+    public async Task SendAsync(EmailMessage message, CancellationToken cancellationToken)
     {
-        return Task.CompletedTask;
+        var accountId = await ResolveAccountIdAsync(message.AccountGuidStamp, cancellationToken);
+        var messageId = Guid.NewGuid().ToString("N");
+        var conversationId = Guid.NewGuid().ToString("N");
+
+        var metadata = new EmailMessageMetadata
+        {
+            MessageId = messageId,
+            ConversationId = conversationId,
+            Subject = message.Subject,
+            Snippet = message.Subject,
+            ReceivedAt = DateTimeOffset.UtcNow,
+            Participants = BuildParticipants(message),
+            AccountId = accountId,
+            HasAttachments = message.Attachments.Count > 0
+        };
+
+        await _threadStore.UpsertMessagesAsync(new[] { metadata }, cancellationToken);
+
+        var content = new EmailContent
+        {
+            MessageId = messageId,
+            HtmlBody = message.HtmlBody,
+            TextBody = message.TextBody,
+            Attachments = message.Attachments
+        };
+
+        await _threadStore.SaveContentAsync(content, cancellationToken);
+    }
+
+    private async Task<int?> ResolveAccountIdAsync(Guid? accountGuid, CancellationToken cancellationToken)
+    {
+        if (accountGuid is null)
+        {
+            return null;
+        }
+
+        var accounts = await _accountStore.GetAllAsync(cancellationToken);
+        return accounts.FirstOrDefault(a => a.AccountGuid == accountGuid.Value)?.Id;
+    }
+
+    private static List<EmailParticipant> BuildParticipants(EmailMessage message)
+    {
+        var participants = new List<EmailParticipant>
+        {
+            new() { Address = message.From, DisplayName = message.From }
+        };
+
+        participants.AddRange(message.To.Select(to => new EmailParticipant { Address = to }));
+        participants.AddRange(message.Cc.Select(cc => new EmailParticipant { Address = cc }));
+
+        return participants;
     }
 }
