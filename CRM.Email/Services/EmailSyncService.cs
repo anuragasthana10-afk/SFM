@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
-using CRM.Core.Models;
-using CRM.Core.Storage;
+using CRM.Models;
+using CRM.Storage;
 using CRM.Email.Abstractions;
 
 namespace CRM.Email.Services;

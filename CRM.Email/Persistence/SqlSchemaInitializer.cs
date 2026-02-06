@@ -83,6 +83,43 @@ BEGIN
     ADD ParticipantType NVARCHAR(20) NOT NULL CONSTRAINT DF_Messaging_EmailParticipants_ParticipantType DEFAULT('Unknown');
 END;
 
+
+IF OBJECT_ID('dbo.CRM_Users', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.CRM_Users (
+        User_Id INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        Username NVARCHAR(320) NOT NULL UNIQUE,
+        FirstName NVARCHAR(100) NOT NULL,
+        LastName NVARCHAR(100) NOT NULL
+    );
+END;
+
+IF OBJECT_ID('dbo.Messaging_EmailReadState', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.Messaging_EmailReadState (
+        MessageId NVARCHAR(200) NOT NULL,
+        User_Id INT NOT NULL,
+        OpenedAt DATETIMEOFFSET NOT NULL,
+        CONSTRAINT PK_Messaging_EmailReadState PRIMARY KEY (MessageId, User_Id)
+    );
+END;
+
+IF OBJECT_ID('dbo.Messaging_UserAuditTrail', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.Messaging_UserAuditTrail (
+        AuditId BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        OccurredAt DATETIMEOFFSET NOT NULL,
+        User_Id INT NOT NULL,
+        Username NVARCHAR(320) NOT NULL,
+        ActionType NVARCHAR(80) NOT NULL,
+        MessageId NVARCHAR(200) NULL,
+        ConversationId NVARCHAR(200) NULL,
+        OldAccountId INT NULL,
+        NewAccountId INT NULL,
+        Details NVARCHAR(MAX) NULL
+    );
+END;
+
 IF OBJECT_ID('dbo.Messaging_EmailContent', 'U') IS NULL
 BEGIN
     CREATE TABLE dbo.Messaging_EmailContent (
@@ -127,6 +164,13 @@ END;
 
         var seedCommand = connection.CreateCommand();
         seedCommand.CommandText = @"
+
+IF NOT EXISTS (SELECT 1 FROM dbo.CRM_Users WHERE Username = 'demo.user@crm.local')
+BEGIN
+    INSERT INTO dbo.CRM_Users (Username, FirstName, LastName)
+    VALUES ('demo.user@crm.local', 'Demo', 'User');
+END;
+
 IF NOT EXISTS (SELECT 1 FROM dbo.Messaging_Accounts)
 BEGIN
     INSERT INTO dbo.Messaging_Accounts (Name, AccountGuid)

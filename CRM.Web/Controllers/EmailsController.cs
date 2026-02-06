@@ -1,7 +1,7 @@
 using System.Text;
 using System.Text.RegularExpressions;
-using CRM.Core.Models;
-using CRM.Core.Storage;
+using CRM.Models;
+using CRM.Storage;
 using CRM.Email.Abstractions;
 using CRM.Email.Services;
 using CRM.Web.Models;
@@ -78,21 +78,27 @@ public sealed class EmailsController : Controller
     [HttpPost]
     public async Task<IActionResult> DiscardOrphan(string messageId, CancellationToken cancellationToken)
     {
+        var (userId, username) = await ResolveCurrentUserAsync(cancellationToken);
         await _threadQuery.DiscardMessageAsync(messageId, cancellationToken);
+        await _threadQuery.RecordAuditAsync(userId, username, "DiscardMessage", messageId, null, null, null, null, cancellationToken);
         return RedirectToAction("Orphans");
     }
 
     [HttpPost]
     public async Task<IActionResult> RestoreDiscarded(string messageId, CancellationToken cancellationToken)
     {
+        var (userId, username) = await ResolveCurrentUserAsync(cancellationToken);
         await _threadQuery.RestoreDiscardedMessageAsync(messageId, cancellationToken);
+        await _threadQuery.RecordAuditAsync(userId, username, "RestoreDiscarded", messageId, null, null, null, null, cancellationToken);
         return RedirectToAction("Orphans");
     }
 
     [HttpPost]
     public async Task<IActionResult> DisassociateMessage(string messageId, int accountId, CancellationToken cancellationToken)
     {
+        var (userId, username) = await ResolveCurrentUserAsync(cancellationToken);
         await _threadQuery.DisassociateMessageAsync(messageId, cancellationToken);
+        await _threadQuery.RecordAuditAsync(userId, username, "DisassociateMessage", messageId, null, accountId, null, null, cancellationToken);
         return RedirectToAction("Details", "Accounts", new { id = accountId });
     }
 
@@ -129,14 +135,18 @@ public sealed class EmailsController : Controller
     [HttpPost]
     public async Task<IActionResult> MapOrphan(string messageId, int accountId, CancellationToken cancellationToken)
     {
+        var (userId, username) = await ResolveCurrentUserAsync(cancellationToken);
         await _threadQuery.SetAccountForMessageAsync(messageId, accountId, cancellationToken);
+        await _threadQuery.RecordAuditAsync(userId, username, "AssociateMessage", messageId, null, null, accountId, null, cancellationToken);
         return RedirectToAction("Orphans");
     }
 
     [HttpPost]
     public async Task<IActionResult> MoveThread(string conversationId, int accountId, int currentAccountId, CancellationToken cancellationToken)
     {
+        var (userId, username) = await ResolveCurrentUserAsync(cancellationToken);
         await _threadQuery.ReassignThreadAsync(conversationId, accountId, cancellationToken);
+        await _threadQuery.RecordAuditAsync(userId, username, "ReassignThread", null, conversationId, currentAccountId, accountId, null, cancellationToken);
         return RedirectToAction("Details", "Accounts", new { id = currentAccountId });
     }
 
@@ -161,12 +171,37 @@ public sealed class EmailsController : Controller
         }
 
         var metadata = await _threadQuery.GetMessageByIdAsync(messageId, cancellationToken);
+        var (userId, username) = await ResolveCurrentUserAsync(cancellationToken);
+        await _threadQuery.MarkMessageOpenedAsync(messageId, userId, cancellationToken);
+        await _threadQuery.RecordAuditAsync(userId, username, "OpenMessage", messageId, metadata?.ConversationId, metadata?.AccountId, metadata?.AccountId, null, cancellationToken);
         ViewBag.ContentSource = source;
         ViewBag.MessageId = messageId;
         ViewBag.ConversationId = metadata?.ConversationId;
         ViewBag.AccountId = accountId ?? metadata?.AccountId;
 
         return View(content);
+    }
+
+
+    public async Task<IActionResult> ContentPanel(string messageId, string? prevMessageId, string? nextMessageId, int? accountId, CancellationToken cancellationToken)
+    {
+        var content = await _threadStore.GetContentAsync(messageId, cancellationToken) ?? await _provider.FetchContentAsync(messageId, cancellationToken);
+        if (content is null)
+        {
+            return NotFound();
+        }
+
+        var metadata = await _threadQuery.GetMessageByIdAsync(messageId, cancellationToken);
+        var (userId, username) = await ResolveCurrentUserAsync(cancellationToken);
+        await _threadQuery.MarkMessageOpenedAsync(messageId, userId, cancellationToken);
+        await _threadQuery.RecordAuditAsync(userId, username, "OpenMessagePanel", messageId, metadata?.ConversationId, metadata?.AccountId, metadata?.AccountId, null, cancellationToken);
+
+        ViewBag.MessageId = messageId;
+        ViewBag.PreviousMessageId = prevMessageId;
+        ViewBag.NextMessageId = nextMessageId;
+        ViewBag.AccountId = accountId ?? metadata?.AccountId;
+
+        return PartialView("_MessagePanel", content);
     }
 
     [HttpGet]
@@ -276,6 +311,14 @@ public sealed class EmailsController : Controller
 
         await _emailService.SendAsync(message, cancellationToken);
         return RedirectToAction("Index", "Accounts");
+    }
+
+
+    private async Task<(int userId, string username)> ResolveCurrentUserAsync(CancellationToken cancellationToken)
+    {
+        var username = User?.Identity?.Name ?? "demo.user@crm.local";
+        var userId = await _threadQuery.EnsureUserAsync(username, "Demo", "User", cancellationToken);
+        return (userId, username);
     }
 
     private bool IsBccVisible()

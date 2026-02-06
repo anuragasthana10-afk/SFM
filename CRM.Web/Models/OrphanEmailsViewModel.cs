@@ -1,4 +1,4 @@
-using CRM.Core.Models;
+using CRM.Models;
 
 namespace CRM.Web.Models;
 

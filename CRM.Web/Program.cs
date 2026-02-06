@@ -1,18 +1,21 @@
-using CRM.Core.Storage;
+using CRM.Storage;
 using CRM.Email.Abstractions;
 using CRM.Email.Persistence;
 using CRM.Email.Providers.Microsoft;
 using CRM.Email.Services;
+using CRM.Web.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllersWithViews();
+builder.Services.AddHttpContextAccessor();
 
 var connectionString = builder.Configuration.GetConnectionString("CrmDatabase")
     ?? "Server=localhost;Database=CrmEmailDemo;Trusted_Connection=True;TrustServerCertificate=True";
 
 builder.Services.AddSingleton(new SqlConnectionFactory(connectionString));
 builder.Services.AddSingleton<SqlSchemaInitializer>();
+builder.Services.AddSingleton<IEmailExecutionContextAccessor, EmailExecutionContextAccessor>();
 
 builder.Services.AddSingleton<IAccountStore, SqlAccountStore>();
 builder.Services.AddSingleton<IContactStore, SqlContactStore>();

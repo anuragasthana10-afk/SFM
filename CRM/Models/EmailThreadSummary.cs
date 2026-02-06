@@ -1,4 +1,4 @@
-namespace CRM.Core.Models;
+namespace CRM.Models;
 
 public sealed class EmailThreadSummary
 {

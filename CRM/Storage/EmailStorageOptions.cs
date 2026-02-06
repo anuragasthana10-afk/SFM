@@ -1,4 +1,4 @@
-namespace CRM.Core.Storage;
+namespace CRM.Storage;
 
 public sealed class EmailStorageOptions
 {

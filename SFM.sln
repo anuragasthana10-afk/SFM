@@ -2,7 +2,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.8.34330.188
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CRM.Core", "CRM.Core\\CRM.Core.csproj", "{9EEAFFBB-21B9-4926-81C9-729E3D585F65}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CRM", "CRM\\CRM.csproj", "{9EEAFFBB-21B9-4926-81C9-729E3D585F65}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CRM.Email", "CRM.Email\\CRM.Email.csproj", "{640FB0B7-3D97-44D3-BC88-A4DE8508946C}"
 EndProject

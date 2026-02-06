@@ -1,4 +1,4 @@
-using CRM.Core.Models;
+using CRM.Models;
 using CRM.Email.Abstractions;
 using MailKit;
 using MailKit.Net.Imap;

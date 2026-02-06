@@ -1,5 +1,5 @@
-using CRM.Core.Models;
-using CRM.Core.Storage;
+using CRM.Models;
+using CRM.Storage;
 using CRM.Web.Models;
 using Microsoft.AspNetCore.Mvc;
 

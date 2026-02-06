@@ -1,22 +1,23 @@
-using CRM.Core.Models;
-using CRM.Core.Storage;
+using CRM.Models;
+using CRM.Storage;
+using CRM.Email.Abstractions;
 using Microsoft.Data.SqlClient;
 
 namespace CRM.Email.Persistence;
 
 public sealed class SqlContactStore : IContactStore
 {
-    private readonly SqlConnectionFactory _connectionFactory;
+    private readonly IEmailExecutionContextAccessor _context;
 
-    public SqlContactStore(SqlConnectionFactory connectionFactory)
+    public SqlContactStore(IEmailExecutionContextAccessor context)
     {
-        _connectionFactory = connectionFactory;
+        _context = context;
     }
 
     public async Task<IReadOnlyList<Contact>> GetAllAsync(CancellationToken cancellationToken)
     {
         var results = new List<Contact>();
-        await using var connection = _connectionFactory.CreateConnection();
+        await using var connection = _context.CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
         var command = new SqlCommand("SELECT Id, Name, EmailAddress FROM dbo.Messaging_Contacts ORDER BY Id", connection);
@@ -36,7 +37,7 @@ public sealed class SqlContactStore : IContactStore
 
     public async Task<Contact?> GetByIdAsync(int id, CancellationToken cancellationToken)
     {
-        await using var connection = _connectionFactory.CreateConnection();
+        await using var connection = _context.CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
         var command = new SqlCommand("SELECT Id, Name, EmailAddress FROM dbo.Messaging_Contacts WHERE Id = @Id", connection);
@@ -58,7 +59,7 @@ public sealed class SqlContactStore : IContactStore
     public async Task<IReadOnlyList<int>> GetAccountIdsForContactAsync(int contactId, CancellationToken cancellationToken)
     {
         var results = new List<int>();
-        await using var connection = _connectionFactory.CreateConnection();
+        await using var connection = _context.CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
         var command = new SqlCommand("SELECT AccountId FROM dbo.Messaging_ContactAccounts WHERE ContactId = @ContactId ORDER BY AccountId", connection);
@@ -74,7 +75,7 @@ public sealed class SqlContactStore : IContactStore
 
     public async Task AddAsync(Contact contact, IReadOnlyList<int> accountIds, CancellationToken cancellationToken)
     {
-        await using var connection = _connectionFactory.CreateConnection();
+        await using var connection = _context.CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
         var insert = new SqlCommand(@"INSERT INTO dbo.Messaging_Contacts (Name, EmailAddress) OUTPUT INSERTED.Id VALUES (@Name, @EmailAddress)", connection);
@@ -93,7 +94,7 @@ public sealed class SqlContactStore : IContactStore
 
     public async Task UpdateAsync(Contact contact, IReadOnlyList<int> accountIds, CancellationToken cancellationToken)
     {
-        await using var connection = _connectionFactory.CreateConnection();
+        await using var connection = _context.CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
         var update = new SqlCommand("UPDATE dbo.Messaging_Contacts SET Name=@Name, EmailAddress=@EmailAddress WHERE Id=@Id", connection);
@@ -117,7 +118,7 @@ public sealed class SqlContactStore : IContactStore
 
     public async Task DeleteAsync(int id, CancellationToken cancellationToken)
     {
-        await using var connection = _connectionFactory.CreateConnection();
+        await using var connection = _context.CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
         var command = new SqlCommand("DELETE FROM dbo.Messaging_ContactAccounts WHERE ContactId=@Id; DELETE FROM dbo.Messaging_Contacts WHERE Id=@Id;", connection);

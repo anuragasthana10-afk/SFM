@@ -1,6 +1,6 @@
-using CRM.Core.Models;
+using CRM.Models;
 
-namespace CRM.Core.Storage;
+namespace CRM.Storage;
 
 public interface IAccountStore
 {

@@ -1,4 +1,4 @@
-using CRM.Core.Models;
+using CRM.Models;
 using CRM.Email.Abstractions;
 using Microsoft.Data.SqlClient;
 
@@ -6,16 +6,16 @@ namespace CRM.Email.Persistence;
 
 public sealed class SqlEmailThreadStore : IEmailThreadStore, IEmailThreadQuery
 {
-    private readonly SqlConnectionFactory _connectionFactory;
+    private readonly IEmailExecutionContextAccessor _context;
 
-    public SqlEmailThreadStore(SqlConnectionFactory connectionFactory)
+    public SqlEmailThreadStore(IEmailExecutionContextAccessor context)
     {
-        _connectionFactory = connectionFactory;
+        _context = context;
     }
 
     public async Task UpsertThreadAsync(EmailThread thread, CancellationToken cancellationToken)
     {
-        await using var connection = _connectionFactory.CreateConnection();
+        await using var connection = _context.CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
         var command = new SqlCommand(@"
@@ -53,7 +53,7 @@ WHEN NOT MATCHED THEN
 
     public async Task UpsertMessagesAsync(IEnumerable<EmailMessageMetadata> messages, CancellationToken cancellationToken)
     {
-        await using var connection = _connectionFactory.CreateConnection();
+        await using var connection = _context.CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
         foreach (var message in messages)
@@ -114,7 +114,7 @@ WHEN NOT MATCHED THEN
 
     public async Task<EmailContent?> GetContentAsync(string messageId, CancellationToken cancellationToken)
     {
-        await using var connection = _connectionFactory.CreateConnection();
+        await using var connection = _context.CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
         var command = new SqlCommand("SELECT HtmlBody, TextBody FROM dbo.Messaging_EmailContent WHERE MessageId = @MessageId", connection);
@@ -158,7 +158,7 @@ WHEN NOT MATCHED THEN
 
     public async Task SaveContentAsync(EmailContent content, CancellationToken cancellationToken)
     {
-        await using var connection = _connectionFactory.CreateConnection();
+        await using var connection = _context.CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
         var command = new SqlCommand(@"
@@ -201,7 +201,7 @@ VALUES (@AttachmentId, @MessageId, @FileName, @ContentType, @SizeBytes, @Content
     {
         var results = new List<EmailMessageMetadata>();
 
-        await using var connection = _connectionFactory.CreateConnection();
+        await using var connection = _context.CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
         var command = new SqlCommand(@"
@@ -238,7 +238,7 @@ ORDER BY ReceivedAt DESC", connection);
     {
         var results = new List<EmailThreadSummary>();
 
-        await using var connection = _connectionFactory.CreateConnection();
+        await using var connection = _context.CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
         var command = new SqlCommand(@"
@@ -273,7 +273,7 @@ ORDER BY MAX(ReceivedAt) DESC", connection);
     {
         var results = new List<EmailMessageMetadata>();
 
-        await using var connection = _connectionFactory.CreateConnection();
+        await using var connection = _context.CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
         var command = new SqlCommand(@"
@@ -315,7 +315,7 @@ ORDER BY ReceivedAt DESC", connection);
             return results;
         }
 
-        await using var connection = _connectionFactory.CreateConnection();
+        await using var connection = _context.CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
         var command = new SqlCommand(@"
@@ -340,7 +340,7 @@ ORDER BY ca.AccountId", connection);
     {
         var results = new List<EmailMessageMetadata>();
 
-        await using var connection = _connectionFactory.CreateConnection();
+        await using var connection = _context.CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
         var command = new SqlCommand(@"
@@ -375,7 +375,7 @@ ORDER BY ReceivedAt DESC", connection);
 
     public async Task<EmailMessageMetadata?> GetMessageByIdAsync(string messageId, CancellationToken cancellationToken)
     {
-        await using var connection = _connectionFactory.CreateConnection();
+        await using var connection = _context.CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
         var command = new SqlCommand(@"
@@ -409,7 +409,7 @@ WHERE MessageId = @MessageId", connection);
     {
         var results = new List<EmailMessageMetadata>();
 
-        await using var connection = _connectionFactory.CreateConnection();
+        await using var connection = _context.CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
         var command = new SqlCommand(@"
@@ -444,7 +444,7 @@ ORDER BY ReceivedAt ASC", connection);
 
     public async Task ReassignThreadAsync(string conversationId, int newAccountId, CancellationToken cancellationToken)
     {
-        await using var connection = _connectionFactory.CreateConnection();
+        await using var connection = _context.CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
         var updateMessages = new SqlCommand(@"
@@ -471,7 +471,7 @@ WHEN NOT MATCHED THEN
 
     public async Task SetAccountForMessageAsync(string messageId, int accountId, CancellationToken cancellationToken)
     {
-        await using var connection = _connectionFactory.CreateConnection();
+        await using var connection = _context.CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
         var command = new SqlCommand(
@@ -484,7 +484,7 @@ WHEN NOT MATCHED THEN
 
     public async Task DiscardMessageAsync(string messageId, CancellationToken cancellationToken)
     {
-        await using var connection = _connectionFactory.CreateConnection();
+        await using var connection = _context.CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
         var command = new SqlCommand(
@@ -496,7 +496,7 @@ WHEN NOT MATCHED THEN
 
     public async Task RestoreDiscardedMessageAsync(string messageId, CancellationToken cancellationToken)
     {
-        await using var connection = _connectionFactory.CreateConnection();
+        await using var connection = _context.CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
         var command = new SqlCommand(
@@ -508,7 +508,7 @@ WHEN NOT MATCHED THEN
 
     public async Task DisassociateMessageAsync(string messageId, CancellationToken cancellationToken)
     {
-        await using var connection = _connectionFactory.CreateConnection();
+        await using var connection = _context.CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
         var command = new SqlCommand(
@@ -518,13 +518,122 @@ WHEN NOT MATCHED THEN
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
+
+    public async Task<int> EnsureUserAsync(string username, string firstName, string lastName, CancellationToken cancellationToken)
+    {
+        await using var connection = _context.CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        var command = new SqlCommand(@"
+MERGE dbo.CRM_Users AS target
+USING (SELECT @Username AS Username) AS source
+ON target.Username = source.Username
+WHEN MATCHED THEN
+    UPDATE SET FirstName = @FirstName, LastName = @LastName
+WHEN NOT MATCHED THEN
+    INSERT (Username, FirstName, LastName) VALUES (@Username, @FirstName, @LastName)
+OUTPUT inserted.User_Id;", connection);
+        command.Parameters.AddWithValue("@Username", username.Trim().ToLowerInvariant());
+        command.Parameters.AddWithValue("@FirstName", firstName);
+        command.Parameters.AddWithValue("@LastName", lastName);
+        var userId = await command.ExecuteScalarAsync(cancellationToken);
+        return Convert.ToInt32(userId);
+    }
+
+    public async Task<IReadOnlySet<string>> GetReadMessageIdsAsync(int accountId, int userId, CancellationToken cancellationToken)
+    {
+        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        await using var connection = _context.CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        var command = new SqlCommand(@"
+SELECT r.MessageId
+FROM dbo.Messaging_EmailReadState r
+JOIN dbo.Messaging_EmailMessageMetadata m ON m.MessageId = r.MessageId
+WHERE r.User_Id = @UserId AND m.AccountId = @AccountId", connection);
+        command.Parameters.AddWithValue("@UserId", userId);
+        command.Parameters.AddWithValue("@AccountId", accountId);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            set.Add(reader.GetString(0));
+        }
+
+        return set;
+    }
+
+    public async Task<IReadOnlySet<string>> GetReadConversationIdsAsync(int accountId, int userId, CancellationToken cancellationToken)
+    {
+        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        await using var connection = _context.CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        var command = new SqlCommand(@"
+SELECT m.ConversationId
+FROM dbo.Messaging_EmailMessageMetadata m
+LEFT JOIN dbo.Messaging_EmailReadState r ON r.MessageId = m.MessageId AND r.User_Id = @UserId
+WHERE m.AccountId = @AccountId
+GROUP BY m.ConversationId
+HAVING COUNT(*) = COUNT(r.MessageId)", connection);
+        command.Parameters.AddWithValue("@UserId", userId);
+        command.Parameters.AddWithValue("@AccountId", accountId);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            set.Add(reader.GetString(0));
+        }
+
+        return set;
+    }
+
+    public async Task MarkMessageOpenedAsync(string messageId, int userId, CancellationToken cancellationToken)
+    {
+        await using var connection = _context.CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        var command = new SqlCommand(@"
+MERGE dbo.Messaging_EmailReadState AS target
+USING (SELECT @MessageId AS MessageId, @UserId AS User_Id) AS source
+ON target.MessageId = source.MessageId AND target.User_Id = source.User_Id
+WHEN MATCHED THEN
+    UPDATE SET OpenedAt = SYSUTCDATETIME()
+WHEN NOT MATCHED THEN
+    INSERT (MessageId, User_Id, OpenedAt) VALUES (@MessageId, @UserId, SYSUTCDATETIME());", connection);
+        command.Parameters.AddWithValue("@MessageId", messageId);
+        command.Parameters.AddWithValue("@UserId", userId);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task RecordAuditAsync(int userId, string username, string actionType, string? messageId, string? conversationId, int? oldAccountId, int? newAccountId, string? details, CancellationToken cancellationToken)
+    {
+        await using var connection = _context.CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        var command = new SqlCommand(@"
+INSERT INTO dbo.Messaging_UserAuditTrail
+    (OccurredAt, User_Id, Username, ActionType, MessageId, ConversationId, OldAccountId, NewAccountId, Details)
+VALUES
+    (SYSUTCDATETIME(), @UserId, @Username, @ActionType, @MessageId, @ConversationId, @OldAccountId, @NewAccountId, @Details);", connection);
+        command.Parameters.AddWithValue("@UserId", userId);
+        command.Parameters.AddWithValue("@Username", username);
+        command.Parameters.AddWithValue("@ActionType", actionType);
+        command.Parameters.AddWithValue("@MessageId", (object?)messageId ?? DBNull.Value);
+        command.Parameters.AddWithValue("@ConversationId", (object?)conversationId ?? DBNull.Value);
+        command.Parameters.AddWithValue("@OldAccountId", (object?)oldAccountId ?? DBNull.Value);
+        command.Parameters.AddWithValue("@NewAccountId", (object?)newAccountId ?? DBNull.Value);
+        command.Parameters.AddWithValue("@Details", (object?)details ?? DBNull.Value);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
     private async Task<List<EmailParticipant>> GetParticipantsAsync(
         string messageId,
         CancellationToken cancellationToken)
     {
         var participants = new List<EmailParticipant>();
 
-        await using var connection = _connectionFactory.CreateConnection();
+        await using var connection = _context.CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
         var command = new SqlCommand(@"

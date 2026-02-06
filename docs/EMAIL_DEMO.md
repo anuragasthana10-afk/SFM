@@ -2,7 +2,7 @@
 
 This repository provides a three-project demo layout:
 
-- `CRM.Core`: domain models + storage abstractions
+- `CRM`: domain models + storage abstractions
 - `CRM.Email`: provider-agnostic email services + Microsoft MailKit adapter + SQL persistence
 - `CRM.Web`: MVC demo UI
 

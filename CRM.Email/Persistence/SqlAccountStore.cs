@@ -1,23 +1,24 @@
-using CRM.Core.Models;
-using CRM.Core.Storage;
+using CRM.Models;
+using CRM.Storage;
+using CRM.Email.Abstractions;
 using Microsoft.Data.SqlClient;
 
 namespace CRM.Email.Persistence;
 
 public sealed class SqlAccountStore : IAccountStore
 {
-    private readonly SqlConnectionFactory _connectionFactory;
+    private readonly IEmailExecutionContextAccessor _context;
 
-    public SqlAccountStore(SqlConnectionFactory connectionFactory)
+    public SqlAccountStore(IEmailExecutionContextAccessor context)
     {
-        _connectionFactory = connectionFactory;
+        _context = context;
     }
 
     public async Task<IReadOnlyList<Account>> GetAllAsync(CancellationToken cancellationToken)
     {
         var results = new List<Account>();
 
-        await using var connection = _connectionFactory.CreateConnection();
+        await using var connection = _context.CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
         var command = new SqlCommand("SELECT Id, Name, AccountGuid FROM dbo.Messaging_Accounts ORDER BY Id", connection);
@@ -38,7 +39,7 @@ public sealed class SqlAccountStore : IAccountStore
 
     public async Task<Account?> GetByIdAsync(int id, CancellationToken cancellationToken)
     {
-        await using var connection = _connectionFactory.CreateConnection();
+        await using var connection = _context.CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
         var command = new SqlCommand("SELECT Id, Name, AccountGuid FROM dbo.Messaging_Accounts WHERE Id = @Id", connection);
@@ -60,7 +61,7 @@ public sealed class SqlAccountStore : IAccountStore
 
     public async Task AddAsync(Account account, CancellationToken cancellationToken)
     {
-        await using var connection = _connectionFactory.CreateConnection();
+        await using var connection = _context.CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
         var command = new SqlCommand(@"INSERT INTO dbo.Messaging_Accounts (Name, AccountGuid) VALUES (@Name, @AccountGuid);", connection);
@@ -72,7 +73,7 @@ public sealed class SqlAccountStore : IAccountStore
 
     public async Task UpdateAsync(Account account, CancellationToken cancellationToken)
     {
-        await using var connection = _connectionFactory.CreateConnection();
+        await using var connection = _context.CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
         var command = new SqlCommand(@"UPDATE dbo.Messaging_Accounts SET Name=@Name, AccountGuid=@AccountGuid WHERE Id=@Id", connection);
@@ -84,7 +85,7 @@ public sealed class SqlAccountStore : IAccountStore
 
     public async Task DeleteAsync(int id, CancellationToken cancellationToken)
     {
-        await using var connection = _connectionFactory.CreateConnection();
+        await using var connection = _context.CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
         var command = new SqlCommand(@"

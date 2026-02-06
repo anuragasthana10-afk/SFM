@@ -1,4 +1,4 @@
-using CRM.Core.Models;
+using CRM.Models;
 
 namespace CRM.Email.Abstractions;
 
@@ -16,4 +16,9 @@ public interface IEmailThreadQuery
     Task DiscardMessageAsync(string messageId, CancellationToken cancellationToken);
     Task RestoreDiscardedMessageAsync(string messageId, CancellationToken cancellationToken);
     Task DisassociateMessageAsync(string messageId, CancellationToken cancellationToken);
+    Task<int> EnsureUserAsync(string username, string firstName, string lastName, CancellationToken cancellationToken);
+    Task<IReadOnlySet<string>> GetReadMessageIdsAsync(int accountId, int userId, CancellationToken cancellationToken);
+    Task<IReadOnlySet<string>> GetReadConversationIdsAsync(int accountId, int userId, CancellationToken cancellationToken);
+    Task MarkMessageOpenedAsync(string messageId, int userId, CancellationToken cancellationToken);
+    Task RecordAuditAsync(int userId, string username, string actionType, string? messageId, string? conversationId, int? oldAccountId, int? newAccountId, string? details, CancellationToken cancellationToken);
 }

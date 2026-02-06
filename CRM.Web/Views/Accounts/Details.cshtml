@@ -5,74 +5,129 @@
     <div class="actions">
         <a href="/Emails/Compose?accountId=@Model.Account.Id">Compose Email</a>
         <a href="/Accounts">Back to Accounts</a>
+        <a href="/Accounts/Details/@Model.Account.Id?view=thread">Thread View</a>
+        <a href="/Accounts/Details/@Model.Account.Id?view=flat">Flat View</a>
     </div>
 </section>
 
-<section class="panel">
-    <h3>Threads</h3>
-    <table>
-        <thead>
-            <tr>
-                <th>Subject</th>
-                <th>Messages</th>
-                <th>Last Received</th>
-                <th>Move To</th>
-            </tr>
-        </thead>
-        <tbody>
-        @foreach (var thread in Model.Threads)
-        {
-            <tr>
-                <td>@thread.Subject</td>
-                <td>@thread.MessageCount</td>
-                <td>@thread.LastReceivedAt</td>
-                <td>
-                    <form method="post" action="/Emails/MoveThread">
-                        <input type="hidden" name="conversationId" value="@thread.ConversationId" />
-                        <input type="hidden" name="currentAccountId" value="@Model.Account.Id" />
-                        <select name="accountId">
-                            @foreach (var account in (IReadOnlyList<Account>)ViewBag.Accounts)
-                            {
-                                if (account.Id != Model.Account.Id)
+@if (Model.ViewMode == "thread")
+{
+    <section class="panel">
+        <h3>Threads</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Subject</th>
+                    <th>Messages</th>
+                    <th>Last Received</th>
+                    <th>Status</th>
+                    <th>Open</th>
+                    <th>Move To</th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach (var thread in Model.Threads)
+            {
+                var isRead = Model.ReadConversationIds.Contains(thread.ConversationId);
+                <tr>
+                    <td style="font-weight:@(isRead ? "normal" : "700")">@thread.Subject</td>
+                    <td>@thread.MessageCount</td>
+                    <td>@thread.LastReceivedAt</td>
+                    <td>@(isRead ? "Read" : "Unread")</td>
+                    <td><a href="/Accounts/Details/@Model.Account.Id?view=thread&conversationId=@thread.ConversationId">Open Thread</a></td>
+                    <td>
+                        <form method="post" action="/Emails/MoveThread">
+                            <input type="hidden" name="conversationId" value="@thread.ConversationId" />
+                            <input type="hidden" name="currentAccountId" value="@Model.Account.Id" />
+                            <select name="accountId">
+                                @foreach (var account in (IReadOnlyList<Account>)ViewBag.Accounts)
                                 {
-                                    <option value="@account.Id">@account.Name</option>
+                                    if (account.Id != Model.Account.Id)
+                                    {
+                                        <option value="@account.Id">@account.Name</option>
+                                    }
                                 }
-                            }
-                        </select>
-                        <button type="submit">Move</button>
-                    </form>
-                </td>
-            </tr>
-        }
-        </tbody>
-    </table>
-</section>
+                            </select>
+                            <button type="submit">Move</button>
+                        </form>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </section>
+}
 
-<table>
-    <thead>
-        <tr>
-            <th>Subject</th>
-            <th>Received</th>
-            <th>Participants</th>
-            <th>Actions</th>
-        </tr>
-    </thead>
-    <tbody>
-    @foreach (var message in Model.Messages)
-    {
-        <tr>
-            <td>@message.Subject</td>
-            <td>@message.ReceivedAt</td>
-            <td>@string.Join(", ", message.Participants.Select(p => p.Address))</td>
-            <td>
-                <a href="/Emails/Content?messageId=@message.MessageId&accountId=@Model.Account.Id">View</a>
-                <form method="post" action="/Emails/DisassociateMessage" style="display:inline" onsubmit="return confirm('Disassociate this message from the account?');">
-                    <input type="hidden" name="messageId" value="@message.MessageId" />
-                    <input type="hidden" name="accountId" value="@Model.Account.Id" />
-                    <button type="submit">Disassociate</button>
-                </form>
-            </td>
-        </tr>
-    }
-    </tbody>
-</table>
+<div style="display:flex; align-items:flex-start; gap:0;">
+    <div style="width:50%; padding-right:0.5rem;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Subject</th>
+                    <th>Received</th>
+                    <th>Participants</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach (var message in Model.Messages)
+            {
+                var isRead = Model.ReadMessageIds.Contains(message.MessageId);
+                <tr>
+                    <td style="font-weight:@(isRead ? "normal" : "700")">@message.Subject</td>
+                    <td>@message.ReceivedAt</td>
+                    <td>@string.Join(", ", message.Participants.Select(p => p.Address))</td>
+                    <td>
+                        <a href="#" class="open-message" data-message-id="@message.MessageId">Open</a>
+                        <a href="/Emails/Content?messageId=@message.MessageId&accountId=@Model.Account.Id">Full</a>
+                        <form method="post" action="/Emails/DisassociateMessage" style="display:inline" onsubmit="return confirm('Disassociate this message from the account?');">
+                            <input type="hidden" name="messageId" value="@message.MessageId" />
+                            <input type="hidden" name="accountId" value="@Model.Account.Id" />
+                            <button type="submit">Disassociate</button>
+                        </form>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+    <div id="message-panel" style="width:50%; border-left:1px solid #ddd; min-height:400px;">
+        <div style="padding:1rem; color:#666;">Select a message to view details.</div>
+    </div>
+</div>
+
+<script>
+(() => {
+  const links = Array.from(document.querySelectorAll('.open-message'));
+  const panel = document.getElementById('message-panel');
+  const accountId = '@Model.Account.Id';
+
+  function messageOrder() { return links.map(l => l.dataset.messageId); }
+  function bindPanelNav() {
+    panel.querySelectorAll('.panel-nav').forEach(a => {
+      a.addEventListener('click', (e) => {
+        e.preventDefault();
+        openMessage(a.dataset.messageId);
+      });
+    });
+  }
+
+  async function openMessage(messageId) {
+    const ids = messageOrder();
+    const idx = ids.indexOf(messageId);
+    const prev = idx > 0 ? ids[idx - 1] : '';
+    const next = idx >= 0 && idx < ids.length - 1 ? ids[idx + 1] : '';
+    const url = `/Emails/ContentPanel?messageId=${encodeURIComponent(messageId)}&prevMessageId=${encodeURIComponent(prev)}&nextMessageId=${encodeURIComponent(next)}&accountId=${encodeURIComponent(accountId)}`;
+    const html = await fetch(url).then(r => r.text());
+    panel.innerHTML = html;
+    bindPanelNav();
+    const row = links.find(l => l.dataset.messageId === messageId)?.closest('tr');
+    row?.querySelector('td')?.style?.setProperty('font-weight', 'normal');
+  }
+
+  links.forEach(l => l.addEventListener('click', (e) => {
+    e.preventDefault();
+    openMessage(l.dataset.messageId);
+  }));
+})();
+</script>

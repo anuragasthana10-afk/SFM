@@ -6,7 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../CRM.Core/CRM.Core.csproj" />
+    <ProjectReference Include="../CRM/CRM.csproj" />
     <ProjectReference Include="../CRM.Email/CRM.Email.csproj" />
   </ItemGroup>
 </Project>
