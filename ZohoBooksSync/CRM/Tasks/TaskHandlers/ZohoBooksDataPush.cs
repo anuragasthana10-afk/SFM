@@ -167,8 +167,17 @@ namespace CRM.Tasks.TaskHandlers
             await EnsureContactsAsync(zohoClient, referenceStore, contacts);
             await EnsureInventoryItemsAsync(zohoClient, referenceStore, inventoryItems);
 
+            var existingInvoiceIds = await referenceStore.GetInvoiceIdsAsync(invoices.Select(invoice => invoice.LocalId));
+
             await zohoClient.SyncInvoicesAsync(invoices);
-            await zohoClient.UpdateInvoicesAsync(invoices);
+
+            var updateInvoices = invoices
+                .Where(invoice => existingInvoiceIds.ContainsKey(invoice.LocalId))
+                .ToList();
+            if (updateInvoices.Count > 0)
+            {
+                await zohoClient.UpdateInvoicesAsync(updateInvoices);
+            }
         }
 
         private static IDictionary<int, string> ResolveUserCodes(string entityType, IReadOnlyCollection<int> localKeys)
