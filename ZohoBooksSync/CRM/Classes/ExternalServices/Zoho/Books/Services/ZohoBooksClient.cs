@@ -147,14 +147,13 @@ public sealed class ZohoBooksClient
                 throw new InvalidOperationException(message);
             }
 
-            await EnsureContactCurrencyAsync(contactId, invoice.CurrencyCode, cancellationToken);
-
-            var lineItems = await BuildLineItemsAsync(invoice, itemIds, cancellationToken);
-
             string remoteId = null;
             try
             {
                 await EnsureCurrencyAsync(invoice.CurrencyCode, cancellationToken);
+                await EnsureContactCurrencyAsync(invoice.ContactLocalId, contactId, invoice.CurrencyCode, cancellationToken);
+
+                var lineItems = await BuildLineItemsAsync(invoice, itemIds, cancellationToken);
                 var reportingTagDetails = await BuildReportingTagDetailsAsync(invoice, cancellationToken);
                 var taxName = ResolveTaxName(invoice);
                 var taxTreatment = ResolveTaxTreatment(invoice);
@@ -344,13 +343,12 @@ public sealed class ZohoBooksClient
                 throw new InvalidOperationException(message);
             }
 
-            await EnsureContactCurrencyAsync(contactId, invoice.CurrencyCode, cancellationToken);
-
-            var lineItems = await BuildLineItemsAsync(invoice, itemIds, cancellationToken);
-
             try
             {
                 await EnsureCurrencyAsync(invoice.CurrencyCode, cancellationToken);
+                await EnsureContactCurrencyAsync(invoice.ContactLocalId, contactId, invoice.CurrencyCode, cancellationToken);
+
+                var lineItems = await BuildLineItemsAsync(invoice, itemIds, cancellationToken);
                 var reportingTagDetails = await BuildReportingTagDetailsAsync(invoice, cancellationToken);
                 var taxName = ResolveTaxName(invoice);
                 var taxTreatment = ResolveTaxTreatment(invoice);
@@ -728,7 +726,7 @@ public sealed class ZohoBooksClient
         throw new InvalidOperationException(message);
     }
 
-    private async Task EnsureContactCurrencyAsync(string contactId, string currencyCode, CancellationToken cancellationToken)
+    private async Task EnsureContactCurrencyAsync(int contactLocalId, string contactId, string currencyCode, CancellationToken cancellationToken)
     {
         if (!_connectionOptions.EnsureContactCurrencyForInvoices)
         {
@@ -763,6 +761,7 @@ public sealed class ZohoBooksClient
 
         var payload = new Dictionary<string, object>
         {
+            ["currency_id"] = await ResolveCurrencyIdAsync(contactLocalId, contactId, currencyCode, cancellationToken),
             ["currency_code"] = currencyCode
         };
 
@@ -772,12 +771,12 @@ public sealed class ZohoBooksClient
             _contactCurrencyCache[contactId] = currencyCode;
             await _referenceStore.LogSyncOperationAsync(
                 ReferenceStore.SyncEntityType.Contact.ToString(),
-                0,
+                contactLocalId,
                 "UpdateCurrency",
                 true,
                 contactId,
                 null,
-                contactId,
+                null,
                 _runId,
                 cancellationToken);
         }
@@ -785,16 +784,42 @@ public sealed class ZohoBooksClient
         {
             await _referenceStore.LogSyncOperationAsync(
                 ReferenceStore.SyncEntityType.Contact.ToString(),
-                0,
+                contactLocalId,
                 "UpdateCurrency",
                 false,
                 contactId,
                 ex.Message,
-                contactId,
+                null,
                 _runId,
                 cancellationToken);
             throw;
         }
+    }
+
+    private async Task<string> ResolveCurrencyIdAsync(
+        int contactLocalId,
+        string contactId,
+        string currencyCode,
+        CancellationToken cancellationToken)
+    {
+        var currencyId = await _referenceStore.GetCurrencyIdAsync(currencyCode, cancellationToken);
+        if (!string.IsNullOrWhiteSpace(currencyId))
+        {
+            return currencyId;
+        }
+
+        var message = $"Missing currency reference for {currencyCode}.";
+        await _referenceStore.LogSyncOperationAsync(
+            ReferenceStore.SyncEntityType.Contact.ToString(),
+            contactLocalId,
+            "UpdateCurrency",
+            false,
+            contactId,
+            message,
+            null,
+            _runId,
+            cancellationToken);
+        throw new InvalidOperationException(message);
     }
 
     private string ResolveTaxName(Invoice invoice)
@@ -1188,30 +1213,6 @@ public sealed class ZohoBooksClient
         }
 
         return options;
-    }
-
-    private static void AddReportingTagOptions(Dictionary<string, string> optionsByName, JsonElement optionsElement)
-    {
-        if (optionsElement.ValueKind != JsonValueKind.String)
-        {
-            return;
-        }
-
-        var optionsValue = optionsElement.GetString();
-        if (string.IsNullOrWhiteSpace(optionsValue))
-        {
-            return;
-        }
-
-        var entries = optionsValue.Split(',');
-        foreach (var entry in entries)
-        {
-            var optionNameStr = entry.Trim();
-            if (!string.IsNullOrWhiteSpace(optionNameStr))
-            {
-                optionsByName[optionNameStr] = optionNameStr;
-            }
-        }
     }
 
     private static async Task<JsonElement> EnsureSuccessAsync(HttpResponseMessage response, CancellationToken cancellationToken)

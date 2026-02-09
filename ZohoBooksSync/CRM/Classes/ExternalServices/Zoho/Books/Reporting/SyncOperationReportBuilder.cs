@@ -27,8 +27,7 @@ namespace CRM.Classes.ExternalServices.Zoho.Books.Reporting
             builder.AppendLine("  <tbody>");
 
             var displayOperations = operations
-                .Where(operation => string.Equals(operation.EntityType, "Invoice", StringComparison.OrdinalIgnoreCase)
-                    || !operation.Success)
+                .Where(operation => ShouldDisplayOperation(operation))
                 .ToList();
 
             var codeLookup = new Dictionary<string, IDictionary<int, string>>(StringComparer.OrdinalIgnoreCase);
@@ -92,6 +91,22 @@ namespace CRM.Classes.ExternalServices.Zoho.Books.Reporting
             }
 
             return location.ToString();
+        }
+
+        private static bool ShouldDisplayOperation(SyncOperationRecord operation)
+        {
+            if (!string.Equals(operation.EntityType, "Invoice", StringComparison.OrdinalIgnoreCase))
+            {
+                return !operation.Success;
+            }
+
+            if (!operation.Success)
+            {
+                return true;
+            }
+
+            return string.Equals(operation.Operation, "Create", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(operation.Operation, "Update", StringComparison.OrdinalIgnoreCase);
         }
     }
 }
