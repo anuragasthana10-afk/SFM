@@ -1,0 +1,15 @@
+@model AccountEditViewModel
+
+<section class="panel">
+    <h2>Create Account</h2>
+    <form method="post" action="/Accounts/Create">
+        <label>Name</label><br />
+        <input name="Name" value="@Model.Name" required />
+        <br /><br />
+        <label>Account GUID</label><br />
+        <input name="AccountGuid" value="@Model.AccountGuid" />
+        <br /><br />
+        <button type="submit">Create</button>
+        <a href="/Accounts">Cancel</a>
+    </form>
+</section>

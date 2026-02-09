@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CRM Email Demo</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 2rem; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #ddd; padding: 0.5rem; }
+        th { background: #f3f3f3; }
+        .actions { display: flex; gap: 0.5rem; }
+        .panel { margin-bottom: 1.5rem; }
+    </style>
+</head>
+<body>
+    <header class="panel">
+        <h1>CRM Email Demo</h1>
+        <nav class="actions">
+            <a href="/Accounts">Accounts</a>
+            <a href="/Emails/Orphans">Orphan Emails</a>
+            <a href="/Contacts">Contacts</a>
+        </nav>
+    </header>
+    <main>
+        @RenderBody()
+    </main>
+</body>
+</html>

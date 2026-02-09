@@ -1,0 +1,16 @@
+namespace CRM.Web.Models;
+
+public sealed class ComposeEmailViewModel
+{
+    public string From { get; set; } = string.Empty;
+    public string To { get; set; } = string.Empty;
+    public string? Cc { get; set; }
+    public string? Bcc { get; set; }
+    public string Subject { get; set; } = string.Empty;
+    public string Body { get; set; } = string.Empty;
+    public string? HtmlBody { get; set; }
+    public Guid? AccountGuid { get; set; }
+    public string? ConversationId { get; set; }
+    public string? InReplyToMessageId { get; set; }
+    public string Mode { get; set; } = "Compose";
+}

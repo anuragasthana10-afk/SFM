@@ -1,0 +1,27 @@
+@model CRM.Models.EmailContent
+
+<div style="padding: 1rem; border-left: 1px solid #ccc; height: 100vh; overflow: auto; background: #fff;">
+    <div class="actions" style="justify-content: space-between; margin-bottom: 0.5rem;">
+        <div>
+            @if (ViewBag.PreviousMessageId is string prevId && !string.IsNullOrWhiteSpace(prevId))
+            {
+                <a href="#" class="panel-nav" data-message-id="@prevId">&larr; Previous</a>
+            }
+        </div>
+        <div>
+            @if (ViewBag.NextMessageId is string nextId && !string.IsNullOrWhiteSpace(nextId))
+            {
+                <a href="#" class="panel-nav" data-message-id="@nextId">Next &rarr;</a>
+            }
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(Model.HtmlBody))
+    {
+        @Html.Raw(Model.HtmlBody)
+    }
+    else
+    {
+        <pre>@Model.TextBody</pre>
+    }
+</div>

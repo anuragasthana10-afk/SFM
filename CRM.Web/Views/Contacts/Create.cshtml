@@ -1,0 +1,24 @@
+@model ContactEditViewModel
+
+<section class="panel">
+    <h2>Create Contact</h2>
+    <form method="post" action="/Contacts/Create">
+        <label>Name</label><br />
+        <input name="Name" value="@Model.Name" required />
+        <br /><br />
+        <label>Email</label><br />
+        <input name="EmailAddress" value="@Model.EmailAddress" required />
+        <br /><br />
+        <label>Associate Accounts</label><br />
+        @foreach (var account in Model.Accounts)
+        {
+            <label>
+                <input type="checkbox" name="SelectedAccountIds" value="@account.Id" /> @account.Name
+            </label>
+            <br />
+        }
+        <br />
+        <button type="submit">Create</button>
+        <a href="/Contacts">Cancel</a>
+    </form>
+</section>
