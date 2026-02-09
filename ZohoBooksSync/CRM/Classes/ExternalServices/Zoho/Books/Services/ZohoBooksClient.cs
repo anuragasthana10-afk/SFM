@@ -766,8 +766,35 @@ public sealed class ZohoBooksClient
             ["currency_code"] = currencyCode
         };
 
-        await PutAsync($"contacts/{contactId}", payload, cancellationToken);
-        _contactCurrencyCache[contactId] = currencyCode;
+        try
+        {
+            await PutAsync($"contacts/{contactId}", payload, cancellationToken);
+            _contactCurrencyCache[contactId] = currencyCode;
+            await _referenceStore.LogSyncOperationAsync(
+                ReferenceStore.SyncEntityType.Contact.ToString(),
+                0,
+                "UpdateCurrency",
+                true,
+                contactId,
+                null,
+                contactId,
+                _runId,
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            await _referenceStore.LogSyncOperationAsync(
+                ReferenceStore.SyncEntityType.Contact.ToString(),
+                0,
+                "UpdateCurrency",
+                false,
+                contactId,
+                ex.Message,
+                contactId,
+                _runId,
+                cancellationToken);
+            throw;
+        }
     }
 
     private string ResolveTaxName(Invoice invoice)

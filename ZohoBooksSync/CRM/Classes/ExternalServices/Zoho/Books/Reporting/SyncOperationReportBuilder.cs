@@ -26,8 +26,13 @@ namespace CRM.Classes.ExternalServices.Zoho.Books.Reporting
             builder.AppendLine("  </thead>");
             builder.AppendLine("  <tbody>");
 
+            var displayOperations = operations
+                .Where(operation => string.Equals(operation.EntityType, "Invoice", StringComparison.OrdinalIgnoreCase)
+                    || !operation.Success)
+                .ToList();
+
             var codeLookup = new Dictionary<string, IDictionary<int, string>>(StringComparer.OrdinalIgnoreCase);
-            foreach (var operationGroup in operations.GroupBy(operation => operation.EntityType))
+            foreach (var operationGroup in displayOperations.GroupBy(operation => operation.EntityType))
             {
                 var missingCodes = operationGroup
                     .Where(operation => string.IsNullOrWhiteSpace(operation.LocalKeyText))
@@ -40,7 +45,7 @@ namespace CRM.Classes.ExternalServices.Zoho.Books.Reporting
                     : resolveUserCodes(operationGroup.Key, missingCodes);
             }
 
-            foreach (var operation in operations)
+            foreach (var operation in displayOperations)
             {
                 var code = string.IsNullOrWhiteSpace(operation.LocalKeyText)
                     ? ResolveMissingCode(operation, codeLookup)
