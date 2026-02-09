@@ -12,6 +12,7 @@ namespace CRM.Classes.ExternalServices.Zoho.Books.Configuration
         public string SqlConnectionString { get; set; }
         public bool AllowReportingTagOptionCreate { get; set; }
         public bool ApplyReportingTagsToLineItems { get; set; }
+        public bool EnsureContactCurrencyForInvoices { get; set; }
         public ZohoBooksLocation Location { get; set; }
 
         public ZohoBooksConnectionOptions()
@@ -23,6 +24,7 @@ namespace CRM.Classes.ExternalServices.Zoho.Books.Configuration
             SqlConnectionString = string.Empty;
             AllowReportingTagOptionCreate = false;
             ApplyReportingTagsToLineItems = true;
+            EnsureContactCurrencyForInvoices = true;
             Location = ZohoBooksLocation.Uae;
         }
 
@@ -45,6 +47,10 @@ namespace CRM.Classes.ExternalServices.Zoho.Books.Configuration
                     StringComparison.OrdinalIgnoreCase),
                 ApplyReportingTagsToLineItems = !string.Equals(
                     Environment.GetEnvironmentVariable("ZOHO_BOOKS_APPLY_REPORTING_TAGS_TO_LINE_ITEMS"),
+                    "false",
+                    StringComparison.OrdinalIgnoreCase),
+                EnsureContactCurrencyForInvoices = !string.Equals(
+                    Environment.GetEnvironmentVariable("ZOHO_BOOKS_ENSURE_CONTACT_CURRENCY_FOR_INVOICES"),
                     "false",
                     StringComparison.OrdinalIgnoreCase),
                 Location = ZohoBooksLocation.Uae

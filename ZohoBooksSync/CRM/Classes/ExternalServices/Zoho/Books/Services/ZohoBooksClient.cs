@@ -730,6 +730,11 @@ public sealed class ZohoBooksClient
 
     private async Task EnsureContactCurrencyAsync(string contactId, string currencyCode, CancellationToken cancellationToken)
     {
+        if (!_connectionOptions.EnsureContactCurrencyForInvoices)
+        {
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(contactId) || string.IsNullOrWhiteSpace(currencyCode))
         {
             return;
