@@ -7,11 +7,28 @@
 @{
     WorkflowGraphLayout layout = null;
     Dictionary<short, WorkflowGraphNode> nodesById = new Dictionary<short, WorkflowGraphNode>();
+    HashSet<short> mainChainStepIds = new HashSet<short>();
 
     if (Model != null)
     {
         layout = WorkflowGraphLayoutBuilder.Build(Model);
         nodesById = layout.Nodes.ToDictionary(x => x.StepId, x => x);
+
+        var mainChainQueue = new Queue<WorkflowStepsMap>();
+        mainChainQueue.Enqueue(Model);
+        while (mainChainQueue.Count > 0)
+        {
+            var current = mainChainQueue.Dequeue();
+            if (!mainChainStepIds.Add(current.WorkflowStep.ID))
+            {
+                continue;
+            }
+
+            foreach (var next in current.NextSteps)
+            {
+                mainChainQueue.Enqueue(next);
+            }
+        }
     }
 }
 
@@ -43,7 +60,10 @@
 
             @foreach (var node in layout.Nodes)
             {
-                <rect x="@node.X" y="@node.Y" width="@node.Width" height="@node.Height" rx="8" ry="8" fill="#ffffff" stroke="#1e40af" stroke-width="1.8" />
+                var isOrphanedStep = !mainChainStepIds.Contains(node.StepId);
+                var nodeStrokeColor = isOrphanedStep ? "#dc2626" : "#1e40af";
+                var nodeStrokeDashArray = isOrphanedStep ? "6,4" : "none";
+                <rect x="@node.X" y="@node.Y" width="@node.Width" height="@node.Height" rx="8" ry="8" fill="#ffffff" stroke="@nodeStrokeColor" stroke-width="1.8" stroke-dasharray="@nodeStrokeDashArray" />
                 @Html.Raw("<text x=\"" + (node.X + 12) + "\" y=\"" + (node.Y + 30) + "\" font-family=\"Segoe UI, Arial, sans-serif\" font-size=\"14\" fill=\"#0f172a\">" + Html.Encode(node.Name) + "</text>")
                 @Html.Raw("<text x=\"" + (node.X + 12) + "\" y=\"" + (node.Y + 54) + "\" font-family=\"Consolas, monospace\" font-size=\"12\" fill=\"#475569\">ID: " + node.StepId + "</text>")
             }
