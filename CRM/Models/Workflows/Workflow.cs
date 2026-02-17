@@ -1,76 +1,42 @@
+using CRM.Business.Workflows;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations.Schema;
+using System.Linq;
+using System.Linq.Dynamic;
+
 namespace CRM.Models.Workflows
 {
-    using System;
-    using System.Collections.Generic;
-    using System.ComponentModel.DataAnnotations;
-    using System.ComponentModel.DataAnnotations.Schema;
-
     public partial class Workflow
     {
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2214:DoNotCallOverridableMethodsInConstructors")]
-        public Workflow()
+        public enum WorkflowCode
         {
-            Workflow_Steps = new HashSet<Workflow_Steps>();
-            Workflow_Transactions_Headers = new HashSet<Workflow_Transactions_Headers>();
+            COMPSETUP = 1,
+            COMPRENEW = 2,
+            ASSOCBANKOPEN = 3,
+            OTHERINVOICE = 4
         }
 
-        public short ID { get; set; }
+        [NotMapped]
+        public const short m_ListRecentlyCompletedWorkflows_NumberOfDays = 14;
 
-        [Required]
-        [StringLength(25)]
-        public string Code { get; set; }
+        public List<WorkflowStatus> GetWorkflowStatus(int iObjectRefID)
+        {
+            List<WorkflowStatus> workflowStatusList = new List<WorkflowStatus>();
 
-        [Required]
-        [StringLength(50)]
-        public string Name { get; set; }
+            var activeWorkflowsList = Workflow_Transactions_Headers.Where(w => w.Workflows_ID == ID && w.Object_RefID == iObjectRefID &&  (w.DelFlag ?? false) == false).ToList();
 
-        [StringLength(150)]
-        public string Description { get; set; }
+            if(activeWorkflowsList.Where(w => !(w.WorkflowComplete ?? false)).Count() > 1)
+            {
+                throw new Exception("Workflow::GetWorkflowStatus() - More than one active workflow found for workflow Code: " + Code + " and Object Ref ID: " + iObjectRefID);
+            }
 
-        [Required]
-        [StringLength(15)]
-        public string Context_Object_Code { get; set; }
+            foreach(var workflowTransactionHeader in activeWorkflowsList.Where(w => (!(w.WorkflowComplete ?? false) || (DateTime.UtcNow - (w.WorkflowComplete_Time ?? DateTime.UtcNow)).Days <= m_ListRecentlyCompletedWorkflows_NumberOfDays)))
+            {
+                workflowStatusList.Add(workflowTransactionHeader.GetWorkflowStatus());
+            }
 
-        [StringLength(15)]
-        public string Context_Screen_Code { get; set; }
-
-        [StringLength(250)]
-        public string Filters { get; set; }
-
-        public bool? IsDefaultWorkflow_ForContextObject { get; set; }
-
-        [StringLength(50)]
-        public string TriggerConditions { get; set; }
-
-        public short? DependsOn_Workflows_ID { get; set; }
-
-        public bool? IsActive { get; set; }
-
-        public int CreateUserID { get; set; }
-
-        [Column(TypeName = "datetime2")]
-        public DateTime CreateDate { get; set; }
-
-        public int? ModifyUserID { get; set; }
-
-        [Column(TypeName = "datetime2")]
-        public DateTime? ModifyDate { get; set; }
-
-        public bool? DelFlag { get; set; }
-
-        /*
-        public virtual Object Object { get; set; }
-        */
-
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2227:CollectionPropertiesShouldBeReadOnly")]
-        public virtual ICollection<Workflow_Steps> Workflow_Steps { get; set; }
-
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2227:CollectionPropertiesShouldBeReadOnly")]
-        public virtual ICollection<Workflow_Transactions_Headers> Workflow_Transactions_Headers { get; set; }
-
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2227:CollectionPropertiesShouldBeReadOnly")]
-        public virtual ICollection<Workflow> DependsOn_Workflows_List { get; set; }
-
-        public virtual Workflow DependsOn_Workflow { get; set; }
+            return workflowStatusList;
+        }
     }
 }

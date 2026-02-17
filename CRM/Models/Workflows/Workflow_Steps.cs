@@ -1,117 +1,51 @@
+
+using CRM.Business.Workflows;
+using CRM.Classes.Helpers;
+using CRM.Models.Security;
+using Newtonsoft.Json;
+
 namespace CRM.Models.Workflows
 {
-    using System;
-    using System.Collections.Generic;
-    using System.ComponentModel.DataAnnotations;
-    using System.ComponentModel.DataAnnotations.Schema;
-
     public partial class Workflow_Steps
     {
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2214:DoNotCallOverridableMethodsInConstructors")]
-        public Workflow_Steps()
+        public WorkflowStepTaskAssignerAction GetTaskAssignerAction(int stepID, int? curent_Assigned_Users_Id)
         {
-            Workflow_Steps1 = new HashSet<Workflow_Steps>();
-            Workflow_Steps11 = new HashSet<Workflow_Steps>();
-            Workflow_StepTransactions = new HashSet<Workflow_StepTransactions>();
+            WorkflowStepTaskAssignerAction _taskAssignerAction = null;
+
+            if (this.TaskAssigner_Roles_Id.HasValue && this.Action_Roles_Id.HasValue)
+            {
+                //Check if current user has permission to assign task by role.
+                if (CurrentContext.CurrentUser.HasRole(this.TaskAssigner_Roles_Id.Value))
+                {
+                    _taskAssignerAction = new WorkflowStepTaskAssignerAction { };
+                    _taskAssignerAction.ActionParameters.Add(new WorkflowStepTaskAssigneeUserParameter
+                    {
+                        User_Id = 0,
+                        User_Name = "(UnAssigned)",
+                        ActionParameter = JsonConvert.SerializeObject(new WorkflowStepTaskAssignerActionParameters
+                        {
+                            sid = stepID,
+                            uid = 0
+                        })
+                    });
+
+                    foreach (var user in Security_Users.GetUsersHavingRole(this.Action_Roles_Id.Value))
+                    {
+                        _taskAssignerAction.ActionParameters.Add(new WorkflowStepTaskAssigneeUserParameter
+                        {
+                            User_Id = user.Key,
+                            User_Name = user.Value,
+                            IsSelected = (curent_Assigned_Users_Id ?? 0) == user.Key,
+                            ActionParameter = JsonConvert.SerializeObject(new WorkflowStepTaskAssignerActionParameters { 
+                                sid = stepID, 
+                                uid = user.Key
+                            })
+                        });
+                    }
+                }
+            }
+
+            return _taskAssignerAction;
         }
-
-        public short ID { get; set; }
-
-        [Required]
-        [StringLength(50)]
-        public string Name { get; set; }
-
-        [StringLength(150)]
-        public string Description { get; set; }
-
-        public short Workflows_ID { get; set; }
-
-        public byte Workflow_StepTypes_ID { get; set; }
-
-        [Required]
-        public string Workflow_StepTypes_ConfigData { get; set; }
-
-        public bool? IsStartStep { get; set; }
-
-        public short? Workflow_Steps_PreviousStep_ID { get; set; }
-
-        public short? Workflow_Steps_NextStep_ID { get; set; }
-
-        public bool? WaitForTriggeredWorkflowsToComplete { get; set; }
-
-        [StringLength(150)]
-        public string UserStepInstructions { get; set; }
-
-        public int? Action_Roles_Id { get; set; }
-
-        public int? TaskAssigner_Roles_Id { get; set; }
-
-        [StringLength(500)]
-        public string PreStepCompletion_DataValidation { get; set; }
-
-        public string OnStepCompletion_Notifications { get; set; }
-
-        [StringLength(500)]
-        public string OnStepCompletion_FieldUpdates { get; set; }
-
-        public string OnStepCompletion_APICalls { get; set; }
-
-        public string OnStepReview_Notifications { get; set; }
-
-        [StringLength(500)]
-        public string OnStepReview_FieldUpdates { get; set; }
-
-        public string OnStepReview_APICalls { get; set; }
-
-        public string OnStepReject_Notifications { get; set; }
-
-        [StringLength(500)]
-        public string OnStepReject_FieldUpdates { get; set; }
-
-        public string OnStepReject_APICalls { get; set; }
-
-        public string OnStepError_Notifications { get; set; }
-
-        [StringLength(500)]
-        public string OnStepCreate_FieldUpdates { get; set; }
-
-        public string OnStepCreate_Notifications { get; set; }
-
-        public string OnStepCreate_APICalls { get; set; }
-
-        public bool? IsActive { get; set; }
-
-        public int CreateUserID { get; set; }
-
-        [Column(TypeName = "datetime2")]
-        public DateTime CreateDate { get; set; }
-
-        public int? ModifyUserID { get; set; }
-
-        [Column(TypeName = "datetime2")]
-        public DateTime? ModifyDate { get; set; }
-
-        public bool? DelFlag { get; set; }
-
-        /*
-        public virtual Security_Roles Security_Roles { get; set; }
-        */
-
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2227:CollectionPropertiesShouldBeReadOnly")]
-        public virtual ICollection<Workflow_Steps> Workflow_Steps1 { get; set; }
-
-        public virtual Workflow_Steps Workflow_Steps_NextStep { get; set; }
-
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2227:CollectionPropertiesShouldBeReadOnly")]
-        public virtual ICollection<Workflow_Steps> Workflow_Steps11 { get; set; }
-
-        public virtual Workflow_Steps Workflow_Steps_PreviousStep { get; set; }
-
-        public virtual Workflow_StepTypes Workflow_StepType { get; set; }
-
-        public virtual Workflow Workflow { get; set; }
-
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2227:CollectionPropertiesShouldBeReadOnly")]
-        public virtual ICollection<Workflow_StepTransactions> Workflow_StepTransactions { get; set; }
     }
 }
