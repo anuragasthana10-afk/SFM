@@ -1,30 +1,88 @@
+using CRM.Business.Workflows.StepTypesConfigObject;
+using Newtonsoft.Json;
+using System;
+using ThirdParty.Json.LitJson;
+
 namespace CRM.Models.Workflows
 {
-    using System;
-    using System.Collections.Generic;
-    using System.ComponentModel.DataAnnotations;
-
     public partial class Workflow_StepTypes
     {
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2214:DoNotCallOverridableMethodsInConstructors")]
-        public Workflow_StepTypes()
+        public enum StepType : byte
         {
-            Workflow_Steps = new HashSet<Workflow_Steps>();
+            ApproveReviewReject = 1,
+            SimpleStepCompletion = 2,
+            APICall = 3,
+            TriggerWorkflow = 4,
+            TimedStepCompletion = 5
         }
 
-        public byte ID { get; set; }
+        public StepType_ConfigObjectBase ParseConfigData(string jsonData)
+        {
+            StepType_ConfigObjectBase stepType_ConfigObjectBase = null;
 
-        [Required]
-        [StringLength(50)]
-        public string Name { get; set; }
+            if (ID == (byte)StepType.ApproveReviewReject)
+            {
+                stepType_ConfigObjectBase = JsonConvert.DeserializeObject<ApproveReviewReject>(jsonData);
+            }
+            else if (ID == (byte)StepType.SimpleStepCompletion)
+            {
+                stepType_ConfigObjectBase = JsonConvert.DeserializeObject<SimpleStepCompletion>(jsonData);
+            }
+            else if (ID == (byte)StepType.APICall)
+            {
+                stepType_ConfigObjectBase = JsonConvert.DeserializeObject<APICall>(jsonData);
+            }
+            else if (ID == (byte)StepType.TriggerWorkflow)
+            {
+                stepType_ConfigObjectBase = JsonConvert.DeserializeObject<TriggerWorkflow>(jsonData);
+            }
+            else if (ID == (byte)StepType.TimedStepCompletion)
+            {
+                stepType_ConfigObjectBase = JsonConvert.DeserializeObject<TimedStepCompletion>(jsonData);
+            }
+            else
+            {
+                throw new Exception("Add the new Workflow Step Type ID " + ID + " to Workflow_StepTypes::ParseConfigData() function.");
+            }
 
-        [StringLength(250)]
-        public string Description { get; set; }
+            return stepType_ConfigObjectBase;
+        }
 
-        [Required]
-        public string Workflow_StepTypes_ConfigDataTemplate { get; set; }
+        public string GetConfigDataTemplateJson()
+        {
+            string JsonTemplate = "";
 
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2227:CollectionPropertiesShouldBeReadOnly")]
-        public virtual ICollection<Workflow_Steps> Workflow_Steps { get; set; }
+            if (ID == (byte)StepType.ApproveReviewReject)
+            {
+                JsonTemplate = JsonConvert.SerializeObject(new ApproveReviewReject());
+            }
+            else if (ID == (byte)StepType.SimpleStepCompletion)
+            {
+                JsonTemplate = JsonConvert.SerializeObject(new SimpleStepCompletion());
+            }
+            else if (ID == (byte)StepType.APICall)
+            {
+                JsonTemplate = JsonConvert.SerializeObject(new APICall());
+            }
+            else if (ID == (byte)StepType.TriggerWorkflow)
+            {
+                JsonTemplate = JsonConvert.SerializeObject(new TriggerWorkflow());
+            }
+            else if (ID == (byte)StepType.TimedStepCompletion)
+            {
+                JsonTemplate = JsonConvert.SerializeObject(new TimedStepCompletion());
+            }
+            else
+            {
+                throw new Exception("Add the new Workflow Step Type ID " + ID + " to Workflow_StepTypes::UpdateConfigDataTemplateField() function.");
+            }
+
+            return JsonTemplate;
+        }
+
+        public void UpdateConfigDataTemplateField()
+        {
+            Workflow_StepTypes_ConfigDataTemplate = GetConfigDataTemplateJson();
+        }
     }
 }
