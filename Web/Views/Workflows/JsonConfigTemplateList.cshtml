@@ -1,0 +1,48 @@
+
+@{
+    Layout = null;
+}
+
+<!DOCTYPE html>
+
+<html>
+<head>
+    <meta name="viewport" content="width=device-width" />
+    <title>JsonConfigTemplateList</title>
+    <style>
+        body {
+            font-family: Arial;
+        }
+
+        .section {
+            margin-top: 20px;
+        }
+
+        .template-json-link {
+            font-size: 14px;
+            display: block;
+            margin: 5px 0px 5px 0px;
+        }
+    </style>
+</head>
+<body>
+    <div class="section">Step Type Configuration</div>
+    <div>
+        <a class="template-json-link" href=@Url.Content("~/api/Workflow/ConfigJsonTemplate?configType=StepTypeConfig&templateName=APICall")>APICall</a>
+        <a class="template-json-link" href=@Url.Content("~/api/Workflow/ConfigJsonTemplate?configType=StepTypeConfig&templateName=ApproveReviewReject")>ApproveReviewReject</a>
+        <a class="template-json-link" href=@Url.Content("~/api/Workflow/ConfigJsonTemplate?configType=StepTypeConfig&templateName=SimpleStepCompletion")>SimpleStepCompletion</a>
+        <a class="template-json-link" href=@Url.Content("~/api/Workflow/ConfigJsonTemplate?configType=StepTypeConfig&templateName=TimedStepCompletion")>TimedStepCompletion</a>
+        <a class="template-json-link" href=@Url.Content("~/api/Workflow/ConfigJsonTemplate?configType=StepTypeConfig&templateName=TriggerWorkflow")>TriggerWorkflow</a>
+    </div>
+    <div class="section">Pre Step Completion Action Configuration</div>
+    <div>
+        <a class="template-json-link" href=@Url.Content("~/api/Workflow/ConfigJsonTemplate?configType=PreStepCompletionConfig&templateName=DataValidation")>DataValidation</a>
+    </div>
+    <div class="section">Post Step Completion Action Configuration</div>
+    <div>
+        <a class="template-json-link" href=@Url.Content("~/api/Workflow/ConfigJsonTemplate?configType=StepCompletionConfig&templateName=Notifications")>Notifications</a>
+        <a class="template-json-link" href=@Url.Content("~/api/Workflow/ConfigJsonTemplate?configType=StepCompletionConfig&templateName=FieldUpdates")>ApproveReviewReject</a>
+        <a class="template-json-link" href=@Url.Content("~/api/Workflow/ConfigJsonTemplate?configType=StepCompletionConfig&templateName=APICalls")>SimpleStepCompletion</a>
+    </div>
+</body>
+</html>

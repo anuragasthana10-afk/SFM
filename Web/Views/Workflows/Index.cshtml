@@ -1,0 +1,41 @@
+@model IEnumerable<CRM.Models.Workflows.Workflow>
+
+@{
+    ViewBag.Title = "Workflow List";
+}
+<style>
+    .workflow-name {
+        font-size: 1.2em;
+        margin-bottom: 10px;
+        display: block;
+    }
+</style>
+
+
+<!--begin::Portlet-->
+<div class="m-portlet">
+    <div class="m-portlet__head">
+        <div class="m-portlet__head-caption">
+            <div class="m-portlet__head-title">
+                <span class="m-portlet__head-icon m--hide">
+                    <i class="la la-gear"></i>
+                </span>
+                <h3 class="m-portlet__head-text">Workflow Templates</h3>
+            </div>
+        </div>
+    </div>
+    <div class="m-portlet__body">
+        <div class="m-form m-form--label-align-right m--margin-top-20 m--margin-bottom-30">
+            <div class="row align-items-center">
+                <div class="col-xl-12 m--align-right">
+                </div>
+            </div>
+        </div>
+        <div>
+            @foreach (var workflow in Model)
+            {
+                <div class="workflow-name"><a href="@Url.Action("EditWorkflow", "Workflows", null)?ID=@workflow.ID">@workflow.Name</a></div>
+            }
+        </div>
+    </div>
+</div>

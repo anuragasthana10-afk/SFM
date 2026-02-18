@@ -1,0 +1,3 @@
+-- Workflow module schema changes
+-- Add CREATE/ALTER scripts here instead of embedding schema SQL in .cs initialization code.
+-- This file is intentionally a placeholder for future workflow DB migrations.
