@@ -1,0 +1,260 @@
+@using Newtonsoft.Json.Linq
+<div class="m-grid__item m-grid__item--fluid m-wrapper">
+    <div class="m-content">
+        <div class="row">
+            @if (Model != null && Model.Count > 0)
+            {
+                foreach (var workflow in Model)
+                {
+                    <div class="col-xl-6 col-lg-12">
+                        <!--Begin::Portlet-->
+                        <div class="m-portlet m-portlet--full-height">
+                            <div class="m-portlet__head">
+                                <div class="m-portlet__head-caption">
+                                    <div class="m-portlet__head-title">
+                                        <h3 class="m-portlet__head-text">
+                                            @workflow.WorkflowName - @workflow.AdditionalWorkflowDescription
+
+                                        </h3>
+                                        @if (workflow.IsWorkflowComplete)
+                                        {
+                                            <i class="la la-check-circle"></i>
+                                        }
+                                        else
+                                        {
+                                            <i class="la la-hourglass-2 "></i>
+                                        }
+                                    </div>
+                                </div>
+                                <div class="m-portlet__head-tools">
+                                </div>
+                            </div>
+                            <div class="m-portlet__body workflowContainer" data-heder-id="workflowcomtainer_@workflow.Workflow_Transactions_Headers_ID">
+                                <div class="m-scrollable mCustomScrollbar" data-scrollbar-shown="true" data-scrollable="true" data-max-height="380" style="height: 380px; max-height: 380px; position: relative;">
+                                    <div id="mCSB_2" class="mCustomScrollBox" tabindex="0" style="max-height: none;">
+                                        <div id="mCSB_2_container" class="mCSB_container" style="position: relative; top: 0px; left: 0px;" dir="ltr">
+                                            <div id="workflow_@workflow.Workflow_Transactions_Headers_ID">
+                                                @foreach (var step in workflow.WorkflowStepStatuses)
+                                                {
+                                                    string stepClass;
+                                                    string btnClass;
+
+                                                    if (step.IsCurrentStep)
+                                                    {
+                                                        stepClass = "m--font-primary";
+                                                    }
+                                                    else if (step.IsInErrorState)
+                                                    {
+                                                        stepClass = "m--font-danger";
+                                                    }
+                                                    else
+                                                    {
+                                                        stepClass = "m--font-success"; // green
+                                                    }
+
+                                                    <!--Begin::Timeline 2-->
+                                                    <div class="m-timeline-2">
+                                                        <div class="m-timeline-2__items m--padding-top-25 m--padding-bottom-30">
+                                                            <div class="m-timeline-2__item">
+                                                                <span class="m-timeline-2__item-time">
+                                                                    @Html.Raw($"{step.CreateTime.ToString("dd-MM-yyyy")}")
+                                                                </span>
+                                                                <div class="m-timeline-2__item-cricle">
+                                                                    <i class="fa fa-genderless @step.Status @stepClass"></i>
+                                                                </div>
+                                                                <div class="m-timeline-2__item-text m--padding-top-5">
+                                                                    <strong>@step.StepName</strong>
+                                                                    @if (step.IsInWaitMode == true)
+                                                                    {<i class="la la-clock-o"></i>}
+                                                                    <br />
+                                                                    @Html.Raw(!string.IsNullOrEmpty(step.Status) ? $"Status: {step.Status}<br>" : "")
+                                                                    @Html.Raw(!string.IsNullOrEmpty(step.ActionedByUser) ? $"Actioned by: {step.ActionedByUser}<br>" : !string.IsNullOrEmpty(step.AssignedUser)
+                                                                                            ? $"Waiting on user: {step.AssignedUser}<br>" : !string.IsNullOrEmpty(step.AssignedRole)
+                                                                                            ? $"Waiting on team: {step.AssignedRole}<br>" : "Unassigned<br>")
+
+                                                                    @{
+                                                                        string comment = (string)step.UserComment;
+                                                                        Html.RenderPartial("~/Views/Workflows/_StepUserComment.cshtml", comment);
+                                                                    }                                                               
+
+                                                                    @Html.Raw($"Actioned at: {step.ActionedTime?.ToString("dd-MM-yyyy") ?? "N/A"}")
+                                                                    <br />
+                                                                    @{
+                                                                        int? days = step.EstimatedDaysRemaining as int?;
+                                                                        string hint = step.EstimatedDaysRemaining_StatusHint as string;
+                                                                    }
+
+                                                                    @if (days.HasValue)
+                                                                    {
+                                                                        <span class="@(hint == "Normal" ? "text-success" : "text-danger")">@(days.Value < 0 ? $"{Math.Abs(days.Value)} days overdue": days.Value == 0 ? "Due today": $"{days.Value} days remaining")</span><br />
+                                                                    }
+                                                                    @Html.Raw((step.IsStopped != null && step.IsStopped == true) ? $"Stopped Execution<br>" : "")
+                                                                    @if (step.Actions != null && step.Actions.Count > 0)
+                                                                    {
+                                                                        <div class="step-actions mt-2">
+                                                                            @foreach (var action in step.Actions)
+                                                                            {
+                                                                                btnClass = action.ActionUIHint?.Trim().Equals("Primary", StringComparison.OrdinalIgnoreCase) == true ? "btn btn-primary" :
+                                                                                action.ActionUIHint?.Trim().Equals("Secondary", StringComparison.OrdinalIgnoreCase) == true ? "btn btn-secondary active" :
+                                                                                action.ActionUIHint?.Trim().Equals("Tertiary", StringComparison.OrdinalIgnoreCase) == true ? "btn btn-danger" :
+                                                                                "btn btn-info";
+
+                                                                                var param = JObject.Parse(action.ActionParameters);
+                                                                                var sid = param["sid"];
+                                                                                var act = param["act"];
+                                                                                var btnId = $"{sid}_{act}";
+                                                                                <input type="hidden" class="workflow-header-id" value="@workflow.Workflow_Transactions_Headers_ID" />
+                                                                                <button id="@btnId" class="btn btn-sm @btnClass workflow-action-btn" data-url="@Url.Content(action.ActionURL)" data-params='@action.ActionParameters'>
+                                                                                    @Html.Raw($"{action.ActionLabel}")
+                                                                                </button>
+                                                                            }
+                                                                        </div>
+                                                                    }
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <!--End::Timeline 2-->
+                                                }
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div id="mCSB_2_scrollbar_vertical" class="mCSB_scrollTools mCSB_2_scrollbar mCS-minimal-dark mCSB_scrollTools_vertical" style="display: block;">
+                                        <div class="mCSB_draggerContainer">
+                                            <div id="mCSB_2_dragger_vertical" class="mCSB_dragger" style="position: absolute; min-height: 50px; display: block; height: 254px; max-height: 360px; top: 0px;">
+                                                <div class="mCSB_dragger_bar" style="line-height: 50px;"></div>
+                                            </div>
+                                            <div class="mCSB_draggerRail"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
+            else
+            {
+                <h6>No pending activities</h6>
+            }
+        </div>
+    </div>
+</div>
+
+<script>
+        $(function () {
+            $(document).on("click", ".workflow-action-btn", function () {
+                let btnId = (this.id);
+                let workflowHeaderID = $(this).prev(".workflow-header-id").val();
+                let url = $(this).data("url") + "?__csc=@ViewBag.ContextScreenCode&__csc_refid=@ViewBag.ContextScreen_RefID";
+                let params = $(this).data("params");
+                // Convert string params to object if needed
+                params = typeof params === "string" ? JSON.parse(params) : params;
+
+                Swal.fire({
+                    input: "textarea",
+                    inputPlaceholder: "Enter message…",
+                    inputAttributes: { style: "height:250px;" },
+                    showCancelButton: true,
+                    confirmButtonText: "Update",
+                    cancelButtonText: "Close",
+                    customClass: 'wide-swal no-header-swal',
+                    width: "900px",
+                    html: '<label class="swal-custom-label">Comment</label>'
+                })
+                    .then(function (result) {
+                        if (!result || result.dismiss || result.escape) {
+                            return Promise.reject("STOP");
+                        }
+                        mApp.blockPage({
+                            type: "loader",
+                            state: "brand",
+                            message: "Please wait..."
+                        });
+
+                        params.msg = result.value;
+                        return $.ajax({
+                            url: url,
+                            type: "POST",
+                            contentType: "application/json",
+                            data: JSON.stringify(params)
+                        });
+                    })
+                    .then(function (response) {
+                        if (!response) {
+                            Swal.fire("Error", "An error occurred.", "error");
+                            return Promise.reject("STOP");
+                        }
+                        if (response.ResponseCode != 1) {
+                            Swal.fire("Error", response.Message || "An error occurred.", "error");
+                            return Promise.reject("STOP");
+                        }
+                        let newparams = { workflowTxnHeaderID: workflowHeaderID };
+
+                        // get the updated step instance
+                        return $.ajax({
+                            url: "/api/Workflow/GetWorkflowInstanceStatus?workflowTxnHeaderID=" + workflowHeaderID,
+                            type: "POST",
+                            contentType: "application/json",
+                            data: JSON.stringify(newparams)
+                        });
+                    })
+                    .then(function (apiData) {
+                        if (!apiData) {
+                            Swal.fire("Error", response.Message || "An error occurred.", "error");
+                            return Promise.reject("STOP");
+                        }
+                        return $.ajax({
+                            url: "/Workflows/RenderWorkflowView",
+                            type: "POST",
+                            contentType: "application/json",
+                            data: JSON.stringify({
+                                workflowHeaderID: workflowHeaderID,
+                                workflowData: apiData.AdditionalData1
+                            })
+                        });
+                    })
+                    .then(function (html) {
+                        debugger
+                        if (!html)
+                            Swal.fire("Error", "View not updated. Please refresh.", "error");
+                        // Replace workflow div content
+                        $("#workflow_" + workflowHeaderID).html(html);
+                    })
+                    .catch(function (xhr) {
+                        //Swal.fire("Error", xhr.responseText || "Workflow not updated", "error"); //handle each error seperately
+                    })
+                    .finally(function () {
+                        mApp.unblockPage();
+                    });
+            });
+
+            $(".mCustomScrollbar").each(function () {
+                $(this).scrollTop(this.scrollHeight);
+            });
+        });
+</script>
+<script>
+    (function () {
+        // avoid double-binding if partial is injected multiple times
+        $(document).off('click.wfComment', '.wf-comment-more')
+            .on('click.wfComment', '.wf-comment-more', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                // IMPORTANT: read attribute to preserve original spacing exactly
+                var full = $(this).attr('data-comment') || '';
+
+                Swal.fire({
+                    title: 'Comment',
+                    html: '<div style="text-align:left; white-space:pre-wrap;">' + $('<div/>').text(full).html() + '</div>',
+                    confirmButtonText: 'Close'
+                });
+            });
+    })();
+</script>
+<style>
+    .wf-comment-line {  display: block;    }
+    .wf-comment-more { margin-left: 6px;  vertical-align: middle;
+    }
+</style>
