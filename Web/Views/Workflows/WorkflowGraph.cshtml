@@ -123,6 +123,7 @@
         draggingStepId: null,
         dragOffsetX: 0,
         dragOffsetY: 0,
+        dragBounds: { width: 1600, height: 1200 },
         lastLayoutSync: {}
     };
 
@@ -141,6 +142,47 @@
         .fail(function(xhr){
             status((xhr && xhr.responseText) ? xhr.responseText : 'Request failed', 'alert-danger');
         });
+    }
+
+    function getSvgPoint(evt) {
+        var svg = document.getElementById('wfDesignerSvg');
+        var rect = svg.getBoundingClientRect();
+        return {
+            x: evt.clientX - rect.left + svg.parentElement.scrollLeft,
+            y: evt.clientY - rect.top + svg.parentElement.scrollTop
+        };
+    }
+
+    function clamp(value, min, max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    function normalizeNode(n) {
+        var stepId = parseInt(n.StepId || n.stepId || n.ID || n.id, 10);
+        return {
+            StepId: stepId,
+            Name: n.Name || n.name || '',
+            Description: n.Description || n.description || '',
+            IsStartStep: !!(n.IsStartStep || n.isStartStep),
+            Workflow_StepTypes_ID: parseInt(n.Workflow_StepTypes_ID || n.workflow_StepTypes_ID || n.WorkflowStepTypesId || n.workflowStepTypesId || 1, 10),
+            X: Number(n.X || n.x || 80),
+            Y: Number(n.Y || n.y || 80),
+            Width: Number(n.Width || n.width || 180),
+            Height: Number(n.Height || n.height || 72)
+        };
+    }
+
+    function normalizeEdge(e) {
+        return {
+            TransitionId: parseInt(e.TransitionId || e.transitionId || e.ID || e.id, 10),
+            FromStepId: parseInt(e.FromStepId || e.fromStepId, 10),
+            ToStepId: parseInt(e.ToStepId || e.toStepId, 10),
+            ConditionExpression: e.ConditionExpression || e.conditionExpression || '',
+            DisplayLabel: e.DisplayLabel || e.displayLabel || '',
+            SortOrder: parseInt(e.SortOrder || e.sortOrder || 0, 10),
+            IsDefaultPath: !!(e.IsDefaultPath || e.isDefaultPath),
+            IsActive: e.IsActive === undefined ? (e.isActive === undefined ? true : !!e.isActive) : !!e.IsActive
+        };
     }
 
     function recalcMaps() {
@@ -253,8 +295,9 @@
                 var stepId = parseInt($(this).data('step-id'), 10);
                 var n = state.nodeById[stepId];
                 state.draggingStepId = stepId;
-                state.dragOffsetX = evt.pageX - n.X;
-                state.dragOffsetY = evt.pageY - n.Y;
+                var point = getSvgPoint(evt);
+                state.dragOffsetX = point.x - n.X;
+                state.dragOffsetY = point.y - n.Y;
             });
         }
     }
@@ -263,8 +306,9 @@
         if (!canEdit || !state.draggingStepId) return;
         var n = state.nodeById[state.draggingStepId];
         if (!n) return;
-        n.X = Math.max(10, evt.pageX - state.dragOffsetX);
-        n.Y = Math.max(10, evt.pageY - state.dragOffsetY);
+        var point = getSvgPoint(evt);
+        n.X = clamp(point.x - state.dragOffsetX, 10, state.dragBounds.width - (n.Width || 180) - 10);
+        n.Y = clamp(point.y - state.dragOffsetY, 10, state.dragBounds.height - (n.Height || 72) - 10);
         draw();
     });
 
@@ -287,8 +331,10 @@
 
     function loadGraph() {
         api('/api/Workflow/GetTemplateGraph?workflowId=' + workflowId, 'GET', null, function(res){
-            state.nodes = res.Nodes || [];
-            state.edges = res.Edges || [];
+            var nodes = (res && (res.Nodes || res.nodes)) || [];
+            var edges = (res && (res.Edges || res.edges)) || [];
+            state.nodes = nodes.map(normalizeNode);
+            state.edges = edges.map(normalizeEdge);
             state.selectedStepId = null;
             state.selectedTransitionId = null;
             state.linkFromStepId = null;
@@ -296,7 +342,8 @@
             state.nodes.forEach(function(n){ state.lastLayoutSync[n.StepId] = null; });
             recalcMaps();
             draw();
-            status('Template loaded: ' + (res.WorkflowName || ''), 'alert-success');
+            canEdit = !!(res && (res.CanEdit !== undefined ? res.CanEdit : res.canEdit));
+            status('Template loaded: ' + ((res && (res.WorkflowName || res.workflowName)) || ''), 'alert-success');
         });
     }
 

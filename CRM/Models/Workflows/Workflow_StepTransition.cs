@@ -4,6 +4,7 @@ namespace CRM.Models.Workflows
     using System.ComponentModel.DataAnnotations;
     using System.ComponentModel.DataAnnotations.Schema;
 
+    [Table("Workflow_StepTransitions")]
     public partial class Workflow_StepTransition
     {
         public int ID { get; set; }

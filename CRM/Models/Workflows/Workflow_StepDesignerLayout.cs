@@ -3,6 +3,7 @@ namespace CRM.Models.Workflows
     using System;
     using System.ComponentModel.DataAnnotations.Schema;
 
+    [Table("Workflow_StepDesignerLayouts")]
     public partial class Workflow_StepDesignerLayout
     {
         public int ID { get; set; }

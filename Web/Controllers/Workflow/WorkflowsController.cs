@@ -55,7 +55,7 @@ namespace Web.Controllers.Workflow
             Enum.TryParse<WorkflowCode>(workflow.Code, out workflowCode);
             var workflowStepsMap = workflowHelper.CreateInMemoryWorkflowMap(workflowCode, db.Database.Connection);
             ViewBag.WorkflowID = workflow.ID;
-            ViewBag.CanEditTemplate = CurrentContext.CurrentUser.HasRole("Admin");
+            ViewBag.CanEditTemplate = CurrentContext.CurrentUser.IsSysAdmin;
 
             return PartialView("WorkflowGraph", workflowStepsMap);
         }

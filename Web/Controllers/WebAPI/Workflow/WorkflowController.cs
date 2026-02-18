@@ -620,24 +620,15 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
 
         private const int MaxOutDegreePerStep = 25;
         private const int MaxInDegreePerStep = 50;
-        private static readonly string[] WorkflowTemplateAdminRoles = new[] { "Admin", "System Admin", "Super Admin" };
 
         private bool CanEditWorkflowTemplate()
         {
-            foreach (var role in WorkflowTemplateAdminRoles)
-            {
-                if (CurrentContext.CurrentUser.HasRole(role))
-                {
-                    return true;
-                }
-            }
-
-            return false;
+            return CurrentContext.CurrentUser.IsSysAdmin;
         }
 
         private IHttpActionResult ForbiddenTemplateAccess()
         {
-            return BadRequest("Only admin users can view or edit workflow templates.");
+            return BadRequest("Only system admin users can edit workflow templates.");
         }
 
         private void AuditTemplateChange(short workflowId, string actionName, object payload)
@@ -747,11 +738,6 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
         [ActionName("GetTemplateGraph")]
         public IHttpActionResult GetTemplateGraph(short workflowId)
         {
-            if (!CanEditWorkflowTemplate())
-            {
-                return ForbiddenTemplateAccess();
-            }
-
             var workflow = db.Workflows.FirstOrDefault(w => w.ID == workflowId && (w.DelFlag ?? false) == false);
             if (workflow == null)
             {
@@ -809,7 +795,7 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                 WorkflowName = workflow.Name,
                 Nodes = layout.Nodes.ToList(),
                 Edges = edges,
-                CanEdit = true
+                CanEdit = CanEditWorkflowTemplate()
             });
         }
 
@@ -1188,6 +1174,9 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
             {
                 return BadRequest("Step not found for workflow.");
             }
+
+            cmd.X = Math.Max(10d, Math.Min(9000d, cmd.X));
+            cmd.Y = Math.Max(10d, Math.Min(9000d, cmd.Y));
 
             var now = DateTime.UtcNow;
             var layout = db.Workflow_StepDesignerLayouts.FirstOrDefault(x => x.Workflows_ID == cmd.WorkflowId && x.Workflow_Steps_ID == cmd.StepId && (x.DelFlag ?? false) == false);
