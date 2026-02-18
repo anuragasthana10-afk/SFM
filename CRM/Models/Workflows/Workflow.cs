@@ -12,6 +12,7 @@ namespace CRM.Models.Workflows
         {
             Workflow_Steps = new HashSet<Workflow_Steps>();
             Workflow_Transactions_Headers = new HashSet<Workflow_Transactions_Headers>();
+            Workflow_StepTransitions = new HashSet<Workflow_StepTransition>();
         }
 
         public short ID { get; set; }
