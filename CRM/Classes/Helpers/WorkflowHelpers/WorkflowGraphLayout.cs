@@ -25,6 +25,21 @@ namespace CRM.Classes.Helpers.WorkflowHelpers
         public string Name { get; set; }
         public byte Workflow_StepTypes_ID { get; set; }
         public bool IsOrphanChain { get; set; }
+        public bool IsStartStep { get; set; }
+        public string Description { get; set; }
+        public string Workflow_StepTypes_ConfigData { get; set; }
+        public string UserStepInstructions { get; set; }
+        public string PreStepCompletion_DataValidation { get; set; }
+        public string OnStepCompletion_Notifications { get; set; }
+        public string OnStepCompletion_FieldUpdates { get; set; }
+        public string OnStepCompletion_APICalls { get; set; }
+        public string OnStepReview_Notifications { get; set; }
+        public string OnStepReview_FieldUpdates { get; set; }
+        public string OnStepReview_APICalls { get; set; }
+        public string OnStepReject_Notifications { get; set; }
+        public string OnStepReject_FieldUpdates { get; set; }
+        public string OnStepReject_APICalls { get; set; }
+        public string OnStepError_Notifications { get; set; }
         public int Level { get; set; }
         public double X { get; set; }
         public double Y { get; set; }
@@ -79,6 +94,21 @@ namespace CRM.Classes.Helpers.WorkflowHelpers
                         StepId = step.ID,
                         Name = step.Name,
                         Workflow_StepTypes_ID = step.Workflow_StepTypes_ID,
+                        IsStartStep = step.IsStartStep ?? false,
+                        Description = step.Description,
+                        Workflow_StepTypes_ConfigData = step.Workflow_StepTypes_ConfigData,
+                        UserStepInstructions = step.UserStepInstructions,
+                        PreStepCompletion_DataValidation = step.PreStepCompletion_DataValidation,
+                        OnStepCompletion_Notifications = step.OnStepCompletion_Notifications,
+                        OnStepCompletion_FieldUpdates = step.OnStepCompletion_FieldUpdates,
+                        OnStepCompletion_APICalls = step.OnStepCompletion_APICalls,
+                        OnStepReview_Notifications = step.OnStepReview_Notifications,
+                        OnStepReview_FieldUpdates = step.OnStepReview_FieldUpdates,
+                        OnStepReview_APICalls = step.OnStepReview_APICalls,
+                        OnStepReject_Notifications = step.OnStepReject_Notifications,
+                        OnStepReject_FieldUpdates = step.OnStepReject_FieldUpdates,
+                        OnStepReject_APICalls = step.OnStepReject_APICalls,
+                        OnStepError_Notifications = step.OnStepError_Notifications,
                         IsOrphanChain = isOrphanChain,
                         Level = level,
                         Width = nodeWidth,

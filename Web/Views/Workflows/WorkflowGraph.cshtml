@@ -68,6 +68,65 @@
                         <button id="wfBtnAddStep" class="btn btn-brand btn-sm" @(canEditTemplate ? "" : "disabled")><i class="la la-plus"></i> Add Step</button>
                         <button id="wfBtnSaveStep" class="btn btn-success btn-sm" @(canEditTemplate ? "" : "disabled")><i class="la la-save"></i> Save Step</button>
                         <button id="wfBtnDeleteStep" class="btn btn-danger btn-sm" @(canEditTemplate ? "" : "disabled")><i class="la la-trash"></i> Delete Step</button>
+                        <button id="wfBtnClearStepForm" class="btn btn-secondary btn-sm" @(canEditTemplate ? "" : "disabled")><i class="la la-eraser"></i> Clear Fields</button>
+                    </div>
+
+
+
+                    <div class="m--margin-top-15" id="wfStepAdvancedPanels">
+                        <div class="panel panel-default m--margin-bottom-10">
+                            <div class="panel-heading"><a data-toggle="collapse" href="#wfPanelGeneralJson">General / Step Config JSON</a></div>
+                            <div id="wfPanelGeneralJson" class="panel-collapse collapse">
+                                <div class="panel-body">
+                                    <div class="form-group">
+                                        <label>Workflow_StepTypes_ConfigData (JSON)</label>
+                                        <textarea id="wfWorkflowStepTypesConfigData" class="form-control m-input wf-json-field" rows="4" @(canEditTemplate ? "" : "disabled")></textarea>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>UserStepInstructions</label>
+                                        <textarea id="wfUserStepInstructions" class="form-control m-input" rows="3" @(canEditTemplate ? "" : "disabled")></textarea>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>PreStepCompletion_DataValidation (JSON)</label>
+                                        <textarea id="wfPreStepCompletionDataValidation" class="form-control m-input wf-json-field" rows="4" @(canEditTemplate ? "" : "disabled")></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="panel panel-default m--margin-bottom-10">
+                            <div class="panel-heading"><a data-toggle="collapse" href="#wfPanelOnCompletion">On Step Completion</a></div>
+                            <div id="wfPanelOnCompletion" class="panel-collapse collapse">
+                                <div class="panel-body">
+                                    <div class="form-group"><label>OnStepCompletion_Notifications (JSON)</label><textarea id="wfOnStepCompletionNotifications" class="form-control m-input wf-json-field" rows="3" @(canEditTemplate ? "" : "disabled")></textarea></div>
+                                    <div class="form-group"><label>OnStepCompletion_FieldUpdates (JSON)</label><textarea id="wfOnStepCompletionFieldUpdates" class="form-control m-input wf-json-field" rows="3" @(canEditTemplate ? "" : "disabled")></textarea></div>
+                                    <div class="form-group"><label>OnStepCompletion_APICalls (JSON)</label><textarea id="wfOnStepCompletionApiCalls" class="form-control m-input wf-json-field" rows="3" @(canEditTemplate ? "" : "disabled")></textarea></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="panel panel-default m--margin-bottom-10">
+                            <div class="panel-heading"><a data-toggle="collapse" href="#wfPanelOnReview">On Step Review</a></div>
+                            <div id="wfPanelOnReview" class="panel-collapse collapse">
+                                <div class="panel-body">
+                                    <div class="form-group"><label>OnStepReview_Notifications (JSON)</label><textarea id="wfOnStepReviewNotifications" class="form-control m-input wf-json-field" rows="3" @(canEditTemplate ? "" : "disabled")></textarea></div>
+                                    <div class="form-group"><label>OnStepReview_FieldUpdates (JSON)</label><textarea id="wfOnStepReviewFieldUpdates" class="form-control m-input wf-json-field" rows="3" @(canEditTemplate ? "" : "disabled")></textarea></div>
+                                    <div class="form-group"><label>OnStepReview_APICalls (JSON)</label><textarea id="wfOnStepReviewApiCalls" class="form-control m-input wf-json-field" rows="3" @(canEditTemplate ? "" : "disabled")></textarea></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="panel panel-default m--margin-bottom-10">
+                            <div class="panel-heading"><a data-toggle="collapse" href="#wfPanelOnRejectError">On Step Reject / Error</a></div>
+                            <div id="wfPanelOnRejectError" class="panel-collapse collapse">
+                                <div class="panel-body">
+                                    <div class="form-group"><label>OnStepReject_Notifications (JSON)</label><textarea id="wfOnStepRejectNotifications" class="form-control m-input wf-json-field" rows="3" @(canEditTemplate ? "" : "disabled")></textarea></div>
+                                    <div class="form-group"><label>OnStepReject_FieldUpdates (JSON)</label><textarea id="wfOnStepRejectFieldUpdates" class="form-control m-input wf-json-field" rows="3" @(canEditTemplate ? "" : "disabled")></textarea></div>
+                                    <div class="form-group"><label>OnStepReject_APICalls (JSON)</label><textarea id="wfOnStepRejectApiCalls" class="form-control m-input wf-json-field" rows="3" @(canEditTemplate ? "" : "disabled")></textarea></div>
+                                    <div class="form-group"><label>OnStepError_Notifications (JSON)</label><textarea id="wfOnStepErrorNotifications" class="form-control m-input wf-json-field" rows="3" @(canEditTemplate ? "" : "disabled")></textarea></div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <hr />
@@ -173,7 +232,20 @@
             X: Number(n.X || n.x || 80),
             Y: Number(n.Y || n.y || 80),
             Width: Number(n.Width || n.width || 180),
-            Height: Number(n.Height || n.height || 72)
+            Height: Number(n.Height || n.height || 72),
+            Workflow_StepTypes_ConfigData: n.Workflow_StepTypes_ConfigData || n.workflow_StepTypes_ConfigData || '',
+            UserStepInstructions: n.UserStepInstructions || n.userStepInstructions || '',
+            PreStepCompletion_DataValidation: n.PreStepCompletion_DataValidation || n.preStepCompletion_DataValidation || '',
+            OnStepCompletion_Notifications: n.OnStepCompletion_Notifications || n.onStepCompletion_Notifications || '',
+            OnStepCompletion_FieldUpdates: n.OnStepCompletion_FieldUpdates || n.onStepCompletion_FieldUpdates || '',
+            OnStepCompletion_APICalls: n.OnStepCompletion_APICalls || n.onStepCompletion_APICalls || '',
+            OnStepReview_Notifications: n.OnStepReview_Notifications || n.onStepReview_Notifications || '',
+            OnStepReview_FieldUpdates: n.OnStepReview_FieldUpdates || n.onStepReview_FieldUpdates || '',
+            OnStepReview_APICalls: n.OnStepReview_APICalls || n.onStepReview_APICalls || '',
+            OnStepReject_Notifications: n.OnStepReject_Notifications || n.onStepReject_Notifications || '',
+            OnStepReject_FieldUpdates: n.OnStepReject_FieldUpdates || n.onStepReject_FieldUpdates || '',
+            OnStepReject_APICalls: n.OnStepReject_APICalls || n.onStepReject_APICalls || '',
+            OnStepError_Notifications: n.OnStepError_Notifications || n.onStepError_Notifications || ''
         };
     }
 
@@ -226,6 +298,83 @@
         if (current) {
             $sel.val(current);
         }
+    }
+
+
+    function resetStepEditor() {
+        $('#wfSelStepId').val('');
+        $('#wfStepName').val('');
+        $('#wfStepDesc').val('');
+        $('#wfStepType').val('');
+        $('#wfIsStartStep').prop('checked', false);
+        $('#wfWorkflowStepTypesConfigData').val('');
+        $('#wfUserStepInstructions').val('');
+        $('#wfPreStepCompletionDataValidation').val('');
+        $('#wfOnStepCompletionNotifications').val('');
+        $('#wfOnStepCompletionFieldUpdates').val('');
+        $('#wfOnStepCompletionApiCalls').val('');
+        $('#wfOnStepReviewNotifications').val('');
+        $('#wfOnStepReviewFieldUpdates').val('');
+        $('#wfOnStepReviewApiCalls').val('');
+        $('#wfOnStepRejectNotifications').val('');
+        $('#wfOnStepRejectFieldUpdates').val('');
+        $('#wfOnStepRejectApiCalls').val('');
+        $('#wfOnStepErrorNotifications').val('');
+    }
+
+    function isValidJsonOrEmpty(value) {
+        var v = (value || '').trim();
+        if (!v) return true;
+        try { JSON.parse(v); return true; } catch (e) { return false; }
+    }
+
+    function validateJsonEditors() {
+        var map = [
+            ['#wfWorkflowStepTypesConfigData', 'Workflow_StepTypes_ConfigData'],
+            ['#wfPreStepCompletionDataValidation', 'PreStepCompletion_DataValidation'],
+            ['#wfOnStepCompletionNotifications', 'OnStepCompletion_Notifications'],
+            ['#wfOnStepCompletionFieldUpdates', 'OnStepCompletion_FieldUpdates'],
+            ['#wfOnStepCompletionApiCalls', 'OnStepCompletion_APICalls'],
+            ['#wfOnStepReviewNotifications', 'OnStepReview_Notifications'],
+            ['#wfOnStepReviewFieldUpdates', 'OnStepReview_FieldUpdates'],
+            ['#wfOnStepReviewApiCalls', 'OnStepReview_APICalls'],
+            ['#wfOnStepRejectNotifications', 'OnStepReject_Notifications'],
+            ['#wfOnStepRejectFieldUpdates', 'OnStepReject_FieldUpdates'],
+            ['#wfOnStepRejectApiCalls', 'OnStepReject_APICalls'],
+            ['#wfOnStepErrorNotifications', 'OnStepError_Notifications']
+        ];
+
+        for (var i = 0; i < map.length; i++) {
+            var selector = map[i][0], field = map[i][1];
+            if (!isValidJsonOrEmpty($(selector).val())) {
+                status(field + ' contains invalid JSON.', 'alert-danger');
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    function buildStepPayloadBase() {
+        return {
+            Name: ($('#wfStepName').val() || '').trim(),
+            Description: $('#wfStepDesc').val(),
+            Workflow_StepTypes_ID: parseInt($('#wfStepType').val(), 10),
+            IsStartStep: $('#wfIsStartStep').is(':checked'),
+            Workflow_StepTypes_ConfigData: $('#wfWorkflowStepTypesConfigData').val(),
+            UserStepInstructions: $('#wfUserStepInstructions').val(),
+            PreStepCompletion_DataValidation: $('#wfPreStepCompletionDataValidation').val(),
+            OnStepCompletion_Notifications: $('#wfOnStepCompletionNotifications').val(),
+            OnStepCompletion_FieldUpdates: $('#wfOnStepCompletionFieldUpdates').val(),
+            OnStepCompletion_APICalls: $('#wfOnStepCompletionApiCalls').val(),
+            OnStepReview_Notifications: $('#wfOnStepReviewNotifications').val(),
+            OnStepReview_FieldUpdates: $('#wfOnStepReviewFieldUpdates').val(),
+            OnStepReview_APICalls: $('#wfOnStepReviewApiCalls').val(),
+            OnStepReject_Notifications: $('#wfOnStepRejectNotifications').val(),
+            OnStepReject_FieldUpdates: $('#wfOnStepRejectFieldUpdates').val(),
+            OnStepReject_APICalls: $('#wfOnStepRejectApiCalls').val(),
+            OnStepError_Notifications: $('#wfOnStepErrorNotifications').val()
+        };
     }
 
     function draw() {
@@ -349,6 +498,19 @@
             $('#wfStepDesc').val(n.Description || '');
             $('#wfStepType').val(n.Workflow_StepTypes_ID || '');
             $('#wfIsStartStep').prop('checked', !!n.IsStartStep);
+            $('#wfWorkflowStepTypesConfigData').val(n.Workflow_StepTypes_ConfigData || '');
+            $('#wfUserStepInstructions').val(n.UserStepInstructions || '');
+            $('#wfPreStepCompletionDataValidation').val(n.PreStepCompletion_DataValidation || '');
+            $('#wfOnStepCompletionNotifications').val(n.OnStepCompletion_Notifications || '');
+            $('#wfOnStepCompletionFieldUpdates').val(n.OnStepCompletion_FieldUpdates || '');
+            $('#wfOnStepCompletionApiCalls').val(n.OnStepCompletion_APICalls || '');
+            $('#wfOnStepReviewNotifications').val(n.OnStepReview_Notifications || '');
+            $('#wfOnStepReviewFieldUpdates').val(n.OnStepReview_FieldUpdates || '');
+            $('#wfOnStepReviewApiCalls').val(n.OnStepReview_APICalls || '');
+            $('#wfOnStepRejectNotifications').val(n.OnStepReject_Notifications || '');
+            $('#wfOnStepRejectFieldUpdates').val(n.OnStepReject_FieldUpdates || '');
+            $('#wfOnStepRejectApiCalls').val(n.OnStepReject_APICalls || '');
+            $('#wfOnStepErrorNotifications').val(n.OnStepError_Notifications || '');
             draw();
         });
 
@@ -416,6 +578,7 @@
             state.stepTypes = stepTypes;
             renderStepTypeOptions();
             state.selectedStepId = null;
+            resetStepEditor();
             state.selectedTransitionId = null;
             state.linkFromStepId = null;
             state.lastLayoutSync = {};
@@ -435,21 +598,24 @@
         status(state.linkMode ? 'Link mode enabled' : 'Link mode disabled', 'alert-info');
     });
 
+    $('#wfBtnClearStepForm').on('click', function(){
+        if (!canEdit) return;
+        state.selectedStepId = null;
+        resetStepEditor();
+        status('Step editor cleared.', 'alert-info');
+    });
+
     $('#wfBtnAddStep').on('click', function(){
         if (!canEdit) return;
         if (!$('#wfStepType').val()) {
             status('Step type is required.', 'alert-danger');
             return;
         }
-        var cmd = {
-            WorkflowId: workflowId,
-            Name: ($('#wfStepName').val() || '').trim(),
-            Description: $('#wfStepDesc').val(),
-            Workflow_StepTypes_ID: parseInt($('#wfStepType').val(), 10),
-            IsStartStep: $('#wfIsStartStep').is(':checked'),
-            X: 80,
-            Y: 80
-        };
+        if (!validateJsonEditors()) return;
+        var cmd = buildStepPayloadBase();
+        cmd.WorkflowId = workflowId;
+        cmd.X = 80;
+        cmd.Y = 80;
         api('/api/Workflow/AddTemplateStep', 'POST', cmd, function(){
             status('Step added', 'alert-success');
             loadGraph();
@@ -462,14 +628,10 @@
             status('Step type is required.', 'alert-danger');
             return;
         }
-        var cmd = {
-            WorkflowId: workflowId,
-            StepId: state.selectedStepId,
-            Name: $('#wfStepName').val(),
-            Description: $('#wfStepDesc').val(),
-            Workflow_StepTypes_ID: parseInt($('#wfStepType').val(), 10),
-            IsStartStep: $('#wfIsStartStep').is(':checked')
-        };
+        if (!validateJsonEditors()) return;
+        var cmd = buildStepPayloadBase();
+        cmd.WorkflowId = workflowId;
+        cmd.StepId = state.selectedStepId;
         api('/api/Workflow/UpdateTemplateStep', 'POST', cmd, function(){
             status('Step updated', 'alert-success');
             loadGraph();

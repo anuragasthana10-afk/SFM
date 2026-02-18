@@ -684,6 +684,19 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
             public bool IsStartStep { get; set; }
             public double? X { get; set; }
             public double? Y { get; set; }
+            public string Workflow_StepTypes_ConfigData { get; set; }
+            public string UserStepInstructions { get; set; }
+            public string PreStepCompletion_DataValidation { get; set; }
+            public string OnStepCompletion_Notifications { get; set; }
+            public string OnStepCompletion_FieldUpdates { get; set; }
+            public string OnStepCompletion_APICalls { get; set; }
+            public string OnStepReview_Notifications { get; set; }
+            public string OnStepReview_FieldUpdates { get; set; }
+            public string OnStepReview_APICalls { get; set; }
+            public string OnStepReject_Notifications { get; set; }
+            public string OnStepReject_FieldUpdates { get; set; }
+            public string OnStepReject_APICalls { get; set; }
+            public string OnStepError_Notifications { get; set; }
         }
 
         public sealed class UpdateStepCommand
@@ -694,6 +707,19 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
             public string Description { get; set; }
             public bool? IsStartStep { get; set; }
             public byte? Workflow_StepTypes_ID { get; set; }
+            public string Workflow_StepTypes_ConfigData { get; set; }
+            public string UserStepInstructions { get; set; }
+            public string PreStepCompletion_DataValidation { get; set; }
+            public string OnStepCompletion_Notifications { get; set; }
+            public string OnStepCompletion_FieldUpdates { get; set; }
+            public string OnStepCompletion_APICalls { get; set; }
+            public string OnStepReview_Notifications { get; set; }
+            public string OnStepReview_FieldUpdates { get; set; }
+            public string OnStepReview_APICalls { get; set; }
+            public string OnStepReject_Notifications { get; set; }
+            public string OnStepReject_FieldUpdates { get; set; }
+            public string OnStepReject_APICalls { get; set; }
+            public string OnStepError_Notifications { get; set; }
             public DateTime? ExpectedModifyDateUtc { get; set; }
         }
 
@@ -816,6 +842,24 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
             });
         }
 
+        private bool IsValidJsonOrEmpty(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return true;
+            }
+
+            try
+            {
+                JToken.Parse(value);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         [AcceptVerbs("POST")]
         [ActionName("AddTemplateStep")]
         public IHttpActionResult AddTemplateStep(AddStepCommand cmd)
@@ -842,6 +886,22 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                 return BadRequest("Invalid step type.");
             }
 
+            if (!IsValidJsonOrEmpty(cmd.Workflow_StepTypes_ConfigData)
+                || !IsValidJsonOrEmpty(cmd.PreStepCompletion_DataValidation)
+                || !IsValidJsonOrEmpty(cmd.OnStepCompletion_Notifications)
+                || !IsValidJsonOrEmpty(cmd.OnStepCompletion_FieldUpdates)
+                || !IsValidJsonOrEmpty(cmd.OnStepCompletion_APICalls)
+                || !IsValidJsonOrEmpty(cmd.OnStepReview_Notifications)
+                || !IsValidJsonOrEmpty(cmd.OnStepReview_FieldUpdates)
+                || !IsValidJsonOrEmpty(cmd.OnStepReview_APICalls)
+                || !IsValidJsonOrEmpty(cmd.OnStepReject_Notifications)
+                || !IsValidJsonOrEmpty(cmd.OnStepReject_FieldUpdates)
+                || !IsValidJsonOrEmpty(cmd.OnStepReject_APICalls)
+                || !IsValidJsonOrEmpty(cmd.OnStepError_Notifications))
+            {
+                return BadRequest("One or more JSON fields are invalid.");
+            }
+
             if (cmd.IsStartStep)
             {
                 var existingStartCount = db.Workflow_Steps.Count(s => s.Workflows_ID == cmd.WorkflowId && (s.IsStartStep ?? false) && (s.DelFlag ?? false) == false);
@@ -857,7 +917,19 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                 Name = cmd.Name.Trim(),
                 Description = cmd.Description,
                 Workflow_StepTypes_ID = cmd.Workflow_StepTypes_ID,
-                Workflow_StepTypes_ConfigData = stepType.GetConfigDataTemplateJson(),
+                Workflow_StepTypes_ConfigData = string.IsNullOrWhiteSpace(cmd.Workflow_StepTypes_ConfigData) ? stepType.GetConfigDataTemplateJson() : cmd.Workflow_StepTypes_ConfigData,
+                UserStepInstructions = cmd.UserStepInstructions,
+                PreStepCompletion_DataValidation = cmd.PreStepCompletion_DataValidation,
+                OnStepCompletion_Notifications = cmd.OnStepCompletion_Notifications,
+                OnStepCompletion_FieldUpdates = cmd.OnStepCompletion_FieldUpdates,
+                OnStepCompletion_APICalls = cmd.OnStepCompletion_APICalls,
+                OnStepReview_Notifications = cmd.OnStepReview_Notifications,
+                OnStepReview_FieldUpdates = cmd.OnStepReview_FieldUpdates,
+                OnStepReview_APICalls = cmd.OnStepReview_APICalls,
+                OnStepReject_Notifications = cmd.OnStepReject_Notifications,
+                OnStepReject_FieldUpdates = cmd.OnStepReject_FieldUpdates,
+                OnStepReject_APICalls = cmd.OnStepReject_APICalls,
+                OnStepError_Notifications = cmd.OnStepError_Notifications,
                 IsStartStep = cmd.IsStartStep,
                 IsActive = true,
                 CreateUserID = CurrentContext.CurrentUser.User_Id,
@@ -903,6 +975,22 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                 return BadRequest("Invalid command.");
             }
 
+            if (!IsValidJsonOrEmpty(cmd.Workflow_StepTypes_ConfigData)
+                || !IsValidJsonOrEmpty(cmd.PreStepCompletion_DataValidation)
+                || !IsValidJsonOrEmpty(cmd.OnStepCompletion_Notifications)
+                || !IsValidJsonOrEmpty(cmd.OnStepCompletion_FieldUpdates)
+                || !IsValidJsonOrEmpty(cmd.OnStepCompletion_APICalls)
+                || !IsValidJsonOrEmpty(cmd.OnStepReview_Notifications)
+                || !IsValidJsonOrEmpty(cmd.OnStepReview_FieldUpdates)
+                || !IsValidJsonOrEmpty(cmd.OnStepReview_APICalls)
+                || !IsValidJsonOrEmpty(cmd.OnStepReject_Notifications)
+                || !IsValidJsonOrEmpty(cmd.OnStepReject_FieldUpdates)
+                || !IsValidJsonOrEmpty(cmd.OnStepReject_APICalls)
+                || !IsValidJsonOrEmpty(cmd.OnStepError_Notifications))
+            {
+                return BadRequest("One or more JSON fields are invalid.");
+            }
+
             var step = db.Workflow_Steps.FirstOrDefault(s => s.ID == cmd.StepId && s.Workflows_ID == cmd.WorkflowId && (s.DelFlag ?? false) == false);
             if (step == null)
             {
@@ -941,6 +1029,59 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                 }
 
                 step.IsStartStep = cmd.IsStartStep.Value;
+            }
+
+            if (cmd.UserStepInstructions != null)
+            {
+                step.UserStepInstructions = cmd.UserStepInstructions;
+            }
+            if (cmd.Workflow_StepTypes_ConfigData != null)
+            {
+                step.Workflow_StepTypes_ConfigData = cmd.Workflow_StepTypes_ConfigData;
+            }
+            if (cmd.PreStepCompletion_DataValidation != null)
+            {
+                step.PreStepCompletion_DataValidation = cmd.PreStepCompletion_DataValidation;
+            }
+            if (cmd.OnStepCompletion_Notifications != null)
+            {
+                step.OnStepCompletion_Notifications = cmd.OnStepCompletion_Notifications;
+            }
+            if (cmd.OnStepCompletion_FieldUpdates != null)
+            {
+                step.OnStepCompletion_FieldUpdates = cmd.OnStepCompletion_FieldUpdates;
+            }
+            if (cmd.OnStepCompletion_APICalls != null)
+            {
+                step.OnStepCompletion_APICalls = cmd.OnStepCompletion_APICalls;
+            }
+            if (cmd.OnStepReview_Notifications != null)
+            {
+                step.OnStepReview_Notifications = cmd.OnStepReview_Notifications;
+            }
+            if (cmd.OnStepReview_FieldUpdates != null)
+            {
+                step.OnStepReview_FieldUpdates = cmd.OnStepReview_FieldUpdates;
+            }
+            if (cmd.OnStepReview_APICalls != null)
+            {
+                step.OnStepReview_APICalls = cmd.OnStepReview_APICalls;
+            }
+            if (cmd.OnStepReject_Notifications != null)
+            {
+                step.OnStepReject_Notifications = cmd.OnStepReject_Notifications;
+            }
+            if (cmd.OnStepReject_FieldUpdates != null)
+            {
+                step.OnStepReject_FieldUpdates = cmd.OnStepReject_FieldUpdates;
+            }
+            if (cmd.OnStepReject_APICalls != null)
+            {
+                step.OnStepReject_APICalls = cmd.OnStepReject_APICalls;
+            }
+            if (cmd.OnStepError_Notifications != null)
+            {
+                step.OnStepError_Notifications = cmd.OnStepError_Notifications;
             }
 
             step.ModifyUserID = CurrentContext.CurrentUser.User_Id;
