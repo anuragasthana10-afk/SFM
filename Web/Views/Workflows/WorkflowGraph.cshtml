@@ -185,14 +185,32 @@
         };
     }
 
+
+    var SVG_NS = 'http://www.w3.org/2000/svg';
+
+    function createSvgElement(tag, attrs, textValue) {
+        var el = document.createElementNS(SVG_NS, tag);
+        if (attrs) {
+            Object.keys(attrs).forEach(function(key){
+                if (attrs[key] !== undefined && attrs[key] !== null) {
+                    el.setAttribute(key, attrs[key]);
+                }
+            });
+        }
+        if (textValue !== undefined && textValue !== null) {
+            el.textContent = textValue;
+        }
+        return el;
+    }
+
     function recalcMaps() {
         state.nodeById = {};
         state.nodes.forEach(function(n){ state.nodeById[n.StepId] = n; });
     }
 
     function draw() {
-        var svg = $('#wfDesignerSvg');
-        svg.find('.wf-edge,.wf-node').remove();
+        var svg = document.getElementById('wfDesignerSvg');
+        $('#wfDesignerSvg').find('.wf-edge,.wf-node').remove();
 
         state.edges.forEach(function(e){
             var from = state.nodeById[e.FromStepId];
@@ -204,36 +222,69 @@
             var x2 = to.X + (to.Width / 2);
             var y2 = to.Y;
 
-            var line = $('<line class="wf-edge" />')
-                .attr('x1', x1).attr('y1', y1).attr('x2', x2).attr('y2', y2)
-                .attr('stroke', e.TransitionId === state.selectedTransitionId ? '#f4516c' : '#5d78ff')
-                .attr('stroke-width', e.TransitionId === state.selectedTransitionId ? '2.8' : '2')
-                .attr('marker-end', 'url(#wfArrow)')
-                .attr('data-transition-id', e.TransitionId)
-                .attr('style', 'cursor:pointer;');
-            svg.append(line);
+            var line = createSvgElement('line', {
+                'class': 'wf-edge',
+                x1: x1,
+                y1: y1,
+                x2: x2,
+                y2: y2,
+                stroke: e.TransitionId === state.selectedTransitionId ? '#f4516c' : '#5d78ff',
+                'stroke-width': e.TransitionId === state.selectedTransitionId ? '2.8' : '2',
+                'marker-end': 'url(#wfArrow)',
+                'data-transition-id': e.TransitionId,
+                style: 'cursor:pointer;'
+            });
+            svg.appendChild(line);
 
             if (e.DisplayLabel) {
                 var lx = (x1 + x2) / 2;
                 var ly = (y1 + y2) / 2 - 6;
-                var txt = $('<text class="wf-edge" />')
-                    .attr('x', lx).attr('y', ly)
-                    .attr('font-size', '11')
-                    .attr('fill', '#5867dd')
-                    .text(e.DisplayLabel);
-                svg.append(txt);
+                var txt = createSvgElement('text', {
+                    'class': 'wf-edge',
+                    x: lx,
+                    y: ly,
+                    'font-size': '11',
+                    fill: '#5867dd'
+                }, e.DisplayLabel);
+                svg.appendChild(txt);
             }
         });
 
         state.nodes.forEach(function(n){
-            var g = $('<g class="wf-node" style="cursor:pointer;"></g>').attr('data-step-id', n.StepId);
             var border = (n.StepId === state.selectedStepId) ? '#f4516c' : '#1e40af';
-            g.append($('<rect />')
-                .attr('x', n.X).attr('y', n.Y).attr('width', n.Width).attr('height', n.Height)
-                .attr('rx', 8).attr('ry', 8).attr('fill', '#fff').attr('stroke', border).attr('stroke-width', 2));
-            g.append($('<text />').attr('x', n.X + 10).attr('y', n.Y + 28).attr('font-size', 13).attr('fill', '#111').text(n.Name));
-            g.append($('<text />').attr('x', n.X + 10).attr('y', n.Y + 48).attr('font-size', 11).attr('fill', '#666').text('ID: ' + n.StepId));
-            svg.append(g);
+            var g = createSvgElement('g', {
+                'class': 'wf-node',
+                'data-step-id': n.StepId,
+                style: 'cursor:pointer;'
+            });
+
+            g.appendChild(createSvgElement('rect', {
+                x: n.X,
+                y: n.Y,
+                width: n.Width,
+                height: n.Height,
+                rx: 8,
+                ry: 8,
+                fill: '#fff',
+                stroke: border,
+                'stroke-width': 2
+            }));
+
+            g.appendChild(createSvgElement('text', {
+                x: n.X + 10,
+                y: n.Y + 28,
+                'font-size': 13,
+                fill: '#111'
+            }, n.Name));
+
+            g.appendChild(createSvgElement('text', {
+                x: n.X + 10,
+                y: n.Y + 48,
+                'font-size': 11,
+                fill: '#666'
+            }, 'ID: ' + n.StepId));
+
+            svg.appendChild(g);
         });
 
         bindEvents();
