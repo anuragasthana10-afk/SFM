@@ -18,7 +18,7 @@ BEGIN
         CreateDate DATETIME2(7) NOT NULL CONSTRAINT DF_Workflow_StepDesignerLayouts_CreateDate DEFAULT (SYSUTCDATETIME()),
         ModifyUserID INT NULL,
         ModifyDate DATETIME2(7) NULL,
-        DelFlag BIT NULL CONSTRAINT DF_Workflow_StepDesignerLayouts_DelFlag DEFAULT (0)
+        DelFlag BIT NOT NULL CONSTRAINT DF_Workflow_StepDesignerLayouts_DelFlag DEFAULT (0)
     );
 
     ALTER TABLE dbo.Workflow_StepDesignerLayouts WITH CHECK
@@ -31,7 +31,7 @@ BEGIN
 
     CREATE UNIQUE INDEX UX_Workflow_StepDesignerLayouts_WorkflowStep
         ON dbo.Workflow_StepDesignerLayouts(Workflows_ID, Workflow_Steps_ID)
-        WHERE DelFlag = 0 OR DelFlag IS NULL;
+        WHERE DelFlag = 0;
 END;
 GO
 
