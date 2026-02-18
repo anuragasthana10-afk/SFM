@@ -653,7 +653,14 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
             public string WorkflowName { get; set; }
             public List<WorkflowGraphNode> Nodes { get; set; }
             public List<WorkflowGraphEdgeDto> Edges { get; set; }
+            public List<StepTypeOptionDto> StepTypes { get; set; }
             public bool CanEdit { get; set; }
+        }
+
+        public sealed class StepTypeOptionDto
+        {
+            public byte ID { get; set; }
+            public string Name { get; set; }
         }
 
         public sealed class WorkflowGraphEdgeDto
@@ -788,6 +795,15 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                 IsActive = t.IsActive ?? true
             }).ToList();
 
+            var stepTypes = db.Workflow_StepTypes
+                .OrderBy(t => t.Name)
+                .Select(t => new StepTypeOptionDto
+                {
+                    ID = t.ID,
+                    Name = t.Name
+                })
+                .ToList();
+
             return Ok(new WorkflowTemplateGraphResponse
             {
                 WorkflowId = workflow.ID,
@@ -795,6 +811,7 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                 WorkflowName = workflow.Name,
                 Nodes = layout.Nodes.ToList(),
                 Edges = edges,
+                StepTypes = stepTypes,
                 CanEdit = CanEditWorkflowTemplate()
             });
         }
@@ -990,9 +1007,9 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                 return ForbiddenTemplateAccess();
             }
 
-            if (cmd == null || string.IsNullOrWhiteSpace(cmd.ConditionExpression))
+            if (cmd == null)
             {
-                return BadRequest("ConditionExpression is required.");
+                return BadRequest("Invalid command.");
             }
 
             if (cmd.FromStepId == cmd.ToStepId)
@@ -1029,7 +1046,7 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                 Workflows_ID = cmd.WorkflowId,
                 From_Workflow_Steps_ID = cmd.FromStepId,
                 To_Workflow_Steps_ID = cmd.ToStepId,
-                ConditionExpression = cmd.ConditionExpression,
+                ConditionExpression = string.IsNullOrWhiteSpace(cmd.ConditionExpression) ? null : cmd.ConditionExpression.Trim(),
                 DisplayLabel = cmd.DisplayLabel,
                 SortOrder = cmd.SortOrder ?? 0,
                 IsDefaultPath = cmd.IsDefaultPath ?? false,
@@ -1072,9 +1089,9 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                 return ForbiddenTemplateAccess();
             }
 
-            if (cmd == null || string.IsNullOrWhiteSpace(cmd.ConditionExpression))
+            if (cmd == null)
             {
-                return BadRequest("ConditionExpression is required.");
+                return BadRequest("Invalid command.");
             }
 
             var transition = db.Workflow_StepTransitions.FirstOrDefault(t => t.ID == cmd.TransitionId && t.Workflows_ID == cmd.WorkflowId && (t.DelFlag ?? false) == false);
@@ -1083,7 +1100,7 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                 return NotFound();
             }
 
-            transition.ConditionExpression = cmd.ConditionExpression;
+            transition.ConditionExpression = string.IsNullOrWhiteSpace(cmd.ConditionExpression) ? null : cmd.ConditionExpression.Trim();
             transition.DisplayLabel = cmd.DisplayLabel;
             if (cmd.SortOrder.HasValue)
             {

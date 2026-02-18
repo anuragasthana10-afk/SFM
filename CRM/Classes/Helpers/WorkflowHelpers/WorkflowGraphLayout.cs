@@ -23,6 +23,8 @@ namespace CRM.Classes.Helpers.WorkflowHelpers
     {
         public short StepId { get; set; }
         public string Name { get; set; }
+        public byte Workflow_StepTypes_ID { get; set; }
+        public bool IsOrphanChain { get; set; }
         public int Level { get; set; }
         public double X { get; set; }
         public double Y { get; set; }
@@ -54,12 +56,12 @@ namespace CRM.Classes.Helpers.WorkflowHelpers
             var visitedNodes = new Dictionary<short, WorkflowGraphNode>();
             var seenEdges = new HashSet<string>(StringComparer.Ordinal);
             var edges = new List<WorkflowGraphEdge>();
-            var queue = new Queue<Tuple<WorkflowStepsMap, int>>();
+            var queue = new Queue<Tuple<WorkflowStepsMap, int, bool>>();
 
-            queue.Enqueue(new Tuple<WorkflowStepsMap, int>(root, 0));
+            queue.Enqueue(new Tuple<WorkflowStepsMap, int, bool>(root, 0, false));
             foreach (var disconnectedRoot in root.DisconnectedStepMaps)
             {
-                queue.Enqueue(new Tuple<WorkflowStepsMap, int>(disconnectedRoot, 0));
+                queue.Enqueue(new Tuple<WorkflowStepsMap, int, bool>(disconnectedRoot, 0, true));
             }
 
             while (queue.Count > 0)
@@ -67,6 +69,7 @@ namespace CRM.Classes.Helpers.WorkflowHelpers
                 var currentTuple = queue.Dequeue();
                 var current = currentTuple.Item1;
                 var level = currentTuple.Item2;
+                var isOrphanChain = currentTuple.Item3;
                 var step = current.WorkflowStep;
 
                 if (!visitedNodes.ContainsKey(step.ID))
@@ -75,10 +78,16 @@ namespace CRM.Classes.Helpers.WorkflowHelpers
                     {
                         StepId = step.ID,
                         Name = step.Name,
+                        Workflow_StepTypes_ID = step.Workflow_StepTypes_ID,
+                        IsOrphanChain = isOrphanChain,
                         Level = level,
                         Width = nodeWidth,
                         Height = nodeHeight
                     };
+                }
+                else if (isOrphanChain)
+                {
+                    visitedNodes[step.ID].IsOrphanChain = true;
                 }
 
                 foreach (var child in current.NextSteps)
@@ -93,7 +102,7 @@ namespace CRM.Classes.Helpers.WorkflowHelpers
                         });
                     }
 
-                    queue.Enqueue(new Tuple<WorkflowStepsMap, int>(child, level + 1));
+                    queue.Enqueue(new Tuple<WorkflowStepsMap, int, bool>(child, level + 1, isOrphanChain));
                 }
             }
 

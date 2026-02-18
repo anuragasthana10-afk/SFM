@@ -52,8 +52,10 @@
                         <textarea id="wfStepDesc" class="form-control m-input" rows="2" @(canEditTemplate ? "" : "disabled")></textarea>
                     </div>
                     <div class="form-group">
-                        <label>Step Type ID</label>
-                        <input id="wfStepType" type="number" class="form-control m-input" min="1" max="255" @(canEditTemplate ? "" : "disabled")>
+                        <label>Step Type <span class="text-danger">*</span></label>
+                        <select id="wfStepType" class="form-control m-input" @(canEditTemplate ? "" : "disabled")>
+                            <option value="">-- Select step type --</option>
+                        </select>
                     </div>
                     <div class="form-group">
                         <label class="m-checkbox m-checkbox--brand">
@@ -78,7 +80,7 @@
                         </div>
                     </div>
                     <div class="form-group">
-                        <label>Condition Expression (required)</label>
+                        <label>Condition Expression (optional)</label>
                         <textarea id="wfTransitionCondition" class="form-control m-input" rows="3" @(canEditTemplate ? "" : "disabled") placeholder="e.g. Context.Amount &gt;= 1000"></textarea>
                     </div>
                     <div class="form-group">
@@ -124,6 +126,7 @@
         dragOffsetX: 0,
         dragOffsetY: 0,
         dragBounds: { width: 1600, height: 1200 },
+        stepTypes: [],
         lastLayoutSync: {}
     };
 
@@ -159,12 +162,14 @@
 
     function normalizeNode(n) {
         var stepId = parseInt(n.StepId || n.stepId || n.ID || n.id, 10);
+        var stepTypeId = parseInt(n.Workflow_StepTypes_ID || n.workflow_StepTypes_ID || n.WorkflowStepTypesId || n.workflowStepTypesId, 10);
         return {
             StepId: stepId,
             Name: n.Name || n.name || '',
             Description: n.Description || n.description || '',
             IsStartStep: !!(n.IsStartStep || n.isStartStep),
-            Workflow_StepTypes_ID: parseInt(n.Workflow_StepTypes_ID || n.workflow_StepTypes_ID || n.WorkflowStepTypesId || n.workflowStepTypesId || 1, 10),
+            Workflow_StepTypes_ID: isNaN(stepTypeId) ? null : stepTypeId,
+            IsOrphanChain: !!(n.IsOrphanChain || n.isOrphanChain),
             X: Number(n.X || n.x || 80),
             Y: Number(n.Y || n.y || 80),
             Width: Number(n.Width || n.width || 180),
@@ -208,6 +213,21 @@
         state.nodes.forEach(function(n){ state.nodeById[n.StepId] = n; });
     }
 
+    function renderStepTypeOptions() {
+        var $sel = $('#wfStepType');
+        var current = $sel.val();
+        $sel.empty();
+        $sel.append($('<option value=""></option>').text('-- Select step type --'));
+        state.stepTypes.forEach(function(st){
+            var id = st.ID || st.id;
+            var name = st.Name || st.name;
+            $sel.append($('<option></option>').attr('value', id).text(name || ('Step Type ' + id)));
+        });
+        if (current) {
+            $sel.val(current);
+        }
+    }
+
     function draw() {
         var svg = document.getElementById('wfDesignerSvg');
         $('#wfDesignerSvg').find('.wf-edge,.wf-node').remove();
@@ -216,6 +236,7 @@
             var from = state.nodeById[e.FromStepId];
             var to = state.nodeById[e.ToStepId];
             if (!from || !to) return;
+            var isOrphanEdge = !!(from.IsOrphanChain || to.IsOrphanChain);
 
             var x1 = from.X + (from.Width / 2);
             var y1 = from.Y + from.Height;
@@ -228,8 +249,9 @@
                 y1: y1,
                 x2: x2,
                 y2: y2,
-                stroke: e.TransitionId === state.selectedTransitionId ? '#f4516c' : '#5d78ff',
+                stroke: e.TransitionId === state.selectedTransitionId ? '#f4516c' : (isOrphanEdge ? '#2f74ff' : '#5d78ff'),
                 'stroke-width': e.TransitionId === state.selectedTransitionId ? '2.8' : '2',
+                'stroke-dasharray': isOrphanEdge ? '5,4' : null,
                 'marker-end': 'url(#wfArrow)',
                 'data-transition-id': e.TransitionId,
                 style: 'cursor:pointer;'
@@ -251,7 +273,8 @@
         });
 
         state.nodes.forEach(function(n){
-            var border = (n.StepId === state.selectedStepId) ? '#f4516c' : '#1e40af';
+            var isSelected = (n.StepId === state.selectedStepId);
+            var border = isSelected ? '#f4516c' : (n.IsOrphanChain ? '#2f74ff' : '#1e40af');
             var g = createSvgElement('g', {
                 'class': 'wf-node',
                 'data-step-id': n.StepId,
@@ -267,7 +290,8 @@
                 ry: 8,
                 fill: '#fff',
                 stroke: border,
-                'stroke-width': 2
+                'stroke-width': isSelected ? 4 : 2,
+                'stroke-dasharray': n.IsOrphanChain ? '5,4' : null
             }));
 
             g.appendChild(createSvgElement('text', {
@@ -323,6 +347,8 @@
             $('#wfSelStepId').val(stepId);
             $('#wfStepName').val(n.Name || '');
             $('#wfStepDesc').val(n.Description || '');
+            $('#wfStepType').val(n.Workflow_StepTypes_ID || '');
+            $('#wfIsStartStep').prop('checked', !!n.IsStartStep);
             draw();
         });
 
@@ -384,8 +410,11 @@
         api('/api/Workflow/GetTemplateGraph?workflowId=' + workflowId, 'GET', null, function(res){
             var nodes = (res && (res.Nodes || res.nodes)) || [];
             var edges = (res && (res.Edges || res.edges)) || [];
+            var stepTypes = (res && (res.StepTypes || res.stepTypes)) || [];
             state.nodes = nodes.map(normalizeNode);
             state.edges = edges.map(normalizeEdge);
+            state.stepTypes = stepTypes;
+            renderStepTypeOptions();
             state.selectedStepId = null;
             state.selectedTransitionId = null;
             state.linkFromStepId = null;
@@ -408,11 +437,15 @@
 
     $('#wfBtnAddStep').on('click', function(){
         if (!canEdit) return;
+        if (!$('#wfStepType').val()) {
+            status('Step type is required.', 'alert-danger');
+            return;
+        }
         var cmd = {
             WorkflowId: workflowId,
             Name: ($('#wfStepName').val() || '').trim(),
             Description: $('#wfStepDesc').val(),
-            Workflow_StepTypes_ID: parseInt($('#wfStepType').val() || '1', 10),
+            Workflow_StepTypes_ID: parseInt($('#wfStepType').val(), 10),
             IsStartStep: $('#wfIsStartStep').is(':checked'),
             X: 80,
             Y: 80
@@ -425,12 +458,16 @@
 
     $('#wfBtnSaveStep').on('click', function(){
         if (!canEdit || !state.selectedStepId) return;
+        if (!$('#wfStepType').val()) {
+            status('Step type is required.', 'alert-danger');
+            return;
+        }
         var cmd = {
             WorkflowId: workflowId,
             StepId: state.selectedStepId,
             Name: $('#wfStepName').val(),
             Description: $('#wfStepDesc').val(),
-            Workflow_StepTypes_ID: parseInt($('#wfStepType').val() || '1', 10),
+            Workflow_StepTypes_ID: parseInt($('#wfStepType').val(), 10),
             IsStartStep: $('#wfIsStartStep').is(':checked')
         };
         api('/api/Workflow/UpdateTemplateStep', 'POST', cmd, function(){
