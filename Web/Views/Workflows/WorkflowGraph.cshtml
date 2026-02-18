@@ -285,6 +285,27 @@
         state.nodes.forEach(function(n){ state.nodeById[n.StepId] = n; });
     }
 
+    function updateCanvasSize() {
+        var minWidth = 1600;
+        var minHeight = 1200;
+        var pad = 60;
+
+        var maxX = minWidth;
+        var maxY = minHeight;
+
+        state.nodes.forEach(function(n){
+            maxX = Math.max(maxX, (n.X || 0) + (n.Width || 180) + pad);
+            maxY = Math.max(maxY, (n.Y || 0) + (n.Height || 72) + pad);
+        });
+
+        var svg = $('#wfDesignerSvg');
+        svg.attr('width', Math.ceil(maxX));
+        svg.attr('height', Math.ceil(maxY));
+
+        state.dragBounds.width = Math.ceil(maxX);
+        state.dragBounds.height = Math.ceil(maxY);
+    }
+
     function renderStepTypeOptions() {
         var $sel = $('#wfStepType');
         var current = $sel.val();
@@ -380,6 +401,7 @@
     function draw() {
         var svg = document.getElementById('wfDesignerSvg');
         $('#wfDesignerSvg').find('.wf-edge,.wf-node').remove();
+        updateCanvasSize();
 
         state.edges.forEach(function(e){
             var from = state.nodeById[e.FromStepId];
@@ -546,6 +568,16 @@
         var n = state.nodeById[state.draggingStepId];
         if (!n) return;
         var point = getSvgPoint(evt);
+
+        if (point.y > state.dragBounds.height - 120) {
+            state.dragBounds.height += 600;
+            $('#wfDesignerSvg').attr('height', state.dragBounds.height);
+        }
+        if (point.x > state.dragBounds.width - 120) {
+            state.dragBounds.width += 400;
+            $('#wfDesignerSvg').attr('width', state.dragBounds.width);
+        }
+
         n.X = clamp(point.x - state.dragOffsetX, 10, state.dragBounds.width - (n.Width || 180) - 10);
         n.Y = clamp(point.y - state.dragOffsetY, 10, state.dragBounds.height - (n.Height || 72) - 10);
         draw();
