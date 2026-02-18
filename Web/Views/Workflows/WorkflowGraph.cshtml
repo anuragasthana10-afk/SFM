@@ -1,0 +1,387 @@
+@model CRM.Classes.Helpers.WorkflowHelpers.WorkflowStepsMap
+@using CRM.Classes.Helpers.WorkflowHelpers
+
+@{
+    var workflowId = (short)(ViewBag.WorkflowID ?? 0);
+    var canEditTemplate = (bool)(ViewBag.CanEditTemplate ?? false);
+}
+
+<div class="m-portlet m-portlet--mobile">
+    <div class="m-portlet__head">
+        <div class="m-portlet__head-caption">
+            <div class="m-portlet__head-title">
+                <h3 class="m-portlet__head-text">Workflow Template Designer</h3>
+            </div>
+        </div>
+        <div class="m-portlet__head-tools">
+            @if (!canEditTemplate)
+            {
+                <span class="m-badge m-badge--danger m-badge--wide">Read only (Admin only)</span>
+            }
+            else
+            {
+                <span class="m-badge m-badge--success m-badge--wide">Edit enabled</span>
+            }
+        </div>
+    </div>
+    <div class="m-portlet__body">
+        <div class="row">
+            <div class="col-lg-9">
+                <div class="m--padding-10" style="border:1px solid #e7e7ef; border-radius:6px; background:#fbfbfd; overflow:auto; min-height:560px;">
+                    <svg id="wfDesignerSvg" width="1600" height="1200" style="user-select:none;">
+                        <defs>
+                            <marker id="wfArrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                                <polygon points="0 0, 10 3.5, 0 7" fill="#5d78ff"></polygon>
+                            </marker>
+                        </defs>
+                    </svg>
+                </div>
+            </div>
+            <div class="col-lg-3">
+                <div class="m-form m-form--fit">
+                    <div class="form-group">
+                        <label>Selected Step ID</label>
+                        <input id="wfSelStepId" type="text" class="form-control m-input" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>Step Name</label>
+                        <input id="wfStepName" type="text" class="form-control m-input" maxlength="50" @(canEditTemplate ? "" : "disabled")>
+                    </div>
+                    <div class="form-group">
+                        <label>Description</label>
+                        <textarea id="wfStepDesc" class="form-control m-input" rows="2" @(canEditTemplate ? "" : "disabled")></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Step Type ID</label>
+                        <input id="wfStepType" type="number" class="form-control m-input" min="1" max="255" @(canEditTemplate ? "" : "disabled")>
+                    </div>
+                    <div class="form-group">
+                        <label class="m-checkbox m-checkbox--brand">
+                            <input id="wfIsStartStep" type="checkbox" @(canEditTemplate ? "" : "disabled")> Start Step
+                            <span></span>
+                        </label>
+                    </div>
+
+                    <div class="m--margin-top-15">
+                        <button id="wfBtnAddStep" class="btn btn-brand btn-sm" @(canEditTemplate ? "" : "disabled")><i class="la la-plus"></i> Add Step</button>
+                        <button id="wfBtnSaveStep" class="btn btn-success btn-sm" @(canEditTemplate ? "" : "disabled")><i class="la la-save"></i> Save Step</button>
+                        <button id="wfBtnDeleteStep" class="btn btn-danger btn-sm" @(canEditTemplate ? "" : "disabled")><i class="la la-trash"></i> Delete Step</button>
+                    </div>
+
+                    <hr />
+
+                    <div class="form-group">
+                        <label>Transition Mode</label>
+                        <div>
+                            <button id="wfBtnLinkMode" class="btn btn-outline-brand btn-sm" @(canEditTemplate ? "" : "disabled")><i class="la la-link"></i> Link Steps</button>
+                            <span id="wfLinkModeHint" class="m--font-info m--margin-left-10">Off</span>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Condition Expression (required)</label>
+                        <textarea id="wfTransitionCondition" class="form-control m-input" rows="3" @(canEditTemplate ? "" : "disabled") placeholder="e.g. Context.Amount &gt;= 1000"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Display Label</label>
+                        <input id="wfTransitionLabel" type="text" class="form-control m-input" maxlength="150" @(canEditTemplate ? "" : "disabled")>
+                    </div>
+                    <div class="form-group">
+                        <label>Sort Order</label>
+                        <input id="wfTransitionSort" type="number" class="form-control m-input" value="0" @(canEditTemplate ? "" : "disabled")>
+                    </div>
+                    <div class="form-group">
+                        <label class="m-checkbox m-checkbox--brand">
+                            <input id="wfTransitionDefault" type="checkbox" @(canEditTemplate ? "" : "disabled")> Default path
+                            <span></span>
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <button id="wfBtnUpdateEdge" class="btn btn-info btn-sm" @(canEditTemplate ? "" : "disabled")><i class="la la-pencil"></i> Update Selected Link</button>
+                        <button id="wfBtnDeleteEdge" class="btn btn-danger btn-sm" @(canEditTemplate ? "" : "disabled")><i class="la la-unlink"></i> De-link Selected</button>
+                    </div>
+
+                    <div class="m-alert m-alert--outline alert alert-info" id="wfDesignerStatus">Loading...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    var workflowId = @workflowId;
+    var canEdit = @canEditTemplate.ToString().ToLowerInvariant();
+
+    var state = {
+        nodes: [],
+        edges: [],
+        nodeById: {},
+        selectedStepId: null,
+        selectedTransitionId: null,
+        linkMode: false,
+        linkFromStepId: null,
+        draggingStepId: null,
+        dragOffsetX: 0,
+        dragOffsetY: 0,
+        lastLayoutSync: {}
+    };
+
+    function status(msg, type) {
+        var $s = $('#wfDesignerStatus');
+        $s.removeClass('alert-info alert-danger alert-success').addClass(type || 'alert-info').text(msg);
+    }
+
+    function api(url, method, data, done) {
+        $.ajax({
+            url: url,
+            type: method || 'GET',
+            data: data ? JSON.stringify(data) : null,
+            contentType: data ? 'application/json' : undefined
+        }).done(done)
+        .fail(function(xhr){
+            status((xhr && xhr.responseText) ? xhr.responseText : 'Request failed', 'alert-danger');
+        });
+    }
+
+    function recalcMaps() {
+        state.nodeById = {};
+        state.nodes.forEach(function(n){ state.nodeById[n.StepId] = n; });
+    }
+
+    function draw() {
+        var svg = $('#wfDesignerSvg');
+        svg.find('.wf-edge,.wf-node').remove();
+
+        state.edges.forEach(function(e){
+            var from = state.nodeById[e.FromStepId];
+            var to = state.nodeById[e.ToStepId];
+            if (!from || !to) return;
+
+            var x1 = from.X + (from.Width / 2);
+            var y1 = from.Y + from.Height;
+            var x2 = to.X + (to.Width / 2);
+            var y2 = to.Y;
+
+            var line = $('<line class="wf-edge" />')
+                .attr('x1', x1).attr('y1', y1).attr('x2', x2).attr('y2', y2)
+                .attr('stroke', e.TransitionId === state.selectedTransitionId ? '#f4516c' : '#5d78ff')
+                .attr('stroke-width', e.TransitionId === state.selectedTransitionId ? '2.8' : '2')
+                .attr('marker-end', 'url(#wfArrow)')
+                .attr('data-transition-id', e.TransitionId)
+                .attr('style', 'cursor:pointer;');
+            svg.append(line);
+
+            if (e.DisplayLabel) {
+                var lx = (x1 + x2) / 2;
+                var ly = (y1 + y2) / 2 - 6;
+                var txt = $('<text class="wf-edge" />')
+                    .attr('x', lx).attr('y', ly)
+                    .attr('font-size', '11')
+                    .attr('fill', '#5867dd')
+                    .text(e.DisplayLabel);
+                svg.append(txt);
+            }
+        });
+
+        state.nodes.forEach(function(n){
+            var g = $('<g class="wf-node" style="cursor:pointer;"></g>').attr('data-step-id', n.StepId);
+            var border = (n.StepId === state.selectedStepId) ? '#f4516c' : '#1e40af';
+            g.append($('<rect />')
+                .attr('x', n.X).attr('y', n.Y).attr('width', n.Width).attr('height', n.Height)
+                .attr('rx', 8).attr('ry', 8).attr('fill', '#fff').attr('stroke', border).attr('stroke-width', 2));
+            g.append($('<text />').attr('x', n.X + 10).attr('y', n.Y + 28).attr('font-size', 13).attr('fill', '#111').text(n.Name));
+            g.append($('<text />').attr('x', n.X + 10).attr('y', n.Y + 48).attr('font-size', 11).attr('fill', '#666').text('ID: ' + n.StepId));
+            svg.append(g);
+        });
+
+        bindEvents();
+    }
+
+    function bindEvents() {
+        $('.wf-node').off('click').on('click', function(e){
+            var stepId = parseInt($(this).data('step-id'), 10);
+            if (state.linkMode) {
+                if (!state.linkFromStepId) {
+                    state.linkFromStepId = stepId;
+                    status('Link mode: now click target step', 'alert-info');
+                } else if (state.linkFromStepId !== stepId) {
+                    var cmd = {
+                        WorkflowId: workflowId,
+                        FromStepId: state.linkFromStepId,
+                        ToStepId: stepId,
+                        ConditionExpression: $('#wfTransitionCondition').val(),
+                        DisplayLabel: $('#wfTransitionLabel').val(),
+                        SortOrder: parseInt($('#wfTransitionSort').val() || '0', 10),
+                        IsDefaultPath: $('#wfTransitionDefault').is(':checked'),
+                        IsActive: true
+                    };
+                    api('/api/Workflow/AddTemplateTransition', 'POST', cmd, function(){
+                        state.linkFromStepId = null;
+                        status('Transition added', 'alert-success');
+                        loadGraph();
+                    });
+                }
+                return;
+            }
+
+            state.selectedStepId = stepId;
+            state.selectedTransitionId = null;
+            var n = state.nodeById[stepId];
+            $('#wfSelStepId').val(stepId);
+            $('#wfStepName').val(n.Name || '');
+            $('#wfStepDesc').val(n.Description || '');
+            draw();
+        });
+
+        $('.wf-edge').off('click').on('click', function(){
+            var id = parseInt($(this).data('transition-id'), 10);
+            if (!id) return;
+            state.selectedTransitionId = id;
+            var edge = state.edges.find(function(x){ return x.TransitionId === id; });
+            if (edge) {
+                $('#wfTransitionCondition').val(edge.ConditionExpression || '');
+                $('#wfTransitionLabel').val(edge.DisplayLabel || '');
+                $('#wfTransitionSort').val(edge.SortOrder || 0);
+                $('#wfTransitionDefault').prop('checked', !!edge.IsDefaultPath);
+                status('Selected transition #' + id, 'alert-info');
+            }
+            draw();
+        });
+
+        if (canEdit) {
+            $('.wf-node').off('mousedown').on('mousedown', function(evt){
+                var stepId = parseInt($(this).data('step-id'), 10);
+                var n = state.nodeById[stepId];
+                state.draggingStepId = stepId;
+                state.dragOffsetX = evt.pageX - n.X;
+                state.dragOffsetY = evt.pageY - n.Y;
+            });
+        }
+    }
+
+    $(document).on('mousemove.wfdesigner', function(evt){
+        if (!canEdit || !state.draggingStepId) return;
+        var n = state.nodeById[state.draggingStepId];
+        if (!n) return;
+        n.X = Math.max(10, evt.pageX - state.dragOffsetX);
+        n.Y = Math.max(10, evt.pageY - state.dragOffsetY);
+        draw();
+    });
+
+    $(document).on('mouseup.wfdesigner', function(){
+        if (!canEdit || !state.draggingStepId) return;
+        var stepId = state.draggingStepId;
+        state.draggingStepId = null;
+        var n = state.nodeById[stepId];
+        api('/api/Workflow/SaveStepLayout', 'POST', {
+            WorkflowId: workflowId,
+            StepId: stepId,
+            X: n.X,
+            Y: n.Y,
+            LastClientSyncDateUtc: state.lastLayoutSync[stepId] || null
+        }, function(res){
+            if (res && res.LastClientSyncDateUtc) state.lastLayoutSync[stepId] = res.LastClientSyncDateUtc;
+            status('Layout saved', 'alert-success');
+        });
+    });
+
+    function loadGraph() {
+        api('/api/Workflow/GetTemplateGraph?workflowId=' + workflowId, 'GET', null, function(res){
+            state.nodes = res.Nodes || [];
+            state.edges = res.Edges || [];
+            state.selectedStepId = null;
+            state.selectedTransitionId = null;
+            state.linkFromStepId = null;
+            state.lastLayoutSync = {};
+            state.nodes.forEach(function(n){ state.lastLayoutSync[n.StepId] = null; });
+            recalcMaps();
+            draw();
+            status('Template loaded: ' + (res.WorkflowName || ''), 'alert-success');
+        });
+    }
+
+    $('#wfBtnLinkMode').on('click', function(){
+        if (!canEdit) return;
+        state.linkMode = !state.linkMode;
+        state.linkFromStepId = null;
+        $('#wfLinkModeHint').text(state.linkMode ? 'On (select source then target)' : 'Off');
+        status(state.linkMode ? 'Link mode enabled' : 'Link mode disabled', 'alert-info');
+    });
+
+    $('#wfBtnAddStep').on('click', function(){
+        if (!canEdit) return;
+        var cmd = {
+            WorkflowId: workflowId,
+            Name: ($('#wfStepName').val() || '').trim(),
+            Description: $('#wfStepDesc').val(),
+            Workflow_StepTypes_ID: parseInt($('#wfStepType').val() || '1', 10),
+            IsStartStep: $('#wfIsStartStep').is(':checked'),
+            X: 80,
+            Y: 80
+        };
+        api('/api/Workflow/AddTemplateStep', 'POST', cmd, function(){
+            status('Step added', 'alert-success');
+            loadGraph();
+        });
+    });
+
+    $('#wfBtnSaveStep').on('click', function(){
+        if (!canEdit || !state.selectedStepId) return;
+        var cmd = {
+            WorkflowId: workflowId,
+            StepId: state.selectedStepId,
+            Name: $('#wfStepName').val(),
+            Description: $('#wfStepDesc').val(),
+            Workflow_StepTypes_ID: parseInt($('#wfStepType').val() || '1', 10),
+            IsStartStep: $('#wfIsStartStep').is(':checked')
+        };
+        api('/api/Workflow/UpdateTemplateStep', 'POST', cmd, function(){
+            status('Step updated', 'alert-success');
+            loadGraph();
+        });
+    });
+
+    $('#wfBtnDeleteStep').on('click', function(){
+        if (!canEdit || !state.selectedStepId) return;
+        if (!confirm('Delete selected step?')) return;
+        api('/api/Workflow/DeleteTemplateStep', 'POST', { WorkflowId: workflowId, StepId: state.selectedStepId }, function(){
+            status('Step deleted', 'alert-success');
+            loadGraph();
+        });
+    });
+
+    $('#wfBtnUpdateEdge').on('click', function(){
+        if (!canEdit || !state.selectedTransitionId) return;
+        var cmd = {
+            WorkflowId: workflowId,
+            TransitionId: state.selectedTransitionId,
+            ConditionExpression: $('#wfTransitionCondition').val(),
+            DisplayLabel: $('#wfTransitionLabel').val(),
+            SortOrder: parseInt($('#wfTransitionSort').val() || '0', 10),
+            IsDefaultPath: $('#wfTransitionDefault').is(':checked'),
+            IsActive: true
+        };
+        api('/api/Workflow/UpdateTemplateTransition', 'POST', cmd, function(){
+            status('Transition updated', 'alert-success');
+            loadGraph();
+        });
+    });
+
+    $('#wfBtnDeleteEdge').on('click', function(){
+        if (!canEdit || !state.selectedTransitionId) return;
+        if (!confirm('Remove selected transition?')) return;
+        api('/api/Workflow/RemoveTemplateTransition', 'POST', { WorkflowId: workflowId, TransitionId: state.selectedTransitionId }, function(){
+            status('Transition removed', 'alert-success');
+            loadGraph();
+        });
+    });
+
+    $(function(){
+        if (!workflowId) {
+            status('Workflow ID is missing.', 'alert-danger');
+            return;
+        }
+        loadGraph();
+    });
+})();
+</script>
