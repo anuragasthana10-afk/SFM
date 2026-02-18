@@ -26,12 +26,14 @@ namespace CRM.Models.Clients
             Workflows = new FilteredDbSet<Workflow>(this, c => (c.DelFlag ?? false) == false);
             Workflow_Steps = new FilteredDbSet<Workflow_Steps>(this, c => (c.DelFlag ?? false) == false);
             Workflow_StepTransactions = new FilteredDbSet<Workflow_StepTransactions>(this, c => (c.DelFlag ?? false) == false);
+            Workflow_StepTransitions = new FilteredDbSet<Workflow_StepTransition>(this, c => (c.DelFlag ?? false) == false && (c.IsActive ?? true));
             Workflow_Transactions_Headers = new FilteredDbSet<Workflow_Transactions_Headers>(this, c => (c.DelFlag ?? false) == false);
         }
 
         /***** Workflow Entities ******/
         public virtual IDbSet<Workflow_Steps> Workflow_Steps { get; set; }
         public virtual IDbSet<Workflow_StepTransactions> Workflow_StepTransactions { get; set; }
+        public virtual IDbSet<Workflow_StepTransition> Workflow_StepTransitions { get; set; }
         public virtual IDbSet<Workflow_StepTypes> Workflow_StepTypes { get; set; }
         public virtual IDbSet<Workflow_Transactions_Headers> Workflow_Transactions_Headers { get; set; }
         public virtual IDbSet<Workflow> Workflows { get; set; }
@@ -71,6 +73,32 @@ namespace CRM.Models.Clients
                 .HasMany(e => e.Workflow_StepTransactionsList)
                 .WithOptional(e => e.Workflow_StepTransaction)
                 .HasForeignKey(e => e.Previous_Workflow_StepTransactions_ID);
+
+            modelBuilder.Entity<Workflow_StepTransition>()
+                .Property(e => e.ConditionExpression)
+                .IsUnicode(false);
+
+            modelBuilder.Entity<Workflow_StepTransition>()
+                .Property(e => e.DisplayLabel)
+                .IsUnicode(false);
+
+            modelBuilder.Entity<Workflow_StepTransition>()
+                .HasRequired(e => e.Workflow)
+                .WithMany(e => e.Workflow_StepTransitions)
+                .HasForeignKey(e => e.Workflows_ID)
+                .WillCascadeOnDelete(false);
+
+            modelBuilder.Entity<Workflow_StepTransition>()
+                .HasRequired(e => e.From_Workflow_Step)
+                .WithMany(e => e.Workflow_StepTransitions_From)
+                .HasForeignKey(e => e.From_Workflow_Steps_ID)
+                .WillCascadeOnDelete(false);
+
+            modelBuilder.Entity<Workflow_StepTransition>()
+                .HasRequired(e => e.To_Workflow_Step)
+                .WithMany(e => e.Workflow_StepTransitions_To)
+                .HasForeignKey(e => e.To_Workflow_Steps_ID)
+                .WillCascadeOnDelete(false);
 
             modelBuilder.Entity<Workflow_StepTypes>()
                 .Property(e => e.Description)

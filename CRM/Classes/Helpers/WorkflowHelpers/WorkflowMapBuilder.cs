@@ -18,6 +18,11 @@ namespace CRM.Classes.Helpers.WorkflowHelpers
 
         public WorkflowStepsMap CreateInMemoryWorkflowMap(IReadOnlyList<Workflow_Steps> workflowStepsList)
         {
+            return CreateInMemoryWorkflowMap(workflowStepsList, new List<Workflow_StepTransition>());
+        }
+
+        public WorkflowStepsMap CreateInMemoryWorkflowMap(IReadOnlyList<Workflow_Steps> workflowStepsList, IReadOnlyList<Workflow_StepTransition> workflowStepTransitions)
+        {
             if (workflowStepsList.Count == 0)
             {
                 throw new InvalidOperationException("No workflow steps provided.");
@@ -34,20 +39,43 @@ namespace CRM.Classes.Helpers.WorkflowHelpers
                 throw new InvalidOperationException("Setup error: No first step found.");
             }
 
+            var transitionsByFromStepId = BuildTransitionsLookup(workflowStepTransitions, workflowStepsList);
+
             var root = new WorkflowStepsMap
             {
                 WorkflowStep = workflowFirstStep[0]
             };
 
             _buildStepRecurseCounter = 0;
-            BuildStep(workflowStepsList, root, null);
+            BuildStep(workflowStepsList, root, null, transitionsByFromStepId);
 
-            AddDisconnectedStepGraphs(workflowStepsList, root);
+            AddDisconnectedStepGraphs(workflowStepsList, root, transitionsByFromStepId);
 
             return root;
         }
 
-        private void BuildStep(IReadOnlyList<Workflow_Steps> workflowStepsList, WorkflowStepsMap workflowStepsMap, HashSet<short> allowedStepIds)
+        private static Dictionary<short, List<Workflow_StepTransition>> BuildTransitionsLookup(
+            IReadOnlyList<Workflow_StepTransition> workflowStepTransitions,
+            IReadOnlyList<Workflow_Steps> workflowStepsList)
+        {
+            var validStepIds = new HashSet<short>(workflowStepsList.Select(x => x.ID));
+
+            return workflowStepTransitions
+                .Where(t => (t.DelFlag ?? false) == false
+                            && (t.IsActive ?? true)
+                            && validStepIds.Contains(t.From_Workflow_Steps_ID)
+                            && validStepIds.Contains(t.To_Workflow_Steps_ID))
+                .GroupBy(t => t.From_Workflow_Steps_ID)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.OrderBy(x => x.SortOrder).ThenBy(x => x.ID).ToList());
+        }
+
+        private void BuildStep(
+            IReadOnlyList<Workflow_Steps> workflowStepsList,
+            WorkflowStepsMap workflowStepsMap,
+            HashSet<short> allowedStepIds,
+            Dictionary<short, List<Workflow_StepTransition>> transitionsByFromStepId)
         {
             if (++_buildStepRecurseCounter > _buildStepRecurseCount)
             {
@@ -59,17 +87,9 @@ namespace CRM.Classes.Helpers.WorkflowHelpers
                 return;
             }
 
-            var candidateChildren = new List<Workflow_Steps>();
+            var candidateChildren = ResolveCandidateChildren(workflowStepsList, workflowStepsMap.WorkflowStep, transitionsByFromStepId);
 
-            if (workflowStepsMap.WorkflowStep.Workflow_Steps_NextStep_ID is short nextStepId)
-            {
-                candidateChildren.AddRange(workflowStepsList.Where(ws => ws.ID == nextStepId));
-            }
-
-            candidateChildren.AddRange(
-                workflowStepsList.Where(ws => ws.Workflow_Steps_PreviousStep_ID == workflowStepsMap.WorkflowStep.ID));
-
-            // Concern #1 addressed: de-duplicate children created from both lookup paths.
+            // Concern #1 addressed: de-duplicate children created from all lookup paths.
             foreach (var nextStep in candidateChildren
                          .GroupBy(x => x.ID)
                          .Select(g => g.First()))
@@ -97,8 +117,43 @@ namespace CRM.Classes.Helpers.WorkflowHelpers
 
             foreach (var child in workflowStepsMap.NextSteps)
             {
-                BuildStep(workflowStepsList, child, allowedStepIds);
+                BuildStep(workflowStepsList, child, allowedStepIds, transitionsByFromStepId);
             }
+        }
+
+        private static List<Workflow_Steps> ResolveCandidateChildren(
+            IReadOnlyList<Workflow_Steps> workflowStepsList,
+            Workflow_Steps currentStep,
+            Dictionary<short, List<Workflow_StepTransition>> transitionsByFromStepId)
+        {
+            if (transitionsByFromStepId.ContainsKey(currentStep.ID))
+            {
+                var byId = workflowStepsList.ToDictionary(x => x.ID, x => x);
+                var transitionChildren = new List<Workflow_Steps>();
+                foreach (var transition in transitionsByFromStepId[currentStep.ID])
+                {
+                    if (byId.ContainsKey(transition.To_Workflow_Steps_ID))
+                    {
+                        transitionChildren.Add(byId[transition.To_Workflow_Steps_ID]);
+                    }
+                }
+
+                // Transition entity takes precedence when present.
+                return transitionChildren;
+            }
+
+            // Backward-compatible fallback to legacy columns.
+            var candidateChildren = new List<Workflow_Steps>();
+
+            if (currentStep.Workflow_Steps_NextStep_ID is short nextStepId)
+            {
+                candidateChildren.AddRange(workflowStepsList.Where(ws => ws.ID == nextStepId));
+            }
+
+            candidateChildren.AddRange(
+                workflowStepsList.Where(ws => ws.Workflow_Steps_PreviousStep_ID == currentStep.ID));
+
+            return candidateChildren;
         }
 
         private static bool ExistsInParentChain(short stepId, WorkflowStepsMap current)
@@ -118,7 +173,10 @@ namespace CRM.Classes.Helpers.WorkflowHelpers
             return false;
         }
 
-        private void AddDisconnectedStepGraphs(IReadOnlyList<Workflow_Steps> workflowStepsList, WorkflowStepsMap root)
+        private void AddDisconnectedStepGraphs(
+            IReadOnlyList<Workflow_Steps> workflowStepsList,
+            WorkflowStepsMap root,
+            Dictionary<short, List<Workflow_StepTransition>> transitionsByFromStepId)
         {
             var includedStepIds = new HashSet<short>();
             CollectStepIds(root, includedStepIds);
@@ -129,7 +187,7 @@ namespace CRM.Classes.Helpers.WorkflowHelpers
 
             while (remainingSteps.Count > 0)
             {
-                var disconnectedRootStep = FindDisconnectedRootCandidate(remainingSteps);
+                var disconnectedRootStep = FindDisconnectedRootCandidate(remainingSteps, transitionsByFromStepId);
                 var disconnectedRoot = new WorkflowStepsMap
                 {
                     WorkflowStep = disconnectedRootStep
@@ -138,7 +196,7 @@ namespace CRM.Classes.Helpers.WorkflowHelpers
                 var disconnectedStepIds = new HashSet<short>(remainingSteps.Select(x => x.ID));
 
                 _buildStepRecurseCounter = 0;
-                BuildStep(workflowStepsList, disconnectedRoot, disconnectedStepIds);
+                BuildStep(workflowStepsList, disconnectedRoot, disconnectedStepIds, transitionsByFromStepId);
 
                 // Keep disconnected graphs isolated from the main chain.
                 root.DisconnectedStepMaps.Add(disconnectedRoot);
@@ -150,8 +208,26 @@ namespace CRM.Classes.Helpers.WorkflowHelpers
             }
         }
 
-        private static Workflow_Steps FindDisconnectedRootCandidate(List<Workflow_Steps> remainingSteps)
+        private static Workflow_Steps FindDisconnectedRootCandidate(
+            List<Workflow_Steps> remainingSteps,
+            Dictionary<short, List<Workflow_StepTransition>> transitionsByFromStepId)
         {
+            if (transitionsByFromStepId.Count > 0)
+            {
+                var remainingStepIds = new HashSet<short>(remainingSteps.Select(x => x.ID));
+                var incomingStepIds = new HashSet<short>(
+                    transitionsByFromStepId.Values
+                        .SelectMany(x => x)
+                        .Where(x => remainingStepIds.Contains(x.From_Workflow_Steps_ID) && remainingStepIds.Contains(x.To_Workflow_Steps_ID))
+                        .Select(x => x.To_Workflow_Steps_ID));
+
+                var transitionRootCandidate = remainingSteps.FirstOrDefault(x => !incomingStepIds.Contains(x.ID));
+                if (transitionRootCandidate != null)
+                {
+                    return transitionRootCandidate;
+                }
+            }
+
             var rootCandidate = remainingSteps.FirstOrDefault(candidate =>
                 !remainingSteps.Any(other =>
                     other.Workflow_Steps_NextStep_ID == candidate.ID ||

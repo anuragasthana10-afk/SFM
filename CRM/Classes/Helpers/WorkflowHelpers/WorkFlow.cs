@@ -403,9 +403,13 @@ namespace CRM.Classes.Helpers.WorkflowHelpers
                         db.SaveChanges();
                     }
 
+                    var workflowStepTransitions = db.Workflow_StepTransitions
+                        .Where(t => t.Workflows_ID == workflow.ID && (t.DelFlag ?? false) == false && (t.IsActive ?? true))
+                        .ToList();
+
                     var workflowStepsMapBuilder = new WorkflowMapBuilder();
 
-                    return workflowStepsMapBuilder.CreateInMemoryWorkflowMap(workflowStepsList);
+                    return workflowStepsMapBuilder.CreateInMemoryWorkflowMap(workflowStepsList, workflowStepTransitions);
                 }
             }
             catch (Exception e)

@@ -1,28 +1,32 @@
-# Workflow graph rendering and light editing
+# Workflow module notes
 
-This repository now contains a small, self-contained implementation for:
+## Current implementation
 
-1. Building an in-memory workflow map with cycle protection.
-2. Rendering the map as a top-down SVG graph in a Razor component.
-3. Performing light edit operations (connect/disconnect) in-memory.
-4. Including orphan/disconnected step chains so all workflow steps can be displayed.
+This module now supports an explicit transition-entity model for workflow graph expansion while keeping backward compatibility during migration.
 
-## Files
+### Primary files
 
-- `CRM/Models/Workflows/WorkflowStepsMap.cs`: map and step models.
-- `CRM/Classes/Helpers/WorkflowHelpers/WorkflowMapBuilder.cs`: recursive in-memory map builder.
-- `CRM/Classes/Helpers/WorkflowHelpers/WorkflowGraphLayout.cs`: graph flattening + layout + light edit operations.
-- `Web/Views/Workflows/WorkflowGraph.cshtml`: Razor view (MVC/Razor Pages) SVG renderer.
+- `CRM/Classes/Helpers/WorkflowHelpers/WorkFlow.cs`
+- `CRM/Classes/Helpers/WorkflowHelpers/WorkflowMapBuilder.cs`
+- `CRM/Classes/Helpers/WorkflowHelpers/WorkflowGraphLayout.cs`
+- `CRM/Classes/Helpers/WorkflowHelpers/WorkflowStepsMap.cs`
+- `CRM/Models/Workflows/Workflow_StepTransition.cs`
+- `CRM/Models/Clients/ClientModel.cs`
+- `Database/Workflow/001_workflow_schema_changes.sql`
 
-## Notes
+## Transition model behavior
 
-The map builder keeps recursion depth at `500` as requested and addresses:
+`WorkflowMapBuilder` now supports two edge sources:
 
-- duplicate child edge creation when a step appears through both `Workflow_Steps_NextStep_ID` and `Workflow_Steps_PreviousStep_ID`.
-- circular reference checks using parent-chain path detection so only true path loops are rejected.
+1. **Primary (new):** `Workflow_StepTransitions` rows (active + non-deleted), ordered by `SortOrder` then `ID`.
+2. **Fallback (legacy):** `Workflow_Steps_NextStep_ID` and `Workflow_Steps_PreviousStep_ID`.
 
-- orphan/disconnected steps are added as additional graph roots so all `workflowStepsList` entries are represented in the rendered diagram.
+This enables phased production migration without breaking existing workflows.
 
-- In MVC/Razor Pages `.cshtml`, SVG labels are emitted with `Html.Raw` to ensure literal `<text>` SVG elements are rendered (avoiding Razor `<text>` pseudo-tag behavior).
+## Migration plan summary
 
-- disconnected graphs are stored only in `DisconnectedStepMaps`; the primary workflow transition chain remains `root -> NextSteps` from the `IsStartStep` node.
+1. Run `Database/Workflow/001_workflow_schema_changes.sql` to create and backfill transition rows.
+2. Deploy application code (already dual-read).
+3. Validate runtime parity between transition edges and legacy links.
+4. Move write paths to transition table (future step).
+5. After stabilization, retire legacy step-link columns.
