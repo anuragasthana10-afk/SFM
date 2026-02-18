@@ -60,7 +60,7 @@ namespace Web.Controllers.WebAPI.Workflow
 
 
         //Process workflow status for specific workflow instance
-        [AcceptVerbs("POST","GET")]
+        [AcceptVerbs("POST", "GET")]
         [ActionName("GetWorkflowInstanceStatus")]
         public IHttpActionResult GetWorkflowInstanceStatus(int workflowTxnHeaderID)
         {
@@ -68,7 +68,7 @@ namespace Web.Controllers.WebAPI.Workflow
             response.ResponseCode = "0";
 
             var workflowTransactionHeader = db.Workflow_Transactions_Headers.Where(w => w.ID == workflowTxnHeaderID).Include(w => w.Workflow).Include(w => w.Workflow_StepTransactions.Select(t => t.Workflow_Steps)).FirstOrDefault();
-            if(workflowTransactionHeader != null)
+            if (workflowTransactionHeader != null)
             {
                 var workFlowStatus = workflowTransactionHeader.GetWorkflowStatus();
                 response.AdditionalData1 = JsonConvert.SerializeObject(workFlowStatus);
@@ -130,7 +130,7 @@ namespace Web.Controllers.WebAPI.Workflow
         [ActionName("ConfigJsonTemplate")]
         public IHttpActionResult ConfigJsonTemplate(string configType, string templateName)
         {
-            object response = "Object with config type: \""+ configType + "\" and template name: \"" + templateName + "\" not found.";
+            object response = "Object with config type: \"" + configType + "\" and template name: \"" + templateName + "\" not found.";
 
             if (configType.Equals("StepTypeConfig", System.StringComparison.OrdinalIgnoreCase))
             {
@@ -213,7 +213,7 @@ namespace Web.Controllers.WebAPI.Workflow
                         return NotFound();
                     }
 
-                    if(responseObject.uid == 0)
+                    if (responseObject.uid == 0)
                     {
                         responseMessage = "Task unassigned successfully.";
                     }
@@ -371,7 +371,7 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
             public string DaysRemainingText { get; set; }
 
             public int EstimatedDaysToComplete { get; set; }
-            public int?  PercentRemaining { get; set; }
+            public int? PercentRemaining { get; set; }
             public DateTime Workflow_StartDate { get; set; }
         }
 
@@ -425,8 +425,9 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                 // UNASSIGNED => assigned is null
                 // numeric => assigned equals selected user
                 if (unassignedOnly) sqlFilterBase.Append(" AND st.Assigned_Users_Id IS NULL ");
-                else if (selectedUserId.HasValue) { 
-                   // sqlFilterBase.Append(" AND st.Assigned_Users_Id=@AssignedUserId "); 
+                else if (selectedUserId.HasValue)
+                {
+                    // sqlFilterBase.Append(" AND st.Assigned_Users_Id=@AssignedUserId ");
                     prms.Add(new SqlParameter("@AssignedUserId", selectedUserId.Value));
                     sqlFilterFinal.Append(" AND (a.Assigned_Users_Id=@AssignedUserId OR (a.Assigned_Users_Id IS NULL AND acc.AccountManagerUser_ID=@AssignedUserId)) ");
                 }
@@ -583,12 +584,12 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                                 status = x.Workflow_Status,
                                 estDays = x.EstimatedDaysToComplete,
                                 headerId = x.WorkflowHeaderId,
-                                dueText = (x.PercentRemaining != null)?x.DaysRemainingText: "N.A.",
+                                dueText = (x.PercentRemaining != null) ? x.DaysRemainingText : "N.A.",
                                 dueClass = (x.PercentRemaining != null && x.PercentRemaining.Value <= 10) ? "text-danger"
                                             : (x.PercentRemaining != null && x.PercentRemaining.Value > 10 && x.PercentRemaining.Value <= 30) ? "text-warning"
                                             : (x.PercentRemaining != null) ? "text-success" : ""
                             }).ToList()
-                        }; 
+                        };
                     })
                     .OrderByDescending(a => a.pendingCount).ThenBy(a => a.name)
                     .ToList();
@@ -744,8 +745,7 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                 return NotFound();
             }
 
-            Workflow.WorkflowCode workflowCode;
-            if (!Enum.TryParse(workflow.Code, true, out workflowCode))
+            if (!Enum.TryParse<CRM.Models.Workflows.Workflow.WorkflowCode>(workflow.Code, true, out var workflowCode))
             {
                 return BadRequest("Workflow code cannot be parsed to WorkflowCode enum.");
             }
