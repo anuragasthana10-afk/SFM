@@ -1,0 +1,17 @@
+@model IEnumerable<CRM.Models.Workflows.Workflow>
+
+@{
+    ViewBag.Title = "IndexChildAssoc";
+}
+
+
+
+    <div id="workflow-container"></div>
+
+    <script>
+    $(function () {
+        var url = '@Html.Raw(Url.Action("ListWorkFlowListPartialView", "Workflows",new { __csc = ViewBag.ContextScreenCode, __csc_refid = ViewBag.ContextScreen_RefID }))';
+            $("#workflow-container").load(url);
+    });
+    </script>
+    

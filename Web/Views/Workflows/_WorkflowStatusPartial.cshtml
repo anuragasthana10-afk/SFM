@@ -1,0 +1,88 @@
+
+@using Newtonsoft.Json.Linq
+@using System.Linq
+@using System.Web
+@foreach (var step in Model["WorkflowStepStatuses"])
+{
+    var isCurrent = (bool)step["IsCurrentStep"];
+    var isError = (bool)step["IsInErrorState"];
+
+    string stepClass;
+    string btnClass;
+
+    var statusText = HttpUtility.HtmlEncode(step["Status"]?.ToString() ?? "");
+    var actionedByUserText = HttpUtility.HtmlEncode(step["ActionedByUser"]?.ToString() ?? "");
+    var assignedUserText = HttpUtility.HtmlEncode(step["AssignedUser"]?.ToString() ?? "");
+    var assignedRoleText = HttpUtility.HtmlEncode(step["AssignedRole"]?.ToString() ?? "");
+    var estimatedDaysRemainingText = HttpUtility.HtmlEncode(step["EstimatedDaysRemaining"]?.ToString() ?? "");
+    var userCommentText = HttpUtility.HtmlEncode(step["UserComment"]?.ToString() ?? "");
+
+    if ((bool)step["IsCurrentStep"])
+    {
+        stepClass = "m--font-primary";
+    }
+    else if ((bool)step["IsInErrorState"])
+    {
+        stepClass = "m--font-danger";
+    }
+    else
+    {
+        stepClass = "m--font-success"; // green
+    }
+    <div class="m-timeline-2">
+        <div class="m-timeline-2__items m--padding-top-25 m--padding-bottom-30">
+            <div class="m-timeline-2__item">
+
+                <span class="m-timeline-2__item-time">@Html.Raw($"{DateTime.Parse(step["CreateTime"].ToString()).ToString("dd-MM-yyyy")}")</span>
+
+                <div class="m-timeline-2__item-cricle">
+                    <i class="fa fa-genderless @(step["Status"]) @stepClass"></i>
+                </div>
+
+                <div class="m-timeline-2__item-text m--padding-top-5">
+
+                    <strong>@step["StepName"]</strong><br />
+
+                    @Html.Raw(!string.IsNullOrEmpty(step["Status"]?.ToString()) ? $"Status: {statusText}<br>" : "")
+                    @Html.Raw(!string.IsNullOrEmpty(step["ActionedByUser"]?.ToString()) ? $"Actioned by: {actionedByUserText}<br>" : !string.IsNullOrEmpty(step["AssignedUser"]?.ToString())
+                                    ? $"Waiting on user: {assignedUserText}<br>" : !string.IsNullOrEmpty(step["AssignedRole"]?.ToString())
+                                    ? $"Waiting on team: {assignedRoleText}<br>" : "Unassigned<br>")
+
+
+                    @{
+                        string comment = (string)step["UserComment"];
+                        Html.RenderPartial("~/Views/Workflows/_StepUserComment.cshtml", comment);
+                    }
+                    @Html.Raw(step["ActionedTime"] != null ? $"Actioned at: {DateTime.Parse(step["ActionedTime"].ToString()).ToString("dd-MM-yyyy")}" : "Actioned at: N/A")
+
+                    @Html.Raw(!string.IsNullOrEmpty(step["EstimatedDaysRemaining"]?.ToString()) ? $"<span class='{(step["EstimatedDaysRemaining_StatusHint"]?.ToString() == "Normal" ? "text-success" : "text-danger")}'>{(int.Parse(step["EstimatedDaysRemaining"].ToString()) < 0 ? $"{Math.Abs(int.Parse(step["EstimatedDaysRemaining"].ToString()))} days overdue" : int.Parse(step["EstimatedDaysRemaining"].ToString()) == 0 ? "Due today" : $"{estimatedDaysRemainingText} days remaining")}</span><br>" : "")
+                    @Html.Raw(step["IsStopped"] != null && step["IsStopped"].Type == JTokenType.Boolean && (bool)step["IsStopped"] == true ? $"Comment: {userCommentText}<br>" : "")
+
+                    @if (step["Actions"] is JArray actions && actions.Count > 0)
+                    {
+                        <div class="step-actions mt-2">
+                            @foreach (var action in actions)
+                            {
+                                btnClass = action["ActionUIHint"]?.ToString().Trim().Equals("Primary", StringComparison.OrdinalIgnoreCase) == true ? "btn btn-primary" :
+                                           action["ActionUIHint"]?.ToString().Trim().Equals("Secondary", StringComparison.OrdinalIgnoreCase) == true ? "btn btn-secondary active" :
+                                           action["ActionUIHint"]?.ToString().Trim().Equals("Tertiary", StringComparison.OrdinalIgnoreCase) == true ? "btn btn-danger" :
+                                           "btn btn-info";
+
+                                var param = JObject.Parse(action["ActionParameters"]?.ToString() ?? "{}");
+                                var sid = param["sid"];
+                                var act = param["act"];
+                                var btnId = $"{sid}_{act}";
+
+                                <input type="hidden" class="workflow-header-id" value="@ViewBag.TransactionHeaderID" />
+
+                                <button id="@btnId" class="btn btn-sm @btnClass workflow-action-btn" data-url="@Url.Content(action["ActionURL"]?.ToString() ?? "")" data-params='@action["ActionParameters"]'>@HttpUtility.HtmlEncode(action["ActionLabel"]?.ToString() ?? "")</button>
+                            }
+                        </div>
+                    }
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+}

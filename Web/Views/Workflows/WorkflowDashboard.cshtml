@@ -1,0 +1,163 @@
+@using Web.Classes;
+@{
+    Layout = null;
+}
+@model IEnumerable<CRM.Models.Workflows.vwWorkflowStatus>
+
+
+@{
+    /**/
+
+    ViewBag.Title = "Index";
+}
+
+<!--begin::Portlet-->
+<div class="m-portlet m-portlet--tab">
+    <div class="m-portlet__head">
+        <div class="m-portlet__head-caption">
+            <div class="m-portlet__head-title">
+                <span class="m-portlet__head-icon m--hide">
+                    <i class="la la-gear"></i>
+                </span>
+                <h2 class="m-portlet__head-text">
+                    Activities Dashboard
+                </h2>
+            </div>
+        </div>
+    </div>
+    <div class="m-portlet__body"  id="workflow-summary-body">
+        <div class="m-section">
+            <div class="m-section__content">
+                <div class="col-lg-12 col-md-12 col-sm-12">
+                    @Html.Partial("~/Views/Workflows/_DashboardSummary.cshtml")
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<!--
+<div class="m-portlet m-portlet--tab">
+    <div class="m-portlet__head">
+        <div class="m-portlet__head-caption">
+            <div class="m-portlet__head-title">
+                <span class="m-portlet__head-icon m--hide">
+                    <i class="la la-gear"></i>
+                </span>
+                <h2 class="m-portlet__head-text">
+                    Workflow list details
+                </h2>
+            </div>
+        </div>
+    </div>
+    <div class="m-portlet__body"  id="workflow-list-body">
+        <div class="m-section">
+            <div class="m-section__content">
+
+                <div class="form-group m-form__group row">                    
+                    <div class="col-lg-12 col-md-12 col-sm-12">
+                        
+                        <div class="m_datatable" id="ajax_data_reports_crmorders"></div>
+                        <script type="text/javascript">
+                            var RemindersDatatable = function () {
+                                var Internal_Datatable;
+
+                                var t = function () {
+
+                                    Internal_Datatable = $("#ajax_data_reports_crmorders").mDatatable({
+                                        data: {
+                                            type: "remote",
+                                            source: {
+                                                read: {
+                                                    url: "@Html.Raw(Url.Content("~/api/Workflow/List"))"
+                                                }
+                                            },
+                                            pageSize: 20,
+                                            saveState: {
+                                                cookie: !0,
+                                                webstorage: !0
+                                            },
+                                            serverPaging: !0,
+                                            serverFiltering: !0,
+                                            serverSorting: !0
+                                        },
+                                        layout: {
+                                            theme: "default",
+                                            class: "",
+                                            scroll: !0,
+                                            footer: !1
+                                        },
+                                        sortable: !0,
+                                        filterable: !1,
+                                        pagination: !0,
+                                        columns: [{
+                                            field: "AccountName",
+                                            title: "Account",
+                                            sortable: !0,
+                                            selector: !1,
+                                            textAlign: "left"
+                                            }, {
+                                            field: "DisplayName",
+                                            title: "Additional details.",
+                                            sortable: !0,
+                                            selector: !1,
+                                            textAlign: "left"
+                                            }, {
+                                            field: "Workflow_Name",
+                                            title: "Workflow Name",
+                                            sortable: !0,
+                                            selector: !1,
+                                            textAlign: "left"
+                                        }, {
+                                            field: "Assigned_To_Name",
+                                            title: "Assigned To",
+                                            sortable: !0,
+                                            selector: !1,
+                                            textAlign: "left"
+                                        }, {
+                                            field: "Waiting_On_Step_Name",
+                                            title: "Waiting on step",
+                                            sortable: !0,
+                                            selector: !1,
+                                            textAlign: "left"
+                                        }, {
+                                            field: "DaysRemainingText",
+                                            title: "Days Remaining",
+                                            sortable: !0,
+                                            selector: !1,
+                                            textAlign: "left"
+                                        }
+
+                                        ]
+                                    })
+                                };
+                                return {
+                                    init: function () {
+                                        t()
+                                    },
+                                    reload: function () {
+                                        Internal_Datatable.load();
+                                    },
+                                    getDataSourceQuery: function () {
+                                        return Internal_Datatable.getDataSourceQuery();
+                                    },
+                                    setDataSourceQuery: function (a) {
+                                        Internal_Datatable.setDataSourceQuery(a);
+                                    },
+                                    getDatatable: function (a) {
+                                        return Internal_Datatable;
+                                    }
+                                }
+                            }();
+                        </script>
+                        
+
+                    </div>
+                </div>
+
+            </div>
+
+
+        </div>
+    </div>
+</div>
+-->
