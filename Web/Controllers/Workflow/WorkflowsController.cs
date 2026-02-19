@@ -31,7 +31,7 @@ namespace Web.Controllers.Workflow
        
 
         // GET: Workflows
-        public ActionResult Index(string __csc = "", string __csc_refid = "")
+        public ActionResult IndexPartialView(string __csc = "", string __csc_refid = "")
         {
             ViewBag.ContextScreenCode = __csc;
             ViewBag.ContextScreen_RefID = __csc_refid;
