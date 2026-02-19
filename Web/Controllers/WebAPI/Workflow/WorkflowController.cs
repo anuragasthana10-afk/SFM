@@ -654,6 +654,7 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
             public List<WorkflowGraphNode> Nodes { get; set; }
             public List<WorkflowGraphEdgeDto> Edges { get; set; }
             public List<StepTypeOptionDto> StepTypes { get; set; }
+            public List<RoleOptionDto> Roles { get; set; }
             public bool CanEdit { get; set; }
         }
 
@@ -661,6 +662,12 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
         {
             public byte ID { get; set; }
             public string Name { get; set; }
+        }
+
+        public sealed class RoleOptionDto
+        {
+            public int Role_Id { get; set; }
+            public string RoleName { get; set; }
         }
 
         public sealed class WorkflowGraphEdgeDto
@@ -697,6 +704,11 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
             public string OnStepReject_FieldUpdates { get; set; }
             public string OnStepReject_APICalls { get; set; }
             public string OnStepError_Notifications { get; set; }
+            public string OnStepCreate_Notifications { get; set; }
+            public string OnStepCreate_FieldUpdates { get; set; }
+            public string OnStepCreate_APICalls { get; set; }
+            public int? Action_Roles_Id { get; set; }
+            public int? TaskAssigner_Roles_Id { get; set; }
         }
 
         public sealed class UpdateStepCommand
@@ -720,6 +732,11 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
             public string OnStepReject_FieldUpdates { get; set; }
             public string OnStepReject_APICalls { get; set; }
             public string OnStepError_Notifications { get; set; }
+            public string OnStepCreate_Notifications { get; set; }
+            public string OnStepCreate_FieldUpdates { get; set; }
+            public string OnStepCreate_APICalls { get; set; }
+            public int? Action_Roles_Id { get; set; }
+            public int? TaskAssigner_Roles_Id { get; set; }
             public DateTime? ExpectedModifyDateUtc { get; set; }
         }
 
@@ -830,6 +847,10 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                 })
                 .ToList();
 
+            var roles = db.Database.SqlQuery<RoleOptionDto>(
+                "SELECT Role_Id, RoleName FROM Security_Roles ORDER BY RoleName")
+                .ToList();
+
             return Ok(new WorkflowTemplateGraphResponse
             {
                 WorkflowId = workflow.ID,
@@ -838,6 +859,7 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                 Nodes = layout.Nodes.ToList(),
                 Edges = edges,
                 StepTypes = stepTypes,
+                Roles = roles,
                 CanEdit = CanEditWorkflowTemplate()
             });
         }
@@ -897,7 +919,10 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                 || !IsValidJsonOrEmpty(cmd.OnStepReject_Notifications)
                 || !IsValidJsonOrEmpty(cmd.OnStepReject_FieldUpdates)
                 || !IsValidJsonOrEmpty(cmd.OnStepReject_APICalls)
-                || !IsValidJsonOrEmpty(cmd.OnStepError_Notifications))
+                || !IsValidJsonOrEmpty(cmd.OnStepError_Notifications)
+                || !IsValidJsonOrEmpty(cmd.OnStepCreate_Notifications)
+                || !IsValidJsonOrEmpty(cmd.OnStepCreate_FieldUpdates)
+                || !IsValidJsonOrEmpty(cmd.OnStepCreate_APICalls))
             {
                 return BadRequest("One or more JSON fields are invalid.");
             }
@@ -930,6 +955,11 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                 OnStepReject_FieldUpdates = cmd.OnStepReject_FieldUpdates,
                 OnStepReject_APICalls = cmd.OnStepReject_APICalls,
                 OnStepError_Notifications = cmd.OnStepError_Notifications,
+                OnStepCreate_Notifications = cmd.OnStepCreate_Notifications,
+                OnStepCreate_FieldUpdates = cmd.OnStepCreate_FieldUpdates,
+                OnStepCreate_APICalls = cmd.OnStepCreate_APICalls,
+                Action_Roles_Id = cmd.Action_Roles_Id,
+                TaskAssigner_Roles_Id = cmd.TaskAssigner_Roles_Id,
                 IsStartStep = cmd.IsStartStep,
                 IsActive = true,
                 CreateUserID = CurrentContext.CurrentUser.User_Id,
@@ -986,7 +1016,10 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                 || !IsValidJsonOrEmpty(cmd.OnStepReject_Notifications)
                 || !IsValidJsonOrEmpty(cmd.OnStepReject_FieldUpdates)
                 || !IsValidJsonOrEmpty(cmd.OnStepReject_APICalls)
-                || !IsValidJsonOrEmpty(cmd.OnStepError_Notifications))
+                || !IsValidJsonOrEmpty(cmd.OnStepError_Notifications)
+                || !IsValidJsonOrEmpty(cmd.OnStepCreate_Notifications)
+                || !IsValidJsonOrEmpty(cmd.OnStepCreate_FieldUpdates)
+                || !IsValidJsonOrEmpty(cmd.OnStepCreate_APICalls))
             {
                 return BadRequest("One or more JSON fields are invalid.");
             }
@@ -1083,6 +1116,20 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
             {
                 step.OnStepError_Notifications = cmd.OnStepError_Notifications;
             }
+            if (cmd.OnStepCreate_Notifications != null)
+            {
+                step.OnStepCreate_Notifications = cmd.OnStepCreate_Notifications;
+            }
+            if (cmd.OnStepCreate_FieldUpdates != null)
+            {
+                step.OnStepCreate_FieldUpdates = cmd.OnStepCreate_FieldUpdates;
+            }
+            if (cmd.OnStepCreate_APICalls != null)
+            {
+                step.OnStepCreate_APICalls = cmd.OnStepCreate_APICalls;
+            }
+            step.Action_Roles_Id = cmd.Action_Roles_Id;
+            step.TaskAssigner_Roles_Id = cmd.TaskAssigner_Roles_Id;
 
             step.ModifyUserID = CurrentContext.CurrentUser.User_Id;
             step.ModifyDate = DateTime.UtcNow;

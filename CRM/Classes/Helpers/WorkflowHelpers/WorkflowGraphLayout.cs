@@ -40,6 +40,11 @@ namespace CRM.Classes.Helpers.WorkflowHelpers
         public string OnStepReject_FieldUpdates { get; set; }
         public string OnStepReject_APICalls { get; set; }
         public string OnStepError_Notifications { get; set; }
+        public string OnStepCreate_Notifications { get; set; }
+        public string OnStepCreate_FieldUpdates { get; set; }
+        public string OnStepCreate_APICalls { get; set; }
+        public int? Action_Roles_Id { get; set; }
+        public int? TaskAssigner_Roles_Id { get; set; }
         public int Level { get; set; }
         public double X { get; set; }
         public double Y { get; set; }
@@ -63,7 +68,7 @@ namespace CRM.Classes.Helpers.WorkflowHelpers
         public static WorkflowGraphLayout Build(
             WorkflowStepsMap root,
             double nodeWidth = 220,
-            double nodeHeight = 80,
+            double nodeHeight = 96,
             double horizontalGap = 80,
             double verticalGap = 70,
             double canvasPadding = 24)
@@ -109,6 +114,11 @@ namespace CRM.Classes.Helpers.WorkflowHelpers
                         OnStepReject_FieldUpdates = step.OnStepReject_FieldUpdates,
                         OnStepReject_APICalls = step.OnStepReject_APICalls,
                         OnStepError_Notifications = step.OnStepError_Notifications,
+                        OnStepCreate_Notifications = step.OnStepCreate_Notifications,
+                        OnStepCreate_FieldUpdates = step.OnStepCreate_FieldUpdates,
+                        OnStepCreate_APICalls = step.OnStepCreate_APICalls,
+                        Action_Roles_Id = step.Action_Roles_Id,
+                        TaskAssigner_Roles_Id = step.TaskAssigner_Roles_Id,
                         IsOrphanChain = isOrphanChain,
                         Level = level,
                         Width = nodeWidth,
