@@ -11,7 +11,7 @@
     <div class="m-portlet__head">
         <div class="m-portlet__head-caption">
             <div class="m-portlet__head-title">
-                <h3 class="m-portlet__head-text">Workflow Template Designer</h3>
+                <h3 class="m-portlet__head-text">Workflow Template Designer <span id="wfWorkflowNameTitle" class="m--font-info"></span></h3>
             </div>
         </div>
         <div class="m-portlet__head-tools">
@@ -23,6 +23,10 @@
             {
                 <span class="m-badge m-badge--success m-badge--wide">Edit enabled</span>
             }
+            <div id="wfApiStatus" class="m-alert m-alert--outline alert alert-info m--margin-top-10 m--margin-bottom-0" style="min-width:300px;">
+                <i id="wfApiLoader" class="fa fa-spinner fa-spin m--font-brand m--margin-right-5" style="display:none;"></i>
+                <span id="wfApiStatusText">Idle</span>
+            </div>
         </div>
     </div>
     <div class="m-portlet__body">
@@ -199,7 +203,6 @@
                         <small class="m--font-metal d-block m--margin-top-5">Update Selected Link saves changes made to the selected transition (condition/label/sort/default path).</small>
                     </div>
 
-                    <div class="m-alert m-alert--outline alert alert-info" id="wfDesignerStatus">Loading...</div>
                 </div>
             </div>
         </div>
@@ -228,20 +231,27 @@
         lastLayoutSync: {}
     };
 
-    function status(msg, type) {
-        var $s = $('#wfDesignerStatus');
-        $s.removeClass('alert-info alert-danger alert-success').addClass(type || 'alert-info').text(msg);
+    function status(msg, type, isLoading) {
+        var $s = $('#wfApiStatus');
+        var css = type || 'alert-info';
+        $s.removeClass('alert-info alert-danger alert-success').addClass(css);
+        $('#wfApiStatusText').text(msg || 'Idle');
+        $('#wfApiLoader').toggle(!!isLoading);
     }
 
     function api(url, method, data, done) {
+        status('Working...', 'alert-info', true);
         $.ajax({
             url: url,
             type: method || 'GET',
             data: data ? JSON.stringify(data) : null,
             contentType: data ? 'application/json' : undefined
-        }).done(done)
+        }).done(function(res){
+            status('Completed', 'alert-success', false);
+            if (done) done(res);
+        })
         .fail(function(xhr){
-            status((xhr && xhr.responseText) ? xhr.responseText : 'Request failed', 'alert-danger');
+            status((xhr && xhr.responseText) ? xhr.responseText : 'Request failed', 'alert-danger', false);
         });
     }
 
@@ -785,7 +795,9 @@
             recalcMaps();
             draw();
             canEdit = !!(res && (res.CanEdit !== undefined ? res.CanEdit : res.canEdit));
-            status('Template loaded: ' + ((res && (res.WorkflowName || res.workflowName)) || ''), 'alert-success');
+            var wfName = ((res && (res.WorkflowName || res.workflowName)) || '');
+            $('#wfWorkflowNameTitle').text(wfName ? ('- ' + wfName) : '');
+            status('Template loaded: ' + wfName, 'alert-success', false);
         });
     }
 
@@ -888,7 +900,7 @@
         });
 
         if (!workflowId) {
-            status('Workflow ID is missing.', 'alert-danger');
+            status('Workflow ID is missing.', 'alert-danger', false);
             return;
         }
         loadGraph();
