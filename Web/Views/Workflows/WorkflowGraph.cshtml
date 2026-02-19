@@ -5,6 +5,7 @@
     var workflowId = (short)(ViewBag.WorkflowID ?? 0);
     var canEditTemplate = (bool)(ViewBag.CanEditTemplate ?? false);
 }
+@{Html.RenderPartial("~/Views/Shared/_CommonCSSAndScriptsPartial.cshtml");}
 
 <div class="m-portlet m-portlet--mobile">
     <div class="m-portlet__head">
