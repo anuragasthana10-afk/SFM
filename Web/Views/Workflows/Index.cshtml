@@ -34,7 +34,7 @@
         <div>
             @foreach (var workflow in Model)
             {
-                <div class="workflow-name"><a href="@Url.Action("EditWorkflow", "Workflows", null)?ID=@workflow.ID">@workflow.Name</a></div>
+                <div class="workflow-name"><a href="@Url.Action("EditWorkflow", "Workflows", null)?ID=@workflow.ID" target="_blank">@workflow.Name</a></div>
             }
         </div>
     </div>
