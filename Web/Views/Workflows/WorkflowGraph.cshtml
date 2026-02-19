@@ -27,7 +27,7 @@
     <div class="m-portlet__body">
         <div class="row">
             <div class="col-lg-9">
-                <div class="m--padding-10" style="border:1px solid #e7e7ef; border-radius:6px; background:#fbfbfd; overflow:auto; min-height:560px;">
+                <div class="m--padding-10" style="border:1px solid #e7e7ef; border-radius:6px; background:#fbfbfd; overflow:auto; height:75vh; min-height:560px;">
                     <svg id="wfDesignerSvg" width="1600" height="1200" style="user-select:none;">
                         <defs>
                             <marker id="wfArrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
@@ -38,7 +38,7 @@
                 </div>
             </div>
             <div class="col-lg-3">
-                <div class="m-form m-form--fit">
+                <div class="m-form m-form--fit" style="height:75vh; min-height:560px; overflow-y:auto; padding-right:6px;">
                     <div class="form-group">
                         <label>Selected Step ID</label>
                         <input id="wfSelStepId" type="text" class="form-control m-input" readonly>
@@ -76,16 +76,7 @@
                         </label>
                     </div>
 
-                    <div class="m--margin-top-15">
-                        <button id="wfBtnAddStep" class="btn btn-brand btn-sm" @(canEditTemplate ? "" : "disabled")><i class="la la-plus"></i> Add Step</button>
-                        <button id="wfBtnSaveStep" class="btn btn-success btn-sm" @(canEditTemplate ? "" : "disabled")><i class="la la-save"></i> Save Step</button>
-                        <button id="wfBtnDeleteStep" class="btn btn-danger btn-sm" @(canEditTemplate ? "" : "disabled")><i class="la la-trash"></i> Delete Step</button>
-                        <button id="wfBtnClearStepForm" class="btn btn-secondary btn-sm" @(canEditTemplate ? "" : "disabled")><i class="la la-eraser"></i> Clear Fields</button>
-                    </div>
-
-
-
-                    <div class="m-accordion m-accordion--default m-accordion--toggle-arrow" id="wfStepAdvancedPanels">
+                    <div class="m-accordion m-accordion--default m-accordion--toggle-arrow m--margin-top-15 m--margin-bottom-15" id="wfStepAdvancedPanels">
                         <div class="m-accordion__item m-accordion__item--default m--margin-bottom-10">
                             <div class="m-accordion__item-head wf-accordion-toggle" data-target="#wfPanelGeneralJson" style="cursor:pointer;">
                                 <span class="m-accordion__item-title">General / Step Config JSON</span>
@@ -167,6 +158,13 @@
                         </div>
                     </div>
 
+                    <div class="m--margin-top-15 m--margin-bottom-10" id="wfStepActionBar">
+                        <button id="wfBtnAddStep" class="btn btn-brand btn-sm" @(canEditTemplate ? "" : "disabled")><i class="la la-plus"></i> Add Step</button>
+                        <button id="wfBtnSaveStep" class="btn btn-success btn-sm" @(canEditTemplate ? "" : "disabled")><i class="la la-save"></i> Save Step</button>
+                        <button id="wfBtnDeleteStep" class="btn btn-danger btn-sm" @(canEditTemplate ? "" : "disabled")><i class="la la-trash"></i> Delete Step</button>
+                        <button id="wfBtnClearStepForm" class="btn btn-secondary btn-sm" @(canEditTemplate ? "" : "disabled")><i class="la la-eraser"></i> Clear Fields</button>
+                    </div>
+
                     <hr />
 
                     <div class="form-group">
@@ -197,6 +195,7 @@
                     <div class="form-group">
                         <button id="wfBtnUpdateEdge" class="btn btn-info btn-sm" @(canEditTemplate ? "" : "disabled")><i class="la la-pencil"></i> Update Selected Link</button>
                         <button id="wfBtnDeleteEdge" class="btn btn-danger btn-sm" @(canEditTemplate ? "" : "disabled")><i class="la la-unlink"></i> De-link Selected</button>
+                        <small class="m--font-metal d-block m--margin-top-5">Update Selected Link saves changes made to the selected transition (condition/label/sort/default path).</small>
                     </div>
 
                     <div class="m-alert m-alert--outline alert alert-info" id="wfDesignerStatus">Loading...</div>
@@ -489,16 +488,57 @@
         return txt.substring(0, Math.max(0, maxLen - 3)) + '...';
     }
 
+
+    function getVisualOrphanStepSet() {
+        var adjacency = {};
+        state.nodes.forEach(function(n){ adjacency[n.StepId] = []; });
+
+        state.edges.forEach(function(e){
+            if (adjacency[e.FromStepId]) {
+                adjacency[e.FromStepId].push(e.ToStepId);
+            }
+        });
+
+        var startIds = state.nodes.filter(function(n){ return !!n.IsStartStep; }).map(function(n){ return n.StepId; });
+        if (startIds.length === 0 && state.nodes.length > 0) {
+            startIds.push(state.nodes[0].StepId);
+        }
+
+        var visited = {};
+        var queue = startIds.slice();
+        queue.forEach(function(id){ visited[id] = true; });
+
+        while (queue.length > 0) {
+            var cur = queue.shift();
+            (adjacency[cur] || []).forEach(function(nx){
+                if (!visited[nx]) {
+                    visited[nx] = true;
+                    queue.push(nx);
+                }
+            });
+        }
+
+        var orphanSet = {};
+        state.nodes.forEach(function(n){
+            if (n.IsOrphanChain || !visited[n.StepId]) {
+                orphanSet[n.StepId] = true;
+            }
+        });
+
+        return orphanSet;
+    }
+
     function draw() {
         var svg = document.getElementById('wfDesignerSvg');
         $('#wfDesignerSvg').find('.wf-edge,.wf-node').remove();
         updateCanvasSize();
+        var orphanSet = getVisualOrphanStepSet();
 
         state.edges.forEach(function(e){
             var from = state.nodeById[e.FromStepId];
             var to = state.nodeById[e.ToStepId];
             if (!from || !to) return;
-            var isOrphanEdge = !!(from.IsOrphanChain || to.IsOrphanChain);
+            var isOrphanEdge = !!(orphanSet[from.StepId] || orphanSet[to.StepId]);
 
             var x1 = from.X + (from.Width / 2);
             var y1 = from.Y + from.Height;
@@ -513,7 +553,7 @@
                 y2: y2,
                 stroke: e.TransitionId === state.selectedTransitionId ? '#f4516c' : (isOrphanEdge ? '#2f74ff' : '#5d78ff'),
                 'stroke-width': e.TransitionId === state.selectedTransitionId ? '2.8' : '2',
-                'stroke-dasharray': isOrphanEdge ? '5,4' : null,
+                'stroke-dasharray': isOrphanEdge ? '6,4' : null,
                 'marker-end': 'url(#wfArrow)',
                 'data-transition-id': e.TransitionId,
                 style: 'cursor:pointer;'
@@ -536,7 +576,8 @@
 
         state.nodes.forEach(function(n){
             var isSelected = (n.StepId === state.selectedStepId);
-            var border = isSelected ? '#f4516c' : (n.IsOrphanChain ? '#2f74ff' : '#1e40af');
+            var isOrphanNode = !!orphanSet[n.StepId];
+            var border = isSelected ? '#f4516c' : (isOrphanNode ? '#2f74ff' : '#1e40af');
             var actionRoleName = getRoleName(n.Action_Roles_Id);
             var taskAssignerRoleName = getRoleName(n.TaskAssigner_Roles_Id);
             var fullTitle = (n.Name || '')
@@ -561,7 +602,7 @@
                 fill: '#fff',
                 stroke: border,
                 'stroke-width': isSelected ? 4 : 2,
-                'stroke-dasharray': n.IsOrphanChain ? '5,4' : null
+                'stroke-dasharray': isOrphanNode ? '6,4' : null
             }));
 
             g.appendChild(createSvgElement('text', {
@@ -771,8 +812,15 @@
         if (!validateJsonEditors()) return;
         var cmd = buildStepPayloadBase();
         cmd.WorkflowId = workflowId;
-        cmd.X = 80;
-        cmd.Y = 80;
+        var baseX = 80;
+        var spacingY = 40;
+        var maxBottom = 40;
+        state.nodes.forEach(function(n){
+            var h = n.Height || 96;
+            maxBottom = Math.max(maxBottom, (n.Y || 0) + h);
+        });
+        cmd.X = baseX;
+        cmd.Y = maxBottom + spacingY;
         api('/api/Workflow/AddTemplateStep', 'POST', cmd, function(){
             status('Step added', 'alert-success');
             loadGraph();
