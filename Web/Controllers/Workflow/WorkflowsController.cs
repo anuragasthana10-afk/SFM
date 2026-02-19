@@ -29,35 +29,14 @@ namespace Web.Controllers.Workflow
         private RBAC_Model database = new RBAC_Model();
         private BusinessCodeDefinitionModel bcd = new BusinessCodeDefinitionModel();
 
-        private const string WorkflowEditorRole = "WorkflowEditor";
-        private const string WorkflowAdministratorRole = "WorkflowAdministrator";
-        private const string WorkflowViewerRole = "WorkflowViewer";
-
-        private bool CurrentUserHasRole(string roleName)
-        {
-            var userId = CurrentContext.CurrentUser.User_Id;
-            return db.Database.SqlQuery<int>(
-                @"SELECT TOP 1 1
-                  FROM Security_UserRoles ur
-                  INNER JOIN Security_Roles r ON r.Role_Id = ur.Role_Id
-                  WHERE ur.User_Id = @p0
-                    AND ISNULL(r.DelFlag, 0) = 0
-                    AND LTRIM(RTRIM(ISNULL(r.RoleName, ''))) = @p1",
-                userId,
-                roleName).Any();
-        }
-
         private bool CanViewWorkflowTemplate()
         {
-            return CurrentUserHasRole(WorkflowViewerRole)
-                || CurrentUserHasRole(WorkflowEditorRole)
-                || CurrentUserHasRole(WorkflowAdministratorRole);
+            return CRM.Classes.Helpers.CurrentContext.CurrentUser.HasRoles("WorkflowViewer,WorkflowEditor,WorkflowAdministrator");
         }
 
         private bool CanEditWorkflowTemplate()
         {
-            return CurrentUserHasRole(WorkflowEditorRole)
-                || CurrentUserHasRole(WorkflowAdministratorRole);
+            return CRM.Classes.Helpers.CurrentContext.CurrentUser.HasRoles("WorkflowEditor,WorkflowAdministrator");
         }
 
         // GET: Workflows
