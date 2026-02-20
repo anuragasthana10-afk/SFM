@@ -160,6 +160,14 @@ namespace Web.Controllers.Workflow
             return PartialView("WorkflowDashboard", workflowStatuses);
         }
 
+        public ActionResult WorkflowTaskDrilldown(string __csc = "", string __csc_refid = "")
+        {
+            ViewBag.ContextScreenCode = __csc;
+            ViewBag.ContextScreen_RefID = __csc_refid;
+            ViewBag.DisplayMode = "WorkflowDashboard";
+            return View("WorkflowTaskDrilldown");
+        }
+
        /* public ActionResult WorkflowStatusPartial(int workflowTxnHeaderID, string __csc = "",  string __csc_refid = "")
         {
             ViewBag.ContextScreenCode = __csc;

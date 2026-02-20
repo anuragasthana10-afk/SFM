@@ -1,0 +1,184 @@
+@{
+    ViewBag.Title = "Workflow Task Drilldown";
+}
+@{Html.RenderPartial("~/Views/Shared/_CommonCSSAndScriptsPartial.cshtml");}
+
+<div class="m-portlet m-portlet--mobile">
+    <div class="m-portlet__head">
+        <div class="m-portlet__head-caption">
+            <div class="m-portlet__head-title">
+                <h3 class="m-portlet__head-text">Workflow Task Drilldown</h3>
+            </div>
+        </div>
+        <div class="m-portlet__head-tools">
+            <button id="wfBackBtn" class="btn btn-secondary btn-sm"><i class="la la-arrow-left"></i> Back</button>
+        </div>
+    </div>
+    <div class="m-portlet__body">
+        <div class="row m--margin-bottom-15">
+            <div class="col-md-3">
+                <label>Date Range</label>
+                <select id="wfDateRange" class="form-control m-input">
+                    <option value="Last30Days">Last 30 days</option>
+                    <option value="CurrentMonth">Current month</option>
+                    <option value="CurrentYear">Current year</option>
+                    <option value="Custom">Custom range</option>
+                </select>
+            </div>
+            <div class="col-md-3 wf-custom-date" style="display:none;">
+                <label>From</label>
+                <input id="wfFromDate" type="date" class="form-control m-input" />
+            </div>
+            <div class="col-md-3 wf-custom-date" style="display:none;">
+                <label>To</label>
+                <input id="wfToDate" type="date" class="form-control m-input" />
+            </div>
+            <div class="col-md-3">
+                <label>&nbsp;</label>
+                <div>
+                    <button id="wfApply" class="btn btn-brand"><i class="la la-filter"></i> Apply</button>
+                    <button id="wfExportCsv" class="btn btn-outline-info" style="display:none;"><i class="la la-download"></i> Export CSV</button>
+                    <button id="wfExportExcel" class="btn btn-outline-success" style="display:none;"><i class="la la-file-excel-o"></i> Export Excel</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="row" id="wfKpiCards"></div>
+
+        <div class="table-responsive m--margin-top-20">
+            <table class="table table-striped table-bordered" id="wfDrillTable">
+                <thead>
+                    <tr>
+                        <th>Service / Task</th>
+                        <th>Step</th>
+                        <th>Assignee / Role</th>
+                        <th>Days Remaining</th>
+                        <th>SLA Breach</th>
+                        <th style="width:110px;">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td colspan="6" class="text-muted">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center">
+            <div id="wfPagerInfo" class="text-muted"></div>
+            <div>
+                <button id="wfPrev" class="btn btn-sm btn-outline-secondary">Prev</button>
+                <button id="wfNext" class="btn btn-sm btn-outline-secondary">Next</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function(){
+    var apiUrl = '@Url.Content("/api/Workflow/GetWorkflowTaskDrilldown")';
+    var state = { page: 1, perPage: 20, total: 0, pages: 1, canExport: false };
+
+    function renderKpi(k){
+        var cards = [
+            { t:'Pending', v:k.PendingCount || 0, c:'brand' },
+            { t:'Due Today', v:k.DueTodayCount || 0, c:'warning' },
+            { t:'Due This Week', v:k.DueThisWeekCount || 0, c:'accent' },
+            { t:'Due Next Week', v:k.DueNextWeekCount || 0, c:'info' },
+            { t:'Due This Month', v:k.DueThisMonthCount || 0, c:'metal' },
+            { t:'Overdue', v:k.OverdueCount || 0, c:'danger' },
+            { t:'On-time %', v:(k.OnTimeCompletionRatePct == null ? 'N/A' : k.OnTimeCompletionRatePct + '%'), c:'success' },
+            { t:'Avg Delay (biz days)', v:(k.AvgBusinessDaysDelay == null ? 'N/A' : k.AvgBusinessDaysDelay), c:'focus' }
+        ];
+        var html = '';
+        cards.forEach(function(x){
+            html += '<div class="col-md-3 m--margin-bottom-10"><div class="m-widget24 m--padding-10" style="border:1px solid #ececf2; border-radius:6px;">'
+                 + '<div class="m-widget24__item"><h4 class="m-widget24__title">' + x.t + '</h4>'
+                 + '<span class="m-widget24__desc m--font-' + x.c + '" style="font-size:22px;">' + x.v + '</span></div></div></div>';
+        });
+        $('#wfKpiCards').html(html);
+    }
+
+    function payload(){
+        var p = {
+            'pagination[page]': state.page,
+            'pagination[perpage]': state.perPage,
+            DateRange: $('#wfDateRange').val()
+        };
+        if (p.DateRange === 'Custom') {
+            p.FromDateUtc = $('#wfFromDate').val();
+            p.ToDateUtc = $('#wfToDate').val();
+        }
+        return p;
+    }
+
+    function load(){
+        var p = payload();
+        $('#wfDrillTable tbody').html('<tr><td colspan="6" class="text-muted">Loading...</td></tr>');
+        $.post(apiUrl, p).done(function(res){
+            var meta = (res && res.Meta) || res.meta || {};
+            var rows = (res && res.Data) || res.data || [];
+            var kpi = (res && res.Kpi) || res.kpi || {};
+            state.page = meta.page || 1;
+            state.pages = meta.pages || 1;
+            state.total = meta.total || 0;
+            state.canExport = !!(res && (res.CanExport || res.canExport));
+            $('#wfExportCsv,#wfExportExcel').toggle(state.canExport);
+            renderKpi(kpi);
+
+            if (!rows.length){
+                $('#wfDrillTable tbody').html('<tr><td colspan="6" class="text-muted">No tasks found.</td></tr>');
+            } else {
+                var html = '';
+                rows.forEach(function(r){
+                    html += '<tr>'
+                        + '<td>' + (r.TaskName || '') + '</td>'
+                        + '<td>' + (r.StepName || '') + '</td>'
+                        + '<td>' + (r.AssigneeOrRole || '') + '</td>'
+                        + '<td>' + (r.BusinessDaysRemaining == null ? 'N/A' : r.BusinessDaysRemaining) + '</td>'
+                        + '<td>' + (r.SlaBreach ? '<span class="m-badge m-badge--danger m-badge--wide">Yes</span>' : '<span class="m-badge m-badge--success m-badge--wide">No</span>') + '</td>'
+                        + '<td><button class="btn btn-sm btn-brand js-edit" data-hid="' + r.WorkflowHeaderId + '"><i class="la la-edit"></i> Edit</button></td>'
+                        + '</tr>';
+                });
+                $('#wfDrillTable tbody').html(html);
+            }
+
+            var from = state.total === 0 ? 0 : ((state.page - 1) * state.perPage + 1);
+            var to = Math.min(state.total, state.page * state.perPage);
+            $('#wfPagerInfo').text('Showing ' + from + ' to ' + to + ' of ' + state.total);
+        }).fail(function(xhr){
+            $('#wfDrillTable tbody').html('<tr><td colspan="6" class="text-danger">Failed to load: ' + ((xhr && xhr.responseText) || 'error') + '</td></tr>');
+        });
+    }
+
+    function exportData(mode){
+        var p = payload();
+        p.ExportMode = mode;
+        var $form = $('<form method="post" target="_blank" style="display:none;"></form>').attr('action', apiUrl);
+        Object.keys(p).forEach(function(k){
+            $('<input type="hidden"/>').attr('name', k).val(p[k]).appendTo($form);
+        });
+        $('body').append($form);
+        $form.trigger('submit');
+        $form.remove();
+    }
+
+    $(document).on('click', '.js-edit', function(){
+        var id = $(this).data('hid');
+        if (window.openWorkflowStatusPopup) {
+            window.openWorkflowStatusPopup(id);
+        } else {
+            window.open('@Url.Content("/Workflow/Workflows/ListWorkWithHeader")?__csc=ACCOUNTS&__csc_refid=' + id, '_blank');
+        }
+    });
+
+    $('#wfBackBtn').on('click', function(){ window.history.back(); });
+    $('#wfApply').on('click', function(){ state.page = 1; load(); });
+    $('#wfPrev').on('click', function(){ if (state.page > 1){ state.page--; load(); } });
+    $('#wfNext').on('click', function(){ if (state.page < state.pages){ state.page++; load(); } });
+    $('#wfDateRange').on('change', function(){ $('.wf-custom-date').toggle($(this).val() === 'Custom'); });
+    $('#wfExportCsv').on('click', function(){ exportData('Csv'); });
+    $('#wfExportExcel').on('click', function(){ exportData('Excel'); });
+
+    load();
+})();
+</script>
