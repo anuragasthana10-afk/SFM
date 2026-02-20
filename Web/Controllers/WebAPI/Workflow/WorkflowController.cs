@@ -638,6 +638,7 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
             public string AssignedToName { get; set; }
             public DateTime StepCreateDateUtc { get; set; }
             public DateTime? ActionedByUsersTimeUtc { get; set; }
+            public int? ActionedByUsersId { get; set; }
             public int EstimatedDaysToComplete { get; set; }
         }
         private sealed class DrilldownKpiSummary
@@ -678,6 +679,7 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
             public int? ActionRoleId { get; set; }
             public DateTime StepCreateDateUtc { get; set; }
             public DateTime? ActionedByUsersTimeUtc { get; set; }
+            public int? ActionedByUsersId { get; set; }
             public int EstimatedDaysToComplete { get; set; }
         }
 
@@ -741,6 +743,8 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                 string bucket = (formData["Bucket"] ?? "All").Trim();
                 int? selectedUserId = int.TryParse(formData["SelectedUserId"], out tmp) ? (int?)tmp : null;
                 int? selectedWorkflowHeaderId = int.TryParse(formData["SelectedWorkflowHeaderId"], out tmp) ? (int?)tmp : null;
+                int? selectedRoleId = int.TryParse(formData["SelectedRoleId"], out tmp) ? (int?)tmp : null;
+                string selectedWorkflowName = (formData["SelectedWorkflowName"] ?? "").Trim();
 
                 var userRoles = db.Database.SqlQuery<UserRoleRow>(
                     @"SELECT ur.Role_Id, r.RoleName
@@ -762,6 +766,11 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
 
                 var accountManagerRoleIds = new HashSet<int>(db.Database.SqlQuery<int>(
                     @"SELECT Role_Id FROM Security_Roles WHERE LTRIM(RTRIM(RoleName)) = 'AccountManager'").ToList());
+
+                var teamMemberUserIds = isTeamLeader && teamRoleIds.Count > 0
+                    ? new HashSet<int>(db.Database.SqlQuery<int>(
+                        @"SELECT DISTINCT ur.User_ID FROM Security_UserRoles ur WHERE ur.Role_Id IN (" + string.Join(",", teamRoleIds) + ")").ToList())
+                    : new HashSet<int>();
 
                 var pendingSql = @";WITH base AS (
                         SELECT
@@ -818,7 +827,13 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                 Func<PendingTaskRow, bool> canSeeRow = r =>
                 {
                     if (isGlobalLeader) return true;
-                    if (isTeamLeader) return r.ActionRoleId.HasValue && teamRoleIds.Contains(r.ActionRoleId.Value);
+                    if (isTeamLeader)
+                    {
+                        if (r.ActionRoleId.HasValue && teamRoleIds.Contains(r.ActionRoleId.Value)) return true;
+                        if (r.AssignedUserId.HasValue && teamMemberUserIds.Contains(r.AssignedUserId.Value)) return true;
+                        if (!r.AssignedUserId.HasValue && r.ActionRoleId.HasValue && accountManagerRoleIds.Contains(r.ActionRoleId.Value) && r.AccountManagerUserId.HasValue && teamMemberUserIds.Contains(r.AccountManagerUserId.Value)) return true;
+                        return false;
+                    }
                     if (r.AssignedUserId == currentUserId) return true;
                     if (canCurrentUserAct(r)) return true;
                     if (!r.AssignedUserId.HasValue && r.ActionRoleId.HasValue && accountManagerRoleIds.Contains(r.ActionRoleId.Value) && r.AccountManagerUserId == currentUserId) return true;
@@ -877,7 +892,7 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                         DueTodayCount = list.Count(x => bucketFor(x) == "DueToday"),
                         DueThisWeekCount = list.Count(x => bucketFor(x) == "DueThisWeek"),
                         DueNextWeekCount = list.Count(x => bucketFor(x) == "DueNextWeek"),
-                        DueThisMonthCount = list.Count(x => bucketFor(x) == "DueThisMonth"),
+                        DueThisMonthCount = list.Count(x => x.EstimatedDaysToComplete > 0 && AddBusinessDays(x.StepCreateDateUtc, x.EstimatedDaysToComplete).Date >= nowUtc.Date && AddBusinessDays(x.StepCreateDateUtc, x.EstimatedDaysToComplete).Date <= monthEnd),
                         OverdueCount = list.Count(x => bucketFor(x) == "Overdue")
                     };
                 };
@@ -894,6 +909,7 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                         s.Action_Roles_Id ActionRoleId,
                         st.CreateDate StepCreateDateUtc,
                         st.ActionedBy_Users_Time ActionedByUsersTimeUtc,
+                        st.ActionedBy_Users_Id ActionedByUsersId,
                         COALESCE(TRY_CAST(JSON_VALUE(s.Workflow_StepTypes_ConfigData,'$.EstimatedDaysToComplete') AS int),0) EstimatedDaysToComplete
                     FROM Workflow_StepTransactions st
                     JOIN Workflow_Transactions_Headers h ON h.ID = st.Workflow_Transactions_Headers_ID
@@ -910,7 +926,7 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
 
                 Func<int?, DrilldownKpiSummary> userCompletionKpi = uid =>
                 {
-                    var data = completedRows.Where(c => c.AssignedUserId == uid).ToList();
+                    var data = completedRows.Where(c => (c.AssignedUserId ?? c.ActionedByUsersId) == uid).ToList();
                     int ontime = 0, samples = 0;
                     decimal totalDays = 0m, totalDelay = 0m;
                     foreach (var c in data)
@@ -943,14 +959,18 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
 
                 if (string.Equals(level, "User", StringComparison.OrdinalIgnoreCase))
                 {
-                    var grouped = visible
-                        .GroupBy(r => new { UserId = getOwnerUserId(r), UserName = r.AssignedToName ?? r.AccountManagerName ?? "Unassigned" })
-                        .Where(g => g.Key.UserId.HasValue)
+                    var userGroups = visible
+                        .Select(r => new { Row = r, OwnerUserId = getOwnerUserId(r) })
+                        .Where(x => x.OwnerUserId.HasValue)
+                        .GroupBy(x => new { UserId = x.OwnerUserId.Value, UserName = x.Row.AssignedToName ?? x.Row.AccountManagerName ?? ("User #" + x.OwnerUserId.Value) })
                         .Select(g => {
-                            var k = summarize(g);
+                            var rows = g.Select(x => x.Row);
+                            var k = summarize(rows);
                             var ck = userCompletionKpi(g.Key.UserId);
                             return new {
-                                UserId = g.Key.UserId,
+                                RowType = "User",
+                                UserId = (int?)g.Key.UserId,
+                                RoleId = (int?)null,
                                 UserName = g.Key.UserName,
                                 Pending = k.PendingCount,
                                 DueToday = k.DueTodayCount,
@@ -961,9 +981,30 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                                 OnTimePct = ck.OnTimeCompletionRatePct,
                                 AvgDelay = ck.AvgBusinessDaysDelay
                             };
-                        })
-                        .OrderByDescending(x => x.Pending)
-                        .ToList();
+                        });
+
+                    var roleGroups = visible
+                        .Where(r => !getOwnerUserId(r).HasValue && r.ActionRoleId.HasValue)
+                        .GroupBy(r => new { RoleId = r.ActionRoleId.Value, RoleName = r.ActionRoleName ?? ("Role #" + r.ActionRoleId.Value) })
+                        .Select(g => {
+                            var k = summarize(g);
+                            return new {
+                                RowType = "Role",
+                                UserId = (int?)null,
+                                RoleId = (int?)g.Key.RoleId,
+                                UserName = g.Key.RoleName,
+                                Pending = k.PendingCount,
+                                DueToday = k.DueTodayCount,
+                                DueThisWeek = k.DueThisWeekCount,
+                                DueNextWeek = k.DueNextWeekCount,
+                                DueThisMonth = k.DueThisMonthCount,
+                                Overdue = k.OverdueCount,
+                                OnTimePct = (decimal?)null,
+                                AvgDelay = (decimal?)null
+                            };
+                        });
+
+                    var grouped = userGroups.Concat(roleGroups).OrderByDescending(x => x.Pending).ToList();
 
                     var pageRows = grouped.Skip((page - 1) * perPage).Take(perPage).Cast<object>().ToList();
                     return Ok(new WorkflowTaskDrilldownResponse
@@ -985,15 +1026,16 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                     var scoped = visible;
                     if (selectedUserId.HasValue)
                         scoped = scoped.Where(r => getOwnerUserId(r) == selectedUserId.Value).ToList();
+                    if (selectedRoleId.HasValue)
+                        scoped = scoped.Where(r => !getOwnerUserId(r).HasValue && r.ActionRoleId == selectedRoleId.Value).ToList();
 
                     var grouped = applyBucket(scoped, bucket)
-                        .GroupBy(r => new { r.WorkflowHeaderId, r.WorkflowDisplayName, r.WorkflowName })
+                        .GroupBy(r => r.WorkflowName)
                         .Select(g => {
                             var k = summarize(g);
                             return new {
-                                g.Key.WorkflowHeaderId,
-                                WorkflowDisplayName = g.Key.WorkflowDisplayName,
-                                WorkflowName = g.Key.WorkflowName,
+                                WorkflowName = g.Key,
+                                WorkflowDisplayName = g.Key,
                                 Pending = k.PendingCount,
                                 DueToday = k.DueTodayCount,
                                 DueThisWeek = k.DueThisWeekCount,
@@ -1025,6 +1067,8 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                 var taskScoped = visible;
                 if (selectedUserId.HasValue) taskScoped = taskScoped.Where(r => getOwnerUserId(r) == selectedUserId.Value).ToList();
                 if (selectedWorkflowHeaderId.HasValue) taskScoped = taskScoped.Where(r => r.WorkflowHeaderId == selectedWorkflowHeaderId.Value).ToList();
+                if (selectedRoleId.HasValue) taskScoped = taskScoped.Where(r => !getOwnerUserId(r).HasValue && r.ActionRoleId == selectedRoleId.Value).ToList();
+                if (!string.IsNullOrWhiteSpace(selectedWorkflowName)) taskScoped = taskScoped.Where(r => string.Equals(r.WorkflowName, selectedWorkflowName, StringComparison.OrdinalIgnoreCase)).ToList();
                 taskScoped = applyBucket(taskScoped, bucket).ToList();
 
                 var taskRows = taskScoped.Select(r => {

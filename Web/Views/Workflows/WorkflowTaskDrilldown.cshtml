@@ -85,7 +85,7 @@
     var apiUrl = '@Url.Content("/api/Workflow/GetWorkflowTaskDrilldown")';
     var state = {
         page:1, perPage:20, total:0, pages:1,
-        level:'', selectedUserId:null, selectedWorkflowHeaderId:null,
+        level:'', selectedUserId:null, selectedRoleId:null, selectedWorkflowHeaderId:null, selectedWorkflowName:null,
         bucket:'All', canExport:false, history:[]
     };
 
@@ -116,7 +116,9 @@
             Bucket: state.bucket
         };
         if (state.selectedUserId) p.SelectedUserId = state.selectedUserId;
+        if (state.selectedRoleId) p.SelectedRoleId = state.selectedRoleId;
         if (state.selectedWorkflowHeaderId) p.SelectedWorkflowHeaderId = state.selectedWorkflowHeaderId;
+        if (state.selectedWorkflowName) p.SelectedWorkflowName = state.selectedWorkflowName;
         if (p.DateRange === 'Custom') { p.FromDateUtc = $('#wfFromDate').val(); p.ToDateUtc = $('#wfToDate').val(); }
         return p;
     }
@@ -124,7 +126,8 @@
     function setBreadcrumb(){
         var text = 'Level: ' + (state.level || 'Auto') + ' | Filter: ' + state.bucket;
         if (state.selectedUserId) text += ' | User ID: ' + state.selectedUserId;
-        if (state.selectedWorkflowHeaderId) text += ' | Workflow Header ID: ' + state.selectedWorkflowHeaderId;
+        if (state.selectedRoleId) text += ' | Role ID: ' + state.selectedRoleId;
+        if (state.selectedWorkflowName) text += ' | Workflow: ' + state.selectedWorkflowName;
         $('#wfBreadcrumb').text(text);
     }
 
@@ -149,25 +152,25 @@
         rows.forEach(function(r){
             if (level === 'User') {
                 html += '<tr>'
-                    + '<td><a href="javascript:void(0);" class="wf-user" data-uid="'+r.UserId+'">'+(r.UserName||'')+'</a></td>'
-                    + '<td><a href="javascript:void(0);" class="wf-stat" data-bucket="All" data-uid="'+r.UserId+'">'+(r.Pending||0)+'</a></td>'
-                    + '<td><a href="javascript:void(0);" class="wf-stat" data-bucket="DueToday" data-uid="'+r.UserId+'">'+(r.DueToday||0)+'</a></td>'
-                    + '<td><a href="javascript:void(0);" class="wf-stat" data-bucket="DueThisWeek" data-uid="'+r.UserId+'">'+(r.DueThisWeek||0)+'</a></td>'
-                    + '<td><a href="javascript:void(0);" class="wf-stat" data-bucket="DueNextWeek" data-uid="'+r.UserId+'">'+(r.DueNextWeek||0)+'</a></td>'
-                    + '<td><a href="javascript:void(0);" class="wf-stat" data-bucket="DueThisMonth" data-uid="'+r.UserId+'">'+(r.DueThisMonth||0)+'</a></td>'
-                    + '<td><a href="javascript:void(0);" class="wf-stat" data-bucket="Overdue" data-uid="'+r.UserId+'">'+(r.Overdue||0)+'</a></td>'
+                    + '<td><a href=\"javascript:void(0);\" class=\"wf-user\" data-uid=\"'+(r.UserId||'')+'\" data-rid=\"'+(r.RoleId||'')+'\" data-rt=\"'+(r.RowType||'User')+'\">'+(r.UserName||'')+'</a></td>'
+                    + '<td><a href="javascript:void(0);" class="wf-stat" data-bucket="All" data-uid="'+(r.UserId||'')+'" data-rid="'+(r.RoleId||'')+'" data-rt="'+(r.RowType||'User')+'">'+(r.Pending||0)+'</a></td>'
+                    + '<td><a href="javascript:void(0);" class="wf-stat" data-bucket="DueToday" data-uid="'+(r.UserId||'')+'" data-rid="'+(r.RoleId||'')+'" data-rt="'+(r.RowType||'User')+'">'+(r.DueToday||0)+'</a></td>'
+                    + '<td><a href="javascript:void(0);" class="wf-stat" data-bucket="DueThisWeek" data-uid="'+(r.UserId||'')+'" data-rid="'+(r.RoleId||'')+'" data-rt="'+(r.RowType||'User')+'">'+(r.DueThisWeek||0)+'</a></td>'
+                    + '<td><a href="javascript:void(0);" class="wf-stat" data-bucket="DueNextWeek" data-uid="'+(r.UserId||'')+'" data-rid="'+(r.RoleId||'')+'" data-rt="'+(r.RowType||'User')+'">'+(r.DueNextWeek||0)+'</a></td>'
+                    + '<td><a href="javascript:void(0);" class="wf-stat" data-bucket="DueThisMonth" data-uid="'+(r.UserId||'')+'" data-rid="'+(r.RoleId||'')+'" data-rt="'+(r.RowType||'User')+'">'+(r.DueThisMonth||0)+'</a></td>'
+                    + '<td><a href="javascript:void(0);" class="wf-stat" data-bucket="Overdue" data-uid="'+(r.UserId||'')+'" data-rid="'+(r.RoleId||'')+'" data-rt="'+(r.RowType||'User')+'">'+(r.Overdue||0)+'</a></td>'
                     + '<td>' + (r.OnTimePct == null ? 'N/A' : r.OnTimePct + '%') + '</td>'
                     + '<td>' + (r.AvgDelay == null ? 'N/A' : r.AvgDelay) + '</td>'
                     + '</tr>';
             } else {
                 html += '<tr>'
-                    + '<td><a href="javascript:void(0);" class="wf-workflow" data-wh="'+r.WorkflowHeaderId+'">'+(r.WorkflowDisplayName||r.WorkflowName||'')+'</a></td>'
-                    + '<td><a href="javascript:void(0);" class="wf-stat-workflow" data-bucket="All" data-wh="'+r.WorkflowHeaderId+'">'+(r.Pending||0)+'</a></td>'
-                    + '<td><a href="javascript:void(0);" class="wf-stat-workflow" data-bucket="DueToday" data-wh="'+r.WorkflowHeaderId+'">'+(r.DueToday||0)+'</a></td>'
-                    + '<td><a href="javascript:void(0);" class="wf-stat-workflow" data-bucket="DueThisWeek" data-wh="'+r.WorkflowHeaderId+'">'+(r.DueThisWeek||0)+'</a></td>'
-                    + '<td><a href="javascript:void(0);" class="wf-stat-workflow" data-bucket="DueNextWeek" data-wh="'+r.WorkflowHeaderId+'">'+(r.DueNextWeek||0)+'</a></td>'
-                    + '<td><a href="javascript:void(0);" class="wf-stat-workflow" data-bucket="DueThisMonth" data-wh="'+r.WorkflowHeaderId+'">'+(r.DueThisMonth||0)+'</a></td>'
-                    + '<td><a href="javascript:void(0);" class="wf-stat-workflow" data-bucket="Overdue" data-wh="'+r.WorkflowHeaderId+'">'+(r.Overdue||0)+'</a></td>'
+                    + '<td><a href="javascript:void(0);" class="wf-workflow" data-wn="'+(r.WorkflowName||'')+'">'+(r.WorkflowDisplayName||r.WorkflowName||'')+'</a></td>'
+                    + '<td><a href="javascript:void(0);" class="wf-stat-workflow" data-bucket="All" data-wn="'+(r.WorkflowName||'')+'">'+(r.Pending||0)+'</a></td>'
+                    + '<td><a href="javascript:void(0);" class="wf-stat-workflow" data-bucket="DueToday" data-wn="'+(r.WorkflowName||'')+'">'+(r.DueToday||0)+'</a></td>'
+                    + '<td><a href="javascript:void(0);" class="wf-stat-workflow" data-bucket="DueThisWeek" data-wn="'+(r.WorkflowName||'')+'">'+(r.DueThisWeek||0)+'</a></td>'
+                    + '<td><a href="javascript:void(0);" class="wf-stat-workflow" data-bucket="DueNextWeek" data-wn="'+(r.WorkflowName||'')+'">'+(r.DueNextWeek||0)+'</a></td>'
+                    + '<td><a href="javascript:void(0);" class="wf-stat-workflow" data-bucket="DueThisMonth" data-wn="'+(r.WorkflowName||'')+'">'+(r.DueThisMonth||0)+'</a></td>'
+                    + '<td><a href="javascript:void(0);" class="wf-stat-workflow" data-bucket="Overdue" data-wn="'+(r.WorkflowName||'')+'">'+(r.Overdue||0)+'</a></td>'
                     + '</tr>';
             }
         });
@@ -209,7 +212,7 @@
     }
 
     function pushHistory(){
-        state.history.push({ level:state.level, selectedUserId:state.selectedUserId, selectedWorkflowHeaderId:state.selectedWorkflowHeaderId, bucket:state.bucket, page:state.page });
+        state.history.push({ level:state.level, selectedUserId:state.selectedUserId, selectedRoleId:state.selectedRoleId, selectedWorkflowHeaderId:state.selectedWorkflowHeaderId, selectedWorkflowName:state.selectedWorkflowName, bucket:state.bucket, page:state.page });
         $('#wfBackLevel').toggle(state.history.length>0);
     }
 
@@ -245,10 +248,10 @@
     }
 
     $(document).on('click', '.wf-kpi', function(){ state.bucket = $(this).data('bucket') || 'All'; state.page = 1; load(); });
-    $(document).on('click', '.wf-user', function(){ pushHistory(); state.selectedUserId = parseInt($(this).data('uid'),10); state.selectedWorkflowHeaderId = null; state.level='Workflow'; state.bucket='All'; state.page=1; load(); });
-    $(document).on('click', '.wf-stat', function(){ pushHistory(); state.selectedUserId = parseInt($(this).data('uid'),10); state.selectedWorkflowHeaderId = null; state.bucket = $(this).data('bucket') || 'All'; state.level='Task'; state.page=1; load(); });
-    $(document).on('click', '.wf-workflow', function(){ pushHistory(); state.selectedWorkflowHeaderId = parseInt($(this).data('wh'),10); state.level='Task'; state.bucket='All'; state.page=1; load(); });
-    $(document).on('click', '.wf-stat-workflow', function(){ pushHistory(); state.selectedWorkflowHeaderId = parseInt($(this).data('wh'),10); state.bucket = $(this).data('bucket') || 'All'; state.level='Task'; state.page=1; load(); });
+    $(document).on('click', '.wf-user', function(){ pushHistory(); var rt=$(this).data('rt'); var uid=parseInt($(this).data('uid'),10); var rid=parseInt($(this).data('rid'),10); state.selectedUserId = isNaN(uid)?null:uid; state.selectedRoleId = (rt==='Role' && !isNaN(rid))?rid:null; state.selectedWorkflowHeaderId = null; state.selectedWorkflowName=null; state.level='Workflow'; state.bucket='All'; state.page=1; load(); });
+    $(document).on('click', '.wf-stat', function(){ pushHistory(); var rt=$(this).data('rt'); var uid=parseInt($(this).data('uid'),10); var rid=parseInt($(this).data('rid'),10); state.selectedUserId = isNaN(uid)?null:uid; state.selectedRoleId = (rt==='Role' && !isNaN(rid))?rid:null; state.selectedWorkflowHeaderId = null; state.selectedWorkflowName=null; state.bucket = $(this).data('bucket') || 'All'; state.level='Task'; state.page=1; load(); });
+    $(document).on('click', '.wf-workflow', function(){ pushHistory(); state.selectedWorkflowName = $(this).data('wn') || null; state.level='Task'; state.bucket='All'; state.page=1; load(); });
+    $(document).on('click', '.wf-stat-workflow', function(){ pushHistory(); state.selectedWorkflowName = $(this).data('wn') || null; state.bucket = $(this).data('bucket') || 'All'; state.level='Task'; state.page=1; load(); });
 
     $(document).on('click', '.js-edit', function(){
         var id = $(this).data('hid');
@@ -258,7 +261,7 @@
     $('#wfBackLevel').on('click', function(){
         var prev = state.history.pop();
         if (!prev) return;
-        state.level = prev.level; state.selectedUserId = prev.selectedUserId; state.selectedWorkflowHeaderId = prev.selectedWorkflowHeaderId; state.bucket = prev.bucket; state.page = prev.page;
+        state.level = prev.level; state.selectedUserId = prev.selectedUserId; state.selectedRoleId = prev.selectedRoleId; state.selectedWorkflowHeaderId = prev.selectedWorkflowHeaderId; state.selectedWorkflowName = prev.selectedWorkflowName; state.bucket = prev.bucket; state.page = prev.page;
         $('#wfBackLevel').toggle(state.history.length>0);
         load();
     });
