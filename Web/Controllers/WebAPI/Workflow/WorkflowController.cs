@@ -640,7 +640,6 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
             public DateTime? ActionedByUsersTimeUtc { get; set; }
             public int EstimatedDaysToComplete { get; set; }
         }
-
         private sealed class DrilldownKpiSummary
         {
             public int PendingCount { get; set; }
@@ -655,17 +654,49 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
             public decimal? AvgBusinessDaysDelay { get; set; }
         }
 
+        private sealed class PendingTaskRow
+        {
+            public int WorkflowHeaderId { get; set; }
+            public string WorkflowDisplayName { get; set; }
+            public string WorkflowName { get; set; }
+            public string StepName { get; set; }
+            public int? ActionRoleId { get; set; }
+            public string ActionRoleName { get; set; }
+            public int? AssignedUserId { get; set; }
+            public string AssignedToName { get; set; }
+            public DateTime StepCreateDateUtc { get; set; }
+            public int EstimatedDaysToComplete { get; set; }
+            public int? AccountId { get; set; }
+            public string AccountName { get; set; }
+            public int? AccountManagerUserId { get; set; }
+            public string AccountManagerName { get; set; }
+        }
+
+        private sealed class CompletedTaskRow
+        {
+            public int? AssignedUserId { get; set; }
+            public int? ActionRoleId { get; set; }
+            public DateTime StepCreateDateUtc { get; set; }
+            public DateTime? ActionedByUsersTimeUtc { get; set; }
+            public int EstimatedDaysToComplete { get; set; }
+        }
+
         private sealed class WorkflowTaskDrilldownResponse
         {
+            public string Level { get; set; }
             public object Meta { get; set; }
-            public object Kpi { get; set; }
-            public List<object> Data { get; set; }
+            public object SummaryKpi { get; set; }
+            public object UserKpi { get; set; }
+            public List<object> AggregateData { get; set; }
+            public List<object> TaskData { get; set; }
             public bool CanExport { get; set; }
+            public bool IsGlobalLeader { get; set; }
+            public bool IsTeamLeader { get; set; }
         }
 
         private static string CsvEscape(string value)
         {
-            return "\"" + (value ?? "").Replace("\"", "\"\"") + "\"";
+            return """ + (value ?? "").Replace(""", """") + """;
         }
 
         private static int CountBusinessDays(DateTime startUtc, DateTime endUtc)
@@ -701,17 +732,105 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
             try
             {
                 int currentUserId = CurrentContext.CurrentUser.User_Id;
-                int page = 1;
-                int perPage = 20;
+                int page = 1, perPage = 20;
                 int tmp;
                 if (int.TryParse(formData["pagination[page]"], out tmp) && tmp > 0) page = tmp;
-                if (int.TryParse(formData["pagination[perpage]"], out tmp) && tmp > 0) perPage = tmp;
-                if (perPage > 200) perPage = 200;
+                if (int.TryParse(formData["pagination[perpage]"], out tmp) && tmp > 0) perPage = Math.Min(200, tmp);
 
-                string dateRange = (formData["DateRange"] ?? "Last30Days").Trim();
-                DateTime nowUtc = DateTime.UtcNow;
+                string level = (formData["Level"] ?? "").Trim();
+                string bucket = (formData["Bucket"] ?? "All").Trim();
+                int? selectedUserId = int.TryParse(formData["SelectedUserId"], out tmp) ? (int?)tmp : null;
+                int? selectedWorkflowHeaderId = int.TryParse(formData["SelectedWorkflowHeaderId"], out tmp) ? (int?)tmp : null;
+
+                var userRoles = db.Database.SqlQuery<UserRoleRow>(
+                    @"SELECT ur.Role_Id, r.RoleName
+                      FROM Security_UserRoles ur
+                      INNER JOIN Security_Roles r ON r.Role_Id = ur.Role_Id
+                      WHERE ur.User_Id = @p0", currentUserId).ToList();
+
+                bool isGlobalLeader = userRoles.Any(x => string.Equals((x.RoleName ?? "").Trim(), "Workflow_GlobalLeader", StringComparison.OrdinalIgnoreCase));
+                bool isTeamLeader = userRoles.Any(x => string.Equals((x.RoleName ?? "").Trim(), "Workflow_TeamLeader", StringComparison.OrdinalIgnoreCase));
+                bool canExport = isGlobalLeader || isTeamLeader;
+
+                var currentUserRoleIds = new HashSet<int>(userRoles.Select(x => x.Role_Id).Distinct());
+                var teamRoleIds = new HashSet<int>(userRoles
+                    .Where(x => !new[] { "Workflow_TeamLeader", "Workflow_GlobalLeader", "WorkflowViewer", "WorkflowEditor", "WorkflowAdministrator" }
+                        .Contains((x.RoleName ?? "").Trim(), StringComparer.OrdinalIgnoreCase))
+                    .Select(x => x.Role_Id)
+                    .Distinct()
+                    .ToList());
+
+                var accountManagerRoleIds = new HashSet<int>(db.Database.SqlQuery<int>(
+                    @"SELECT Role_Id FROM Security_Roles WHERE LTRIM(RTRIM(RoleName)) = 'AccountManager'").ToList());
+
+                var pendingSql = @";WITH base AS (
+                        SELECT
+                            h.ID WorkflowHeaderId,
+                            COALESCE(NULLIF(JSON_VALUE(h.ConfigData,'$.AdditionalWorkflowDescription'),''), w.Name) WorkflowDisplayName,
+                            w.Name WorkflowName,
+                            s.Name StepName,
+                            s.Action_Roles_Id ActionRoleId,
+                            ar.RoleName ActionRoleName,
+                            st.Assigned_Users_Id AssignedUserId,
+                            NULLIF(LTRIM(RTRIM(COALESCE(su.Firstname,'') + ' ' + COALESCE(su.Lastname,''))), '') AssignedToName,
+                            st.CreateDate StepCreateDateUtc,
+                            COALESCE(TRY_CAST(JSON_VALUE(s.Workflow_StepTypes_ConfigData,'$.EstimatedDaysToComplete') AS int),0) EstimatedDaysToComplete,
+                            COALESCE(CASE WHEN h.Context_Object_Code='ACCOUNT' THEN h.Object_RefID END, or_obj.ObjectScreen_RefID) AccountId
+                        FROM Workflow_StepTransactions st
+                        JOIN Workflow_Transactions_Headers h ON h.ID=st.Workflow_Transactions_Headers_ID
+                        JOIN Workflow_Steps s ON s.ID=st.Workflow_Steps_ID
+                        JOIN Workflows w ON w.ID=h.Workflows_ID
+                        LEFT JOIN Security_Users su ON su.User_Id=st.Assigned_Users_Id
+                        LEFT JOIN Security_Roles ar ON ar.Role_Id=s.Action_Roles_Id
+                        LEFT JOIN ObjectRelations or_obj
+                            ON h.Context_Object_Code<>'ACCOUNT'
+                           AND COALESCE(or_obj.DelFlag,0)=0
+                           AND or_obj.ObjectScreen_Code='ACCOUNTS'
+                           AND or_obj.AssociatedObject_Code=h.Context_Object_Code
+                           AND or_obj.AssociatedObject_RefID=h.Object_RefID
+                        WHERE COALESCE(st.DelFlag,0)=0
+                          AND COALESCE(h.DelFlag,0)=0
+                          AND COALESCE(s.DelFlag,0)=0
+                          AND COALESCE(w.DelFlag,0)=0
+                          AND COALESCE(h.WorkflowComplete,0)=0
+                          AND COALESCE(st.StepExecuted,0)=0
+                          AND COALESCE(st.ExecutionStopped,0)=0
+                    )
+                    SELECT b.*, acc.Name AccountName, acc.AccountManagerUser_ID AccountManagerUserId,
+                           NULLIF(LTRIM(RTRIM(COALESCE(am.Firstname,'') + ' ' + COALESCE(am.Lastname,''))), '') AS AccountManagerName
+                    FROM base b
+                    LEFT JOIN Accounts acc ON acc.ID=b.AccountId
+                    LEFT JOIN Security_Users am ON am.User_Id = acc.AccountManagerUser_ID";
+
+                var pendingRows = db.Database.SqlQuery<PendingTaskRow>(pendingSql).ToList();
+
+                Func<PendingTaskRow, int?> getOwnerUserId = r =>
+                {
+                    if (r.AssignedUserId.HasValue) return r.AssignedUserId;
+                    if (r.ActionRoleId.HasValue && accountManagerRoleIds.Contains(r.ActionRoleId.Value) && r.AccountManagerUserId.HasValue)
+                        return r.AccountManagerUserId;
+                    return null;
+                };
+
+                Func<PendingTaskRow, bool> canCurrentUserAct = r =>
+                    !r.AssignedUserId.HasValue && r.ActionRoleId.HasValue && currentUserRoleIds.Contains(r.ActionRoleId.Value);
+
+                Func<PendingTaskRow, bool> canSeeRow = r =>
+                {
+                    if (isGlobalLeader) return true;
+                    if (isTeamLeader) return r.ActionRoleId.HasValue && teamRoleIds.Contains(r.ActionRoleId.Value);
+                    if (r.AssignedUserId == currentUserId) return true;
+                    if (canCurrentUserAct(r)) return true;
+                    if (!r.AssignedUserId.HasValue && r.ActionRoleId.HasValue && accountManagerRoleIds.Contains(r.ActionRoleId.Value) && r.AccountManagerUserId == currentUserId) return true;
+                    return false;
+                };
+
+                var visible = pendingRows.Where(canSeeRow).ToList();
+
+                var nowUtc = DateTime.UtcNow;
                 DateTime rangeFromUtc;
                 DateTime rangeToUtc = nowUtc;
+                var dateRange = (formData["DateRange"] ?? "Last30Days").Trim();
                 switch (dateRange)
                 {
                     case "CurrentMonth":
@@ -731,220 +850,235 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                         break;
                 }
 
-                var userRoles = db.Database.SqlQuery<UserRoleRow>(
-                    @"SELECT ur.Role_Id, r.RoleName
-                      FROM Security_UserRoles ur
-                      INNER JOIN Security_Roles r ON r.Role_Id = ur.Role_Id
-                      WHERE ur.User_Id = @p0", currentUserId).ToList();
-
-                bool isGlobalLeader = userRoles.Any(x => string.Equals((x.RoleName ?? "").Trim(), "Workflow_GlobalLeader", StringComparison.OrdinalIgnoreCase));
-                bool isTeamLeader = userRoles.Any(x => string.Equals((x.RoleName ?? "").Trim(), "Workflow_TeamLeader", StringComparison.OrdinalIgnoreCase));
-                bool canExport = isGlobalLeader || isTeamLeader;
-
-                var memberRoleIds = userRoles.Select(x => x.Role_Id).Distinct().ToList();
-                var teamRoleIds = userRoles
-                    .Where(x => !new[] { "Workflow_TeamLeader", "Workflow_GlobalLeader", "WorkflowViewer", "WorkflowEditor", "WorkflowAdministrator" }
-                        .Contains((x.RoleName ?? "").Trim(), StringComparer.OrdinalIgnoreCase))
-                    .Select(x => x.Role_Id)
-                    .Distinct()
-                    .ToList();
-
-                string memberRolesCsv = string.Join(",", memberRoleIds);
-                string teamRolesCsv = string.Join(",", teamRoleIds);
-
-                string sql = @"SELECT
-                        h.ID WorkflowHeaderId,
-                        COALESCE(NULLIF(JSON_VALUE(h.ConfigData,'$.AdditionalWorkflowDescription'),''), w.Name) WorkflowDisplayName,
-                        w.Name WorkflowName,
-                        s.Name StepName,
-                        ar.RoleName ActionRoleName,
-                        s.Action_Roles_Id ActionRoleId,
-                        st.Assigned_Users_Id AssignedUserId,
-                        NULLIF(LTRIM(RTRIM(COALESCE(su.Firstname,'') + ' ' + COALESCE(su.Lastname,''))), '') AssignedToName,
-                        st.CreateDate StepCreateDateUtc,
-                        st.ActionedBy_Users_Time ActionedByUsersTimeUtc,
-                        COALESCE(TRY_CAST(JSON_VALUE(s.Workflow_StepTypes_ConfigData,'$.EstimatedDaysToComplete') AS int),0) EstimatedDaysToComplete
-                    FROM Workflow_StepTransactions st
-                    JOIN Workflow_Transactions_Headers h ON h.ID = st.Workflow_Transactions_Headers_ID
-                    JOIN Workflow_Steps s ON s.ID = st.Workflow_Steps_ID
-                    JOIN Workflows w ON w.ID = h.Workflows_ID
-                    LEFT JOIN Security_Users su ON su.User_Id = st.Assigned_Users_Id
-                    LEFT JOIN Security_Roles ar ON ar.Role_Id = s.Action_Roles_Id
-                    WHERE COALESCE(st.DelFlag,0)=0
-                      AND COALESCE(h.DelFlag,0)=0
-                      AND COALESCE(s.DelFlag,0)=0
-                      AND COALESCE(w.DelFlag,0)=0
-                      AND COALESCE(h.WorkflowComplete,0)=0
-                      AND COALESCE(st.StepExecuted,0)=0
-                      AND COALESCE(st.ExecutionStopped,0)=0";
-
-                var rows = db.Database.SqlQuery<DrilldownRow>(sql).ToList();
-
-                IEnumerable<DrilldownRow> visible = rows;
-                if (!isGlobalLeader)
-                {
-                    if (isTeamLeader)
-                    {
-                        visible = rows.Where(r => r.ActionRoleId.HasValue && teamRoleIds.Contains(r.ActionRoleId.Value));
-                    }
-                    else
-                    {
-                        visible = rows.Where(r =>
-                            r.AssignedUserId == currentUserId ||
-                            (!r.AssignedUserId.HasValue && r.ActionRoleId.HasValue && memberRoleIds.Contains(r.ActionRoleId.Value)));
-                    }
-                }
-
-                var visibleList = visible.ToList();
-
                 var weekStart = nowUtc.Date.AddDays(-((int)nowUtc.DayOfWeek == 0 ? 6 : ((int)nowUtc.DayOfWeek - 1)));
                 var weekEnd = weekStart.AddDays(4);
                 var nextWeekStart = weekStart.AddDays(7);
                 var nextWeekEnd = nextWeekStart.AddDays(4);
                 var monthEnd = new DateTime(nowUtc.Year, nowUtc.Month, DateTime.DaysInMonth(nowUtc.Year, nowUtc.Month));
 
-                int dueToday = 0, dueWeek = 0, dueNextWeek = 0, dueMonth = 0, overdue = 0;
-
-                var dataRows = visibleList.Select(r => {
-                    DateTime? dueDateUtc = null;
-                    int? businessDaysRemaining = null;
-                    bool slaBreach = false;
-                    if (r.EstimatedDaysToComplete > 0)
-                    {
-                        dueDateUtc = AddBusinessDays(r.StepCreateDateUtc, r.EstimatedDaysToComplete);
-                        businessDaysRemaining = CountBusinessDays(nowUtc, dueDateUtc.Value) - 1;
-                        slaBreach = dueDateUtc.Value.Date < nowUtc.Date;
-                        if (dueDateUtc.Value.Date == nowUtc.Date) dueToday++;
-                        if (dueDateUtc.Value.Date >= weekStart && dueDateUtc.Value.Date <= weekEnd) dueWeek++;
-                        if (dueDateUtc.Value.Date >= nextWeekStart && dueDateUtc.Value.Date <= nextWeekEnd) dueNextWeek++;
-                        if (dueDateUtc.Value.Date >= nowUtc.Date && dueDateUtc.Value.Date <= monthEnd) dueMonth++;
-                        if (slaBreach) overdue++;
-                    }
-
-                    return new {
-                        r.WorkflowHeaderId,
-                        TaskName = r.WorkflowDisplayName,
-                        r.WorkflowName,
-                        r.StepName,
-                        AssigneeOrRole = !string.IsNullOrWhiteSpace(r.AssignedToName) ? r.AssignedToName : (string.IsNullOrWhiteSpace(r.ActionRoleName) ? "Unassigned" : r.ActionRoleName),
-                        r.ActionRoleName,
-                        r.AssignedUserId,
-                        r.StepCreateDateUtc,
-                        DueDateUtc = dueDateUtc,
-                        BusinessDaysRemaining = businessDaysRemaining,
-                        SlaBreach = slaBreach,
-                        EstimatedDaysToComplete = r.EstimatedDaysToComplete
-                    };
-                }).OrderBy(x => x.SlaBreach ? 0 : 1).ThenBy(x => x.BusinessDaysRemaining ?? int.MaxValue).ThenBy(x => x.StepCreateDateUtc).ToList();
-
-                string exportMode = (formData["ExportMode"] ?? "").Trim();
-                if (!string.IsNullOrWhiteSpace(exportMode))
+                Func<PendingTaskRow, string> bucketFor = r =>
                 {
-                    if (!canExport)
-                    {
-                        return BadRequest("Export is allowed only for Workflow_TeamLeader or Workflow_GlobalLeader.");
-                    }
+                    if (r.EstimatedDaysToComplete <= 0) return "NoEstimate";
+                    var due = AddBusinessDays(r.StepCreateDateUtc, r.EstimatedDaysToComplete).Date;
+                    if (due < nowUtc.Date) return "Overdue";
+                    if (due == nowUtc.Date) return "DueToday";
+                    if (due >= weekStart && due <= weekEnd) return "DueThisWeek";
+                    if (due >= nextWeekStart && due <= nextWeekEnd) return "DueNextWeek";
+                    if (due >= nowUtc.Date && due <= monthEnd) return "DueThisMonth";
+                    return "Future";
+                };
 
-                    var sb = new StringBuilder();
-                    sb.AppendLine("WorkflowHeaderId,TaskName,StepName,AssigneeOrRole,StepCreateDateUtc,DueDateUtc,BusinessDaysRemaining,SlaBreach");
-                    foreach (var r in dataRows)
+                Func<IEnumerable<PendingTaskRow>, DrilldownKpiSummary> summarize = rows =>
+                {
+                    var list = rows.ToList();
+                    return new DrilldownKpiSummary
                     {
-                        sb.AppendLine(string.Join(",", new [] {
-                            r.WorkflowHeaderId.ToString(),
-                            CsvEscape(r.TaskName),
-                            CsvEscape(r.StepName),
-                            CsvEscape(r.AssigneeOrRole),
-                            CsvEscape(r.StepCreateDateUtc.ToString("o")),
-                            CsvEscape(r.DueDateUtc.HasValue ? r.DueDateUtc.Value.ToString("o") : ""),
-                            r.BusinessDaysRemaining.HasValue ? r.BusinessDaysRemaining.Value.ToString() : "",
-                            r.SlaBreach ? "1" : "0"
-                        }));
-                    }
-
-                    var bytes = Encoding.UTF8.GetBytes(sb.ToString());
-                    var result = new HttpResponseMessage(HttpStatusCode.OK)
-                    {
-                        Content = new ByteArrayContent(bytes)
+                        PendingCount = list.Count,
+                        DueTodayCount = list.Count(x => bucketFor(x) == "DueToday"),
+                        DueThisWeekCount = list.Count(x => bucketFor(x) == "DueThisWeek"),
+                        DueNextWeekCount = list.Count(x => bucketFor(x) == "DueNextWeek"),
+                        DueThisMonthCount = list.Count(x => bucketFor(x) == "DueThisMonth"),
+                        OverdueCount = list.Count(x => bucketFor(x) == "Overdue")
                     };
-                    result.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/csv");
-                    result.Content.Headers.ContentDisposition = new System.Net.Http.Headers.ContentDispositionHeaderValue("attachment")
-                    {
-                        FileName = string.Equals(exportMode, "Excel", StringComparison.OrdinalIgnoreCase)
-                            ? "workflow_task_drilldown.xls"
-                            : "workflow_task_drilldown.csv"
-                    };
-                    return ResponseMessage(result);
-                }
+                };
 
-                var paged = dataRows.Skip((page - 1) * perPage).Take(perPage).Cast<object>().ToList();
+                Func<IEnumerable<PendingTaskRow>, string, IEnumerable<PendingTaskRow>> applyBucket = (rows, b) =>
+                {
+                    if (string.IsNullOrWhiteSpace(b) || b.Equals("All", StringComparison.OrdinalIgnoreCase)) return rows;
+                    return rows.Where(x => string.Equals(bucketFor(x), b, StringComparison.OrdinalIgnoreCase));
+                };
 
+                // completed for on-time/avg delay at user level
                 var completedSql = @"SELECT
+                        st.Assigned_Users_Id AssignedUserId,
+                        s.Action_Roles_Id ActionRoleId,
                         st.CreateDate StepCreateDateUtc,
                         st.ActionedBy_Users_Time ActionedByUsersTimeUtc,
-                        COALESCE(TRY_CAST(JSON_VALUE(s.Workflow_StepTypes_ConfigData,'$.EstimatedDaysToComplete') AS int),0) EstimatedDaysToComplete,
-                        s.Action_Roles_Id ActionRoleId,
-                        st.Assigned_Users_Id AssignedUserId,
-                        st.ActionedBy_Users_Id ActionedByUsersId
+                        COALESCE(TRY_CAST(JSON_VALUE(s.Workflow_StepTypes_ConfigData,'$.EstimatedDaysToComplete') AS int),0) EstimatedDaysToComplete
                     FROM Workflow_StepTransactions st
                     JOIN Workflow_Transactions_Headers h ON h.ID = st.Workflow_Transactions_Headers_ID
                     JOIN Workflow_Steps s ON s.ID = st.Workflow_Steps_ID
                     WHERE COALESCE(st.DelFlag,0)=0
                       AND COALESCE(h.DelFlag,0)=0
                       AND COALESCE(s.DelFlag,0)=0
-                      AND COALESCE(h.WorkflowComplete,0)=0
                       AND COALESCE(st.StepExecuted,0)=1
+                      AND COALESCE(st.ExecutionStopped,0)=0
                       AND st.ActionedBy_Users_Time IS NOT NULL
                       AND st.ActionedBy_Users_Time >= @p0
                       AND st.ActionedBy_Users_Time <= @p1";
+                var completedRows = db.Database.SqlQuery<CompletedTaskRow>(completedSql, rangeFromUtc, rangeToUtc).ToList();
 
-                var completedRaw = db.Database.SqlQuery<DrilldownRow>(completedSql, rangeFromUtc, rangeToUtc).ToList();
-                IEnumerable<DrilldownRow> completedVisible = completedRaw;
-                if (!isGlobalLeader)
+                Func<int?, DrilldownKpiSummary> userCompletionKpi = uid =>
                 {
-                    if (isTeamLeader)
-                        completedVisible = completedRaw.Where(r => r.ActionRoleId.HasValue && teamRoleIds.Contains(r.ActionRoleId.Value));
-                    else
-                        completedVisible = completedRaw.Where(r => r.AssignedUserId == currentUserId);
-                }
-
-                var completedList = completedVisible.Where(x => x.ActionedByUsersTimeUtc.HasValue).ToList();
-                int onTimeCount = 0;
-                decimal totalDaysToComplete = 0m;
-                decimal totalDelayDays = 0m;
-                int delaySamples = 0;
-                foreach (var c in completedList)
-                {
-                    var businessDaysToComplete = CountBusinessDays(c.StepCreateDateUtc, c.ActionedByUsersTimeUtc.Value);
-                    totalDaysToComplete += businessDaysToComplete;
-                    if (c.EstimatedDaysToComplete > 0)
+                    var data = completedRows.Where(c => c.AssignedUserId == uid).ToList();
+                    int ontime = 0, samples = 0;
+                    decimal totalDays = 0m, totalDelay = 0m;
+                    foreach (var c in data)
                     {
-                        if (businessDaysToComplete <= c.EstimatedDaysToComplete) onTimeCount++;
-                        var delay = Math.Max(0, businessDaysToComplete - c.EstimatedDaysToComplete);
-                        totalDelayDays += delay;
-                        delaySamples++;
+                        if (!c.ActionedByUsersTimeUtc.HasValue) continue;
+                        var bd = CountBusinessDays(c.StepCreateDateUtc, c.ActionedByUsersTimeUtc.Value);
+                        totalDays += bd;
+                        if (c.EstimatedDaysToComplete > 0)
+                        {
+                            samples++;
+                            if (bd <= c.EstimatedDaysToComplete) ontime++;
+                            totalDelay += Math.Max(0, bd - c.EstimatedDaysToComplete);
+                        }
                     }
-                }
-
-                var kpi = new DrilldownKpiSummary
-                {
-                    PendingCount = visibleList.Count,
-                    DueTodayCount = dueToday,
-                    DueThisWeekCount = dueWeek,
-                    DueNextWeekCount = dueNextWeek,
-                    DueThisMonthCount = dueMonth,
-                    OverdueCount = overdue,
-                    CompletedCount = completedList.Count,
-                    OnTimeCompletionRatePct = completedList.Count == 0 ? (decimal?)null : Math.Round((onTimeCount * 100m) / completedList.Count, 2),
-                    AvgBusinessDaysToComplete = completedList.Count == 0 ? (decimal?)null : Math.Round(totalDaysToComplete / completedList.Count, 2),
-                    AvgBusinessDaysDelay = delaySamples == 0 ? (decimal?)null : Math.Round(totalDelayDays / delaySamples, 2)
+                    return new DrilldownKpiSummary
+                    {
+                        CompletedCount = data.Count,
+                        OnTimeCompletionRatePct = samples == 0 ? (decimal?)null : Math.Round((ontime * 100m) / samples, 2),
+                        AvgBusinessDaysToComplete = data.Count == 0 ? (decimal?)null : Math.Round(totalDays / data.Count, 2),
+                        AvgBusinessDaysDelay = samples == 0 ? (decimal?)null : Math.Round(totalDelay / samples, 2)
+                    };
                 };
 
+                if (string.IsNullOrWhiteSpace(level))
+                {
+                    level = (isGlobalLeader || isTeamLeader) ? "User" : "Workflow";
+                }
+
+                var summaryKpi = summarize(visible);
+
+                if (string.Equals(level, "User", StringComparison.OrdinalIgnoreCase))
+                {
+                    var grouped = visible
+                        .GroupBy(r => new { UserId = getOwnerUserId(r), UserName = r.AssignedToName ?? r.AccountManagerName ?? "Unassigned" })
+                        .Where(g => g.Key.UserId.HasValue)
+                        .Select(g => {
+                            var k = summarize(g);
+                            var ck = userCompletionKpi(g.Key.UserId);
+                            return new {
+                                UserId = g.Key.UserId,
+                                UserName = g.Key.UserName,
+                                Pending = k.PendingCount,
+                                DueToday = k.DueTodayCount,
+                                DueThisWeek = k.DueThisWeekCount,
+                                DueNextWeek = k.DueNextWeekCount,
+                                DueThisMonth = k.DueThisMonthCount,
+                                Overdue = k.OverdueCount,
+                                OnTimePct = ck.OnTimeCompletionRatePct,
+                                AvgDelay = ck.AvgBusinessDaysDelay
+                            };
+                        })
+                        .OrderByDescending(x => x.Pending)
+                        .ToList();
+
+                    var pageRows = grouped.Skip((page - 1) * perPage).Take(perPage).Cast<object>().ToList();
+                    return Ok(new WorkflowTaskDrilldownResponse
+                    {
+                        Level = "User",
+                        SummaryKpi = summaryKpi,
+                        AggregateData = pageRows,
+                        TaskData = new List<object>(),
+                        UserKpi = null,
+                        Meta = new { page = page, perpage = perPage, total = grouped.Count, pages = (int)Math.Ceiling(grouped.Count / (double)perPage) },
+                        CanExport = canExport,
+                        IsGlobalLeader = isGlobalLeader,
+                        IsTeamLeader = isTeamLeader
+                    });
+                }
+
+                if (string.Equals(level, "Workflow", StringComparison.OrdinalIgnoreCase))
+                {
+                    var scoped = visible;
+                    if (selectedUserId.HasValue)
+                        scoped = scoped.Where(r => getOwnerUserId(r) == selectedUserId.Value).ToList();
+
+                    var grouped = applyBucket(scoped, bucket)
+                        .GroupBy(r => new { r.WorkflowHeaderId, r.WorkflowDisplayName, r.WorkflowName })
+                        .Select(g => {
+                            var k = summarize(g);
+                            return new {
+                                g.Key.WorkflowHeaderId,
+                                WorkflowDisplayName = g.Key.WorkflowDisplayName,
+                                WorkflowName = g.Key.WorkflowName,
+                                Pending = k.PendingCount,
+                                DueToday = k.DueTodayCount,
+                                DueThisWeek = k.DueThisWeekCount,
+                                DueNextWeek = k.DueNextWeekCount,
+                                DueThisMonth = k.DueThisMonthCount,
+                                Overdue = k.OverdueCount
+                            };
+                        })
+                        .OrderByDescending(x => x.Pending)
+                        .ToList();
+
+                    var userKpi = selectedUserId.HasValue ? userCompletionKpi(selectedUserId.Value) : null;
+                    var pageRows = grouped.Skip((page - 1) * perPage).Take(perPage).Cast<object>().ToList();
+                    return Ok(new WorkflowTaskDrilldownResponse
+                    {
+                        Level = "Workflow",
+                        SummaryKpi = summarize(scoped),
+                        UserKpi = userKpi,
+                        AggregateData = pageRows,
+                        TaskData = new List<object>(),
+                        Meta = new { page = page, perpage = perPage, total = grouped.Count, pages = (int)Math.Ceiling(grouped.Count / (double)perPage) },
+                        CanExport = canExport,
+                        IsGlobalLeader = isGlobalLeader,
+                        IsTeamLeader = isTeamLeader
+                    });
+                }
+
+                // Task details level
+                var taskScoped = visible;
+                if (selectedUserId.HasValue) taskScoped = taskScoped.Where(r => getOwnerUserId(r) == selectedUserId.Value).ToList();
+                if (selectedWorkflowHeaderId.HasValue) taskScoped = taskScoped.Where(r => r.WorkflowHeaderId == selectedWorkflowHeaderId.Value).ToList();
+                taskScoped = applyBucket(taskScoped, bucket).ToList();
+
+                var taskRows = taskScoped.Select(r => {
+                    DateTime? due = r.EstimatedDaysToComplete > 0 ? AddBusinessDays(r.StepCreateDateUtc, r.EstimatedDaysToComplete) : (DateTime?)null;
+                    return new {
+                        r.WorkflowHeaderId,
+                        TaskName = r.WorkflowDisplayName,
+                        r.WorkflowName,
+                        r.StepName,
+                        AssigneeOrRole = !string.IsNullOrWhiteSpace(r.AssignedToName) ? r.AssignedToName : (!string.IsNullOrWhiteSpace(r.ActionRoleName) ? r.ActionRoleName : "Unassigned"),
+                        r.AccountName,
+                        r.AccountManagerName,
+                        BusinessDaysRemaining = due.HasValue ? (int?) (CountBusinessDays(nowUtc, due.Value) - 1) : null,
+                        SlaBreach = due.HasValue && due.Value.Date < nowUtc.Date,
+                        StepCreateDateUtc = r.StepCreateDateUtc
+                    };
+                }).OrderByDescending(x => x.SlaBreach).ThenBy(x => x.BusinessDaysRemaining ?? int.MaxValue).ThenBy(x => x.StepCreateDateUtc).ToList();
+
+                string exportMode = (formData["ExportMode"] ?? "").Trim();
+                if (!string.IsNullOrWhiteSpace(exportMode))
+                {
+                    if (!canExport) return BadRequest("Export is allowed only for Workflow_TeamLeader or Workflow_GlobalLeader.");
+                    var sb = new StringBuilder();
+                    sb.AppendLine("WorkflowHeaderId,TaskName,StepName,AssigneeOrRole,AccountName,AccountManagerName,BusinessDaysRemaining,SlaBreach");
+                    foreach (var r in taskRows)
+                    {
+                        sb.AppendLine(string.Join(",", new[] {
+                            r.WorkflowHeaderId.ToString(), CsvEscape(r.TaskName), CsvEscape(r.StepName), CsvEscape(r.AssigneeOrRole),
+                            CsvEscape(r.AccountName), CsvEscape(r.AccountManagerName),
+                            r.BusinessDaysRemaining.HasValue ? r.BusinessDaysRemaining.Value.ToString() : "", r.SlaBreach ? "1" : "0"
+                        }));
+                    }
+                    var bytes = Encoding.UTF8.GetBytes(sb.ToString());
+                    var result = new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(bytes) };
+                    result.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/csv");
+                    result.Content.Headers.ContentDisposition = new System.Net.Http.Headers.ContentDispositionHeaderValue("attachment")
+                    {
+                        FileName = string.Equals(exportMode, "Excel", StringComparison.OrdinalIgnoreCase) ? "workflow_task_drilldown.xls" : "workflow_task_drilldown.csv"
+                    };
+                    return ResponseMessage(result);
+                }
+
+                var pageTaskRows = taskRows.Skip((page - 1) * perPage).Take(perPage).Cast<object>().ToList();
                 return Ok(new WorkflowTaskDrilldownResponse
                 {
-                    Meta = new { page = page, perpage = perPage, total = dataRows.Count, pages = (int)Math.Ceiling(dataRows.Count / (double)perPage) },
-                    Kpi = kpi,
-                    Data = paged,
-                    CanExport = canExport
+                    Level = "Task",
+                    SummaryKpi = summarize(taskScoped),
+                    UserKpi = selectedUserId.HasValue ? userCompletionKpi(selectedUserId.Value) : null,
+                    AggregateData = new List<object>(),
+                    TaskData = pageTaskRows,
+                    Meta = new { page = page, perpage = perPage, total = taskRows.Count, pages = (int)Math.Ceiling(taskRows.Count / (double)perPage) },
+                    CanExport = canExport,
+                    IsGlobalLeader = isGlobalLeader,
+                    IsTeamLeader = isTeamLeader
                 });
             }
             catch (Exception e)
