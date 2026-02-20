@@ -735,7 +735,7 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                     @"SELECT ur.Role_Id, r.RoleName
                       FROM Security_UserRoles ur
                       INNER JOIN Security_Roles r ON r.Role_Id = ur.Role_Id
-                      WHERE ur.User_Id = @p0 AND ISNULL(r.DelFlag,0)=0", currentUserId).ToList();
+                      WHERE ur.User_Id = @p0", currentUserId).ToList();
 
                 bool isGlobalLeader = userRoles.Any(x => string.Equals((x.RoleName ?? "").Trim(), "Workflow_GlobalLeader", StringComparison.OrdinalIgnoreCase));
                 bool isTeamLeader = userRoles.Any(x => string.Equals((x.RoleName ?? "").Trim(), "Workflow_TeamLeader", StringComparison.OrdinalIgnoreCase));
