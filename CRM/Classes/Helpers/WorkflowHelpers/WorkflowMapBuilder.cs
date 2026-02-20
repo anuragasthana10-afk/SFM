@@ -126,34 +126,22 @@ namespace CRM.Classes.Helpers.WorkflowHelpers
             Workflow_Steps currentStep,
             Dictionary<short, List<Workflow_StepTransition>> transitionsByFromStepId)
         {
-            if (transitionsByFromStepId.ContainsKey(currentStep.ID))
+            if (!transitionsByFromStepId.ContainsKey(currentStep.ID))
             {
-                var byId = workflowStepsList.ToDictionary(x => x.ID, x => x);
-                var transitionChildren = new List<Workflow_Steps>();
-                foreach (var transition in transitionsByFromStepId[currentStep.ID])
+                return new List<Workflow_Steps>();
+            }
+
+            var byId = workflowStepsList.ToDictionary(x => x.ID, x => x);
+            var transitionChildren = new List<Workflow_Steps>();
+            foreach (var transition in transitionsByFromStepId[currentStep.ID])
+            {
+                if (byId.ContainsKey(transition.To_Workflow_Steps_ID))
                 {
-                    if (byId.ContainsKey(transition.To_Workflow_Steps_ID))
-                    {
-                        transitionChildren.Add(byId[transition.To_Workflow_Steps_ID]);
-                    }
+                    transitionChildren.Add(byId[transition.To_Workflow_Steps_ID]);
                 }
-
-                // Transition entity takes precedence when present.
-                return transitionChildren;
             }
 
-            // Backward-compatible fallback to legacy columns.
-            var candidateChildren = new List<Workflow_Steps>();
-
-            if (currentStep.Workflow_Steps_NextStep_ID is short nextStepId)
-            {
-                candidateChildren.AddRange(workflowStepsList.Where(ws => ws.ID == nextStepId));
-            }
-
-            candidateChildren.AddRange(
-                workflowStepsList.Where(ws => ws.Workflow_Steps_PreviousStep_ID == currentStep.ID));
-
-            return candidateChildren;
+            return transitionChildren;
         }
 
         private static bool ExistsInParentChain(short stepId, WorkflowStepsMap current)
@@ -228,17 +216,7 @@ namespace CRM.Classes.Helpers.WorkflowHelpers
                 }
             }
 
-            var rootCandidate = remainingSteps.FirstOrDefault(candidate =>
-                !remainingSteps.Any(other =>
-                    other.Workflow_Steps_NextStep_ID == candidate.ID ||
-                    candidate.Workflow_Steps_PreviousStep_ID == other.ID));
-
-            if (rootCandidate != null)
-            {
-                return rootCandidate;
-            }
-
-            // Fallback for purely cyclic disconnected graphs.
+            // Fallback for disconnected/cyclic graphs with no clear root in transitions.
             return remainingSteps[0];
         }
 

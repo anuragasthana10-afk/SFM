@@ -50,16 +50,6 @@ namespace CRM.Models.Clients
 
             /*** Workflow Entities ***/
             modelBuilder.Entity<Workflow_Steps>()
-                .HasMany(e => e.Workflow_Steps1)
-                .WithOptional(e => e.Workflow_Steps_NextStep)
-                .HasForeignKey(e => e.Workflow_Steps_NextStep_ID);
-
-            modelBuilder.Entity<Workflow_Steps>()
-                .HasMany(e => e.Workflow_Steps11)
-                .WithOptional(e => e.Workflow_Steps_PreviousStep)
-                .HasForeignKey(e => e.Workflow_Steps_PreviousStep_ID);
-
-            modelBuilder.Entity<Workflow_Steps>()
                 .HasMany(e => e.Workflow_StepTransactions)
                 .WithRequired(e => e.Workflow_Steps)
                 .HasForeignKey(e => e.Workflow_Steps_ID)

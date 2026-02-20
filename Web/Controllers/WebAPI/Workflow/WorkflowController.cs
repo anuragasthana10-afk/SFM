@@ -1261,23 +1261,6 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
 
             db.Workflow_StepTransitions.Add(transition);
 
-            // Dual-write to legacy link columns for backward compatibility.
-            var fromStep = db.Workflow_Steps.First(s => s.ID == cmd.FromStepId);
-            var toStep = db.Workflow_Steps.First(s => s.ID == cmd.ToStepId);
-            if (transition.IsDefaultPath ?? false)
-            {
-                fromStep.Workflow_Steps_NextStep_ID = cmd.ToStepId;
-            }
-            if (!toStep.Workflow_Steps_PreviousStep_ID.HasValue)
-            {
-                toStep.Workflow_Steps_PreviousStep_ID = cmd.FromStepId;
-            }
-
-            fromStep.ModifyUserID = CurrentContext.CurrentUser.User_Id;
-            fromStep.ModifyDate = DateTime.UtcNow;
-            toStep.ModifyUserID = CurrentContext.CurrentUser.User_Id;
-            toStep.ModifyDate = DateTime.UtcNow;
-
             AuditTemplateChange(cmd.WorkflowId, "AddTemplateTransition", cmd);
             db.SaveChanges();
             return Ok(new { TransitionId = transition.ID });
@@ -1320,18 +1303,6 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
             transition.ModifyUserID = CurrentContext.CurrentUser.User_Id;
             transition.ModifyDate = DateTime.UtcNow;
 
-            // dual-write for default path
-            if (transition.IsDefaultPath ?? false)
-            {
-                var fromStep = db.Workflow_Steps.FirstOrDefault(s => s.ID == transition.From_Workflow_Steps_ID && (s.DelFlag ?? false) == false);
-                if (fromStep != null)
-                {
-                    fromStep.Workflow_Steps_NextStep_ID = transition.To_Workflow_Steps_ID;
-                    fromStep.ModifyUserID = CurrentContext.CurrentUser.User_Id;
-                    fromStep.ModifyDate = DateTime.UtcNow;
-                }
-            }
-
             AuditTemplateChange(cmd.WorkflowId, "UpdateTemplateTransition", cmd);
             db.SaveChanges();
             return Ok(new { TransitionId = transition.ID });
@@ -1361,14 +1332,6 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
             transition.IsActive = false;
             transition.ModifyUserID = CurrentContext.CurrentUser.User_Id;
             transition.ModifyDate = DateTime.UtcNow;
-
-            var fromStep = db.Workflow_Steps.FirstOrDefault(s => s.ID == transition.From_Workflow_Steps_ID && (s.DelFlag ?? false) == false);
-            if (fromStep != null && fromStep.Workflow_Steps_NextStep_ID == transition.To_Workflow_Steps_ID)
-            {
-                fromStep.Workflow_Steps_NextStep_ID = null;
-                fromStep.ModifyUserID = CurrentContext.CurrentUser.User_Id;
-                fromStep.ModifyDate = DateTime.UtcNow;
-            }
 
             AuditTemplateChange(cmd.WorkflowId, "RemoveTemplateTransition", cmd);
             db.SaveChanges();

@@ -10,8 +10,6 @@ namespace CRM.Models.Workflows
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2214:DoNotCallOverridableMethodsInConstructors")]
         public Workflow_Steps()
         {
-            Workflow_Steps1 = new HashSet<Workflow_Steps>();
-            Workflow_Steps11 = new HashSet<Workflow_Steps>();
             Workflow_StepTransactions = new HashSet<Workflow_StepTransactions>();
             Workflow_StepTransitions_From = new HashSet<Workflow_StepTransition>();
             Workflow_StepTransitions_To = new HashSet<Workflow_StepTransition>();
@@ -35,9 +33,6 @@ namespace CRM.Models.Workflows
 
         public bool? IsStartStep { get; set; }
 
-        public short? Workflow_Steps_PreviousStep_ID { get; set; }
-
-        public short? Workflow_Steps_NextStep_ID { get; set; }
 
         public bool? WaitForTriggeredWorkflowsToComplete { get; set; }
 
@@ -99,15 +94,6 @@ namespace CRM.Models.Workflows
         public virtual Security_Roles Security_Roles { get; set; }
         */
 
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2227:CollectionPropertiesShouldBeReadOnly")]
-        public virtual ICollection<Workflow_Steps> Workflow_Steps1 { get; set; }
-
-        public virtual Workflow_Steps Workflow_Steps_NextStep { get; set; }
-
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2227:CollectionPropertiesShouldBeReadOnly")]
-        public virtual ICollection<Workflow_Steps> Workflow_Steps11 { get; set; }
-
-        public virtual Workflow_Steps Workflow_Steps_PreviousStep { get; set; }
 
         public virtual Workflow_StepTypes Workflow_StepType { get; set; }
 
