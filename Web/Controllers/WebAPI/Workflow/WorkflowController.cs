@@ -644,11 +644,12 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
         private sealed class DrilldownKpiSummary
         {
             public int PendingCount { get; set; }
-            public int DueTodayCount { get; set; }
-            public int DueThisWeekCount { get; set; }
-            public int DueNextWeekCount { get; set; }
-            public int DueThisMonthCount { get; set; }
-            public int OverdueCount { get; set; }
+            public int Due1To5Count { get; set; }
+            public int Due6To25Count { get; set; }
+            public int Due26PlusCount { get; set; }
+            public int Overdue1To5Count { get; set; }
+            public int Overdue6To25Count { get; set; }
+            public int Overdue26PlusCount { get; set; }
             public int CompletedCount { get; set; }
             public decimal? OnTimeCompletionRatePct { get; set; }
             public decimal? AvgBusinessDaysToComplete { get; set; }
@@ -698,8 +699,14 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
 
         private static string CsvEscape(string value)
         {
-            return """ + (value ?? "").Replace(""", """") + """;
+            return "\"" + (value ?? "").Replace("\"", "\"\"") + "\"";
         }
+
+
+        private const string AccountManagerRoleNameOption = "AccountManager";
+        private const string RenewalRoleNameOption = "Renewal";
+        private const int Bucket1MaxBusinessDays = 5;
+        private const int Bucket2MaxBusinessDays = 25;
 
         private static int CountBusinessDays(DateTime startUtc, DateTime endUtc)
         {
@@ -764,8 +771,8 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                     .Distinct()
                     .ToList());
 
-                var accountManagerRoleIds = new HashSet<int>(db.Database.SqlQuery<int>(
-                    @"SELECT Role_Id FROM Security_Roles WHERE LTRIM(RTRIM(RoleName)) = 'AccountManager'").ToList());
+                var implicitOwnerRoleIds = new HashSet<int>(db.Database.SqlQuery<int>(
+                    @"SELECT Role_Id FROM Security_Roles WHERE LTRIM(RTRIM(RoleName)) IN (@p0, @p1)", AccountManagerRoleNameOption, RenewalRoleNameOption).ToList());
 
                 var teamMemberUserIds = isTeamLeader && teamRoleIds.Count > 0
                     ? new HashSet<int>(db.Database.SqlQuery<int>(
@@ -816,7 +823,7 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                 Func<PendingTaskRow, int?> getOwnerUserId = r =>
                 {
                     if (r.AssignedUserId.HasValue) return r.AssignedUserId;
-                    if (r.ActionRoleId.HasValue && accountManagerRoleIds.Contains(r.ActionRoleId.Value) && r.AccountManagerUserId.HasValue)
+                    if (r.ActionRoleId.HasValue && implicitOwnerRoleIds.Contains(r.ActionRoleId.Value) && r.AccountManagerUserId.HasValue)
                         return r.AccountManagerUserId;
                     return null;
                 };
@@ -831,12 +838,12 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                     {
                         if (r.ActionRoleId.HasValue && teamRoleIds.Contains(r.ActionRoleId.Value)) return true;
                         if (r.AssignedUserId.HasValue && teamMemberUserIds.Contains(r.AssignedUserId.Value)) return true;
-                        if (!r.AssignedUserId.HasValue && r.ActionRoleId.HasValue && accountManagerRoleIds.Contains(r.ActionRoleId.Value) && r.AccountManagerUserId.HasValue && teamMemberUserIds.Contains(r.AccountManagerUserId.Value)) return true;
+                        if (!r.AssignedUserId.HasValue && r.ActionRoleId.HasValue && implicitOwnerRoleIds.Contains(r.ActionRoleId.Value) && r.AccountManagerUserId.HasValue && teamMemberUserIds.Contains(r.AccountManagerUserId.Value)) return true;
                         return false;
                     }
                     if (r.AssignedUserId == currentUserId) return true;
                     if (canCurrentUserAct(r)) return true;
-                    if (!r.AssignedUserId.HasValue && r.ActionRoleId.HasValue && accountManagerRoleIds.Contains(r.ActionRoleId.Value) && r.AccountManagerUserId == currentUserId) return true;
+                    if (!r.AssignedUserId.HasValue && r.ActionRoleId.HasValue && implicitOwnerRoleIds.Contains(r.ActionRoleId.Value) && r.AccountManagerUserId == currentUserId) return true;
                     return false;
                 };
 
@@ -865,22 +872,32 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                         break;
                 }
 
-                var weekStart = nowUtc.Date.AddDays(-((int)nowUtc.DayOfWeek == 0 ? 6 : ((int)nowUtc.DayOfWeek - 1)));
-                var weekEnd = weekStart.AddDays(4);
-                var nextWeekStart = weekStart.AddDays(7);
-                var nextWeekEnd = nextWeekStart.AddDays(4);
-                var monthEnd = new DateTime(nowUtc.Year, nowUtc.Month, DateTime.DaysInMonth(nowUtc.Year, nowUtc.Month));
+                var bucket1Label = "1-" + Bucket1MaxBusinessDays + " days";
+                var bucket2Label = (Bucket1MaxBusinessDays + 1) + "-" + Bucket2MaxBusinessDays + " days";
+                var bucket3Label = (Bucket2MaxBusinessDays + 1) + "+ days";
+
+                Func<PendingTaskRow, int?> businessDaysRemaining = r =>
+                {
+                    if (r.EstimatedDaysToComplete <= 0) return Bucket2MaxBusinessDays + 1;
+                    var due = AddBusinessDays(r.StepCreateDateUtc, r.EstimatedDaysToComplete).Date;
+                    if (due >= nowUtc.Date) return CountBusinessDays(nowUtc.Date, due) - 1;
+                    return -CountBusinessDays(due, nowUtc.Date);
+                };
 
                 Func<PendingTaskRow, string> bucketFor = r =>
                 {
-                    if (r.EstimatedDaysToComplete <= 0) return "NoEstimate";
-                    var due = AddBusinessDays(r.StepCreateDateUtc, r.EstimatedDaysToComplete).Date;
-                    if (due < nowUtc.Date) return "Overdue";
-                    if (due == nowUtc.Date) return "DueToday";
-                    if (due >= weekStart && due <= weekEnd) return "DueThisWeek";
-                    if (due >= nextWeekStart && due <= nextWeekEnd) return "DueNextWeek";
-                    if (due >= nowUtc.Date && due <= monthEnd) return "DueThisMonth";
-                    return "Future";
+                    var rem = businessDaysRemaining(r) ?? (Bucket2MaxBusinessDays + 1);
+                    if (rem < 0)
+                    {
+                        var overdueDays = Math.Abs(rem);
+                        if (overdueDays <= Bucket1MaxBusinessDays) return "Overdue1To5";
+                        if (overdueDays <= Bucket2MaxBusinessDays) return "Overdue6To25";
+                        return "Overdue26Plus";
+                    }
+
+                    if (rem <= Bucket1MaxBusinessDays) return "Due1To5";
+                    if (rem <= Bucket2MaxBusinessDays) return "Due6To25";
+                    return "Due26Plus";
                 };
 
                 Func<IEnumerable<PendingTaskRow>, DrilldownKpiSummary> summarize = rows =>
@@ -889,11 +906,12 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                     return new DrilldownKpiSummary
                     {
                         PendingCount = list.Count,
-                        DueTodayCount = list.Count(x => bucketFor(x) == "DueToday"),
-                        DueThisWeekCount = list.Count(x => bucketFor(x) == "DueThisWeek"),
-                        DueNextWeekCount = list.Count(x => bucketFor(x) == "DueNextWeek"),
-                        DueThisMonthCount = list.Count(x => x.EstimatedDaysToComplete > 0 && AddBusinessDays(x.StepCreateDateUtc, x.EstimatedDaysToComplete).Date >= nowUtc.Date && AddBusinessDays(x.StepCreateDateUtc, x.EstimatedDaysToComplete).Date <= monthEnd),
-                        OverdueCount = list.Count(x => bucketFor(x) == "Overdue")
+                        Due1To5Count = list.Count(x => bucketFor(x) == "Due1To5"),
+                        Due6To25Count = list.Count(x => bucketFor(x) == "Due6To25"),
+                        Due26PlusCount = list.Count(x => bucketFor(x) == "Due26Plus"),
+                        Overdue1To5Count = list.Count(x => bucketFor(x) == "Overdue1To5"),
+                        Overdue6To25Count = list.Count(x => bucketFor(x) == "Overdue6To25"),
+                        Overdue26PlusCount = list.Count(x => bucketFor(x) == "Overdue26Plus")
                     };
                 };
 
@@ -973,11 +991,12 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                                 RoleId = (int?)null,
                                 UserName = g.Key.UserName,
                                 Pending = k.PendingCount,
-                                DueToday = k.DueTodayCount,
-                                DueThisWeek = k.DueThisWeekCount,
-                                DueNextWeek = k.DueNextWeekCount,
-                                DueThisMonth = k.DueThisMonthCount,
-                                Overdue = k.OverdueCount,
+                                Due1To5 = k.Due1To5Count,
+                                Due6To25 = k.Due6To25Count,
+                                Due26Plus = k.Due26PlusCount,
+                                Overdue1To5 = k.Overdue1To5Count,
+                                Overdue6To25 = k.Overdue6To25Count,
+                                Overdue26Plus = k.Overdue26PlusCount,
                                 OnTimePct = ck.OnTimeCompletionRatePct,
                                 AvgDelay = ck.AvgBusinessDaysDelay
                             };
@@ -994,11 +1013,12 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                                 RoleId = (int?)g.Key.RoleId,
                                 UserName = g.Key.RoleName,
                                 Pending = k.PendingCount,
-                                DueToday = k.DueTodayCount,
-                                DueThisWeek = k.DueThisWeekCount,
-                                DueNextWeek = k.DueNextWeekCount,
-                                DueThisMonth = k.DueThisMonthCount,
-                                Overdue = k.OverdueCount,
+                                Due1To5 = k.Due1To5Count,
+                                Due6To25 = k.Due6To25Count,
+                                Due26Plus = k.Due26PlusCount,
+                                Overdue1To5 = k.Overdue1To5Count,
+                                Overdue6To25 = k.Overdue6To25Count,
+                                Overdue26Plus = k.Overdue26PlusCount,
                                 OnTimePct = (decimal?)null,
                                 AvgDelay = (decimal?)null
                             };
@@ -1014,7 +1034,7 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                         AggregateData = pageRows,
                         TaskData = new List<object>(),
                         UserKpi = null,
-                        Meta = new { page = page, perpage = perPage, total = grouped.Count, pages = (int)Math.Ceiling(grouped.Count / (double)perPage) },
+                        Meta = new { page = page, perpage = perPage, total = grouped.Count, pages = (int)Math.Ceiling(grouped.Count / (double)perPage), BucketLabels = new { Due1To5 = "Due: " + bucket1Label, Due6To25 = "Due: " + bucket2Label, Due26Plus = "Due: " + bucket3Label, Overdue1To5 = "Overdue: " + bucket1Label, Overdue6To25 = "Overdue: " + bucket2Label, Overdue26Plus = "Overdue: " + bucket3Label } },
                         CanExport = canExport,
                         IsGlobalLeader = isGlobalLeader,
                         IsTeamLeader = isTeamLeader
@@ -1037,11 +1057,12 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                                 WorkflowName = g.Key,
                                 WorkflowDisplayName = g.Key,
                                 Pending = k.PendingCount,
-                                DueToday = k.DueTodayCount,
-                                DueThisWeek = k.DueThisWeekCount,
-                                DueNextWeek = k.DueNextWeekCount,
-                                DueThisMonth = k.DueThisMonthCount,
-                                Overdue = k.OverdueCount
+                                Due1To5 = k.Due1To5Count,
+                                Due6To25 = k.Due6To25Count,
+                                Due26Plus = k.Due26PlusCount,
+                                Overdue1To5 = k.Overdue1To5Count,
+                                Overdue6To25 = k.Overdue6To25Count,
+                                Overdue26Plus = k.Overdue26PlusCount
                             };
                         })
                         .OrderByDescending(x => x.Pending)
@@ -1056,7 +1077,7 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                         UserKpi = userKpi,
                         AggregateData = pageRows,
                         TaskData = new List<object>(),
-                        Meta = new { page = page, perpage = perPage, total = grouped.Count, pages = (int)Math.Ceiling(grouped.Count / (double)perPage) },
+                        Meta = new { page = page, perpage = perPage, total = grouped.Count, pages = (int)Math.Ceiling(grouped.Count / (double)perPage), BucketLabels = new { Due1To5 = "Due: " + bucket1Label, Due6To25 = "Due: " + bucket2Label, Due26Plus = "Due: " + bucket3Label, Overdue1To5 = "Overdue: " + bucket1Label, Overdue6To25 = "Overdue: " + bucket2Label, Overdue26Plus = "Overdue: " + bucket3Label } },
                         CanExport = canExport,
                         IsGlobalLeader = isGlobalLeader,
                         IsTeamLeader = isTeamLeader
@@ -1081,7 +1102,7 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                         AssigneeOrRole = !string.IsNullOrWhiteSpace(r.AssignedToName) ? r.AssignedToName : (!string.IsNullOrWhiteSpace(r.ActionRoleName) ? r.ActionRoleName : "Unassigned"),
                         r.AccountName,
                         r.AccountManagerName,
-                        BusinessDaysRemaining = due.HasValue ? (int?) (CountBusinessDays(nowUtc, due.Value) - 1) : null,
+                        BusinessDaysRemaining = due.HasValue ? (due.Value.Date >= nowUtc.Date ? (int?)(CountBusinessDays(nowUtc.Date, due.Value.Date) - 1) : (int?)(-CountBusinessDays(due.Value.Date, nowUtc.Date))) : null,
                         SlaBreach = due.HasValue && due.Value.Date < nowUtc.Date,
                         StepCreateDateUtc = r.StepCreateDateUtc
                     };
@@ -1119,7 +1140,7 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                     UserKpi = selectedUserId.HasValue ? userCompletionKpi(selectedUserId.Value) : null,
                     AggregateData = new List<object>(),
                     TaskData = pageTaskRows,
-                    Meta = new { page = page, perpage = perPage, total = taskRows.Count, pages = (int)Math.Ceiling(taskRows.Count / (double)perPage) },
+                    Meta = new { page = page, perpage = perPage, total = taskRows.Count, pages = (int)Math.Ceiling(taskRows.Count / (double)perPage), BucketLabels = new { Due1To5 = "Due: " + bucket1Label, Due6To25 = "Due: " + bucket2Label, Due26Plus = "Due: " + bucket3Label, Overdue1To5 = "Overdue: " + bucket1Label, Overdue6To25 = "Overdue: " + bucket2Label, Overdue26Plus = "Overdue: " + bucket3Label } },
                     CanExport = canExport,
                     IsGlobalLeader = isGlobalLeader,
                     IsTeamLeader = isTeamLeader

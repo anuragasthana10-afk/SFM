@@ -86,7 +86,7 @@
     var state = {
         page:1, perPage:20, total:0, pages:1,
         level:'', selectedUserId:null, selectedRoleId:null, selectedWorkflowHeaderId:null, selectedWorkflowName:null,
-        bucket:'All', canExport:false, history:[]
+        bucket:'All', canExport:false, history:[], bucketLabels:{}
     };
 
     function card(label, value, bucket, color){
@@ -97,13 +97,15 @@
 
     function renderKpis(k){
         k = k || {};
+        var l = state.bucketLabels || {};
         var html = '';
         html += card('Pending', k.PendingCount || 0, 'All', 'brand');
-        html += card('Due Today', k.DueTodayCount || 0, 'DueToday', 'warning');
-        html += card('Due This Week', k.DueThisWeekCount || 0, 'DueThisWeek', 'accent');
-        html += card('Due Next Week', k.DueNextWeekCount || 0, 'DueNextWeek', 'info');
-        html += card('Due This Month', k.DueThisMonthCount || 0, 'DueThisMonth', 'metal');
-        html += card('Overdue', k.OverdueCount || 0, 'Overdue', 'danger');
+        html += card(l.Overdue1To5 || 'Overdue: 1-5 days', k.Overdue1To5Count || 0, 'Overdue1To5', 'danger');
+        html += card(l.Overdue6To25 || 'Overdue: 6-25 days', k.Overdue6To25Count || 0, 'Overdue6To25', 'danger');
+        html += card(l.Overdue26Plus || 'Overdue: 26+ days', k.Overdue26PlusCount || 0, 'Overdue26Plus', 'danger');
+        html += card(l.Due1To5 || 'Due: 1-5 days', k.Due1To5Count || 0, 'Due1To5', 'warning');
+        html += card(l.Due6To25 || 'Due: 6-25 days', k.Due6To25Count || 0, 'Due6To25', 'accent');
+        html += card(l.Due26Plus || 'Due: 26+ days', k.Due26PlusCount || 0, 'Due26Plus', 'info');
         $('#wfKpiCards').html(html);
     }
 
@@ -136,14 +138,22 @@
         var $t = $('#wfAggTable');
         var head = '';
         if (level === 'User') {
-            head = '<tr><th>User</th><th>Pending</th><th>Due Today</th><th>Due This Week</th><th>Due Next Week</th><th>Due This Month</th><th>Overdue</th><th>On-time %</th><th>Avg Delay</th></tr>';
+            head = '<tr><th>User / Role</th><th>Pending</th><th class="wf-col-over-1"></th><th class="wf-col-over-2"></th><th class="wf-col-over-3"></th><th class="wf-col-due-1"></th><th class="wf-col-due-2"></th><th class="wf-col-due-3"></th><th>On-time %</th><th>Avg Delay</th></tr>';
         } else {
-            head = '<tr><th>Workflow</th><th>Pending</th><th>Due Today</th><th>Due This Week</th><th>Due Next Week</th><th>Due This Month</th><th>Overdue</th></tr>';
+            head = '<tr><th>Workflow</th><th>Pending</th><th class="wf-col-over-1"></th><th class="wf-col-over-2"></th><th class="wf-col-over-3"></th><th class="wf-col-due-1"></th><th class="wf-col-due-2"></th><th class="wf-col-due-3"></th></tr>';
         }
         $('#wfAggHead').html(head);
 
+        var labels = state.bucketLabels || {};
+        $t.find('.wf-col-over-1').text(labels.Overdue1To5 || 'Overdue: 1-5 days');
+        $t.find('.wf-col-over-2').text(labels.Overdue6To25 || 'Overdue: 6-25 days');
+        $t.find('.wf-col-over-3').text(labels.Overdue26Plus || 'Overdue: 26+ days');
+        $t.find('.wf-col-due-1').text(labels.Due1To5 || 'Due: 1-5 days');
+        $t.find('.wf-col-due-2').text(labels.Due6To25 || 'Due: 6-25 days');
+        $t.find('.wf-col-due-3').text(labels.Due26Plus || 'Due: 26+ days');
+
         if (!rows || !rows.length){
-            $t.find('tbody').html('<tr><td colspan="9" class="text-muted">No records.</td></tr>');
+            $t.find('tbody').html('<tr><td colspan="10" class="text-muted">No records.</td></tr>');
             $t.show();
             return;
         }
@@ -154,11 +164,12 @@
                 html += '<tr>'
                     + '<td><a href=\"javascript:void(0);\" class=\"wf-user\" data-uid=\"'+(r.UserId||'')+'\" data-rid=\"'+(r.RoleId||'')+'\" data-rt=\"'+(r.RowType||'User')+'\">'+(r.UserName||'')+'</a></td>'
                     + '<td><a href="javascript:void(0);" class="wf-stat" data-bucket="All" data-uid="'+(r.UserId||'')+'" data-rid="'+(r.RoleId||'')+'" data-rt="'+(r.RowType||'User')+'">'+(r.Pending||0)+'</a></td>'
-                    + '<td><a href="javascript:void(0);" class="wf-stat" data-bucket="DueToday" data-uid="'+(r.UserId||'')+'" data-rid="'+(r.RoleId||'')+'" data-rt="'+(r.RowType||'User')+'">'+(r.DueToday||0)+'</a></td>'
-                    + '<td><a href="javascript:void(0);" class="wf-stat" data-bucket="DueThisWeek" data-uid="'+(r.UserId||'')+'" data-rid="'+(r.RoleId||'')+'" data-rt="'+(r.RowType||'User')+'">'+(r.DueThisWeek||0)+'</a></td>'
-                    + '<td><a href="javascript:void(0);" class="wf-stat" data-bucket="DueNextWeek" data-uid="'+(r.UserId||'')+'" data-rid="'+(r.RoleId||'')+'" data-rt="'+(r.RowType||'User')+'">'+(r.DueNextWeek||0)+'</a></td>'
-                    + '<td><a href="javascript:void(0);" class="wf-stat" data-bucket="DueThisMonth" data-uid="'+(r.UserId||'')+'" data-rid="'+(r.RoleId||'')+'" data-rt="'+(r.RowType||'User')+'">'+(r.DueThisMonth||0)+'</a></td>'
-                    + '<td><a href="javascript:void(0);" class="wf-stat" data-bucket="Overdue" data-uid="'+(r.UserId||'')+'" data-rid="'+(r.RoleId||'')+'" data-rt="'+(r.RowType||'User')+'">'+(r.Overdue||0)+'</a></td>'
+                    + '<td><a href="javascript:void(0);" class="wf-stat" data-bucket="Overdue1To5" data-uid="'+(r.UserId||'')+'" data-rid="'+(r.RoleId||'')+'" data-rt="'+(r.RowType||'User')+'">'+(r.Overdue1To5||0)+'</a></td>'
+                    + '<td><a href="javascript:void(0);" class="wf-stat" data-bucket="Overdue6To25" data-uid="'+(r.UserId||'')+'" data-rid="'+(r.RoleId||'')+'" data-rt="'+(r.RowType||'User')+'">'+(r.Overdue6To25||0)+'</a></td>'
+                    + '<td><a href="javascript:void(0);" class="wf-stat" data-bucket="Overdue26Plus" data-uid="'+(r.UserId||'')+'" data-rid="'+(r.RoleId||'')+'" data-rt="'+(r.RowType||'User')+'">'+(r.Overdue26Plus||0)+'</a></td>'
+                    + '<td><a href="javascript:void(0);" class="wf-stat" data-bucket="Due1To5" data-uid="'+(r.UserId||'')+'" data-rid="'+(r.RoleId||'')+'" data-rt="'+(r.RowType||'User')+'">'+(r.Due1To5||0)+'</a></td>'
+                    + '<td><a href="javascript:void(0);" class="wf-stat" data-bucket="Due6To25" data-uid="'+(r.UserId||'')+'" data-rid="'+(r.RoleId||'')+'" data-rt="'+(r.RowType||'User')+'">'+(r.Due6To25||0)+'</a></td>'
+                    + '<td><a href="javascript:void(0);" class="wf-stat" data-bucket="Due26Plus" data-uid="'+(r.UserId||'')+'" data-rid="'+(r.RoleId||'')+'" data-rt="'+(r.RowType||'User')+'">'+(r.Due26Plus||0)+'</a></td>'
                     + '<td>' + (r.OnTimePct == null ? 'N/A' : r.OnTimePct + '%') + '</td>'
                     + '<td>' + (r.AvgDelay == null ? 'N/A' : r.AvgDelay) + '</td>'
                     + '</tr>';
@@ -166,11 +177,12 @@
                 html += '<tr>'
                     + '<td><a href="javascript:void(0);" class="wf-workflow" data-wn="'+(r.WorkflowName||'')+'">'+(r.WorkflowDisplayName||r.WorkflowName||'')+'</a></td>'
                     + '<td><a href="javascript:void(0);" class="wf-stat-workflow" data-bucket="All" data-wn="'+(r.WorkflowName||'')+'">'+(r.Pending||0)+'</a></td>'
-                    + '<td><a href="javascript:void(0);" class="wf-stat-workflow" data-bucket="DueToday" data-wn="'+(r.WorkflowName||'')+'">'+(r.DueToday||0)+'</a></td>'
-                    + '<td><a href="javascript:void(0);" class="wf-stat-workflow" data-bucket="DueThisWeek" data-wn="'+(r.WorkflowName||'')+'">'+(r.DueThisWeek||0)+'</a></td>'
-                    + '<td><a href="javascript:void(0);" class="wf-stat-workflow" data-bucket="DueNextWeek" data-wn="'+(r.WorkflowName||'')+'">'+(r.DueNextWeek||0)+'</a></td>'
-                    + '<td><a href="javascript:void(0);" class="wf-stat-workflow" data-bucket="DueThisMonth" data-wn="'+(r.WorkflowName||'')+'">'+(r.DueThisMonth||0)+'</a></td>'
-                    + '<td><a href="javascript:void(0);" class="wf-stat-workflow" data-bucket="Overdue" data-wn="'+(r.WorkflowName||'')+'">'+(r.Overdue||0)+'</a></td>'
+                    + '<td><a href="javascript:void(0);" class="wf-stat-workflow" data-bucket="Overdue1To5" data-wn="'+(r.WorkflowName||'')+'">'+(r.Overdue1To5||0)+'</a></td>'
+                    + '<td><a href="javascript:void(0);" class="wf-stat-workflow" data-bucket="Overdue6To25" data-wn="'+(r.WorkflowName||'')+'">'+(r.Overdue6To25||0)+'</a></td>'
+                    + '<td><a href="javascript:void(0);" class="wf-stat-workflow" data-bucket="Overdue26Plus" data-wn="'+(r.WorkflowName||'')+'">'+(r.Overdue26Plus||0)+'</a></td>'
+                    + '<td><a href="javascript:void(0);" class="wf-stat-workflow" data-bucket="Due1To5" data-wn="'+(r.WorkflowName||'')+'">'+(r.Due1To5||0)+'</a></td>'
+                    + '<td><a href="javascript:void(0);" class="wf-stat-workflow" data-bucket="Due6To25" data-wn="'+(r.WorkflowName||'')+'">'+(r.Due6To25||0)+'</a></td>'
+                    + '<td><a href="javascript:void(0);" class="wf-stat-workflow" data-bucket="Due26Plus" data-wn="'+(r.WorkflowName||'')+'">'+(r.Due26Plus||0)+'</a></td>'
                     + '</tr>';
             }
         });
@@ -219,13 +231,14 @@
     function load(){
         setBreadcrumb();
         var p = payload();
-        $('#wfAggTable tbody, #wfTaskTable tbody').html('<tr><td colspan="9" class="text-muted">Loading...</td></tr>');
+        $('#wfAggTable tbody, #wfTaskTable tbody').html('<tr><td colspan="10" class="text-muted">Loading...</td></tr>');
         $.post(apiUrl, p).done(function(res){
             var level = (res.Level || res.level || state.level || 'Workflow');
             state.level = level;
             var meta = res.Meta || res.meta || { page:1, perpage:state.perPage, total:0, pages:1 };
             state.page = meta.page || 1; state.pages = meta.pages || 1; state.total = meta.total || 0;
             state.canExport = !!(res.CanExport || res.canExport);
+            state.bucketLabels = (res.Meta && res.Meta.BucketLabels) || (res.meta && res.meta.BucketLabels) || state.bucketLabels || {};
             $('#wfExportCsv,#wfExportExcel').toggle(state.canExport);
 
             renderKpis(res.SummaryKpi || res.summaryKpi || {});
@@ -243,7 +256,7 @@
             $('#wfPagerInfo').text('Showing ' + from + ' to ' + to + ' of ' + state.total);
         }).fail(function(xhr){
             $('#wfAggTable').show();
-            $('#wfAggTable tbody').html('<tr><td colspan="9" class="text-danger">Failed to load: ' + ((xhr && xhr.responseText) || 'error') + '</td></tr>');
+            $('#wfAggTable tbody').html('<tr><td colspan="10" class="text-danger">Failed to load: ' + ((xhr && xhr.responseText) || 'error') + '</td></tr>');
         });
     }
 
