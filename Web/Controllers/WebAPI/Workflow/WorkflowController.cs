@@ -786,7 +786,7 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                     : new HashSet<int>();
 
                 var pendingSql = @";WITH base AS (
-                        SELECT h.ID AS WorkflowHeaderId, COALESCE(NULLIF(JSON_VALUE(h.ConfigData,'$.AdditionalWorkflowDescription'),''), w.Name) AS WorkflowDisplayName, w.Name AS WorkflowName, s.Name AS StepName, s.Action_Roles_Id AS ActionRoleId, ar.RoleName AS ActionRoleName, st.Assigned_Users_Id AS AssignedUserId, NULLIF(TRIM(COALESCE(su.Firstname,'') + ' ' + COALESCE(su.Lastname,'')),'') AS AssignedToName, st.CreateDate AS StepCreateDateUtc, COALESCE(TRY_CAST(JSON_VALUE(s.Workflow_StepTypes_ConfigData,'$.EstimatedDaysToComplete') AS int),0) AS EstimatedDaysToComplete, COALESCE(CASE WHEN h.Context_Object_Code='ACCOUNT' THEN h.Object_RefID END, or_obj.ObjectScreen_RefID, or_order.ObjectScreen_RefID) AS AccountId
+                        SELECT h.ID AS WorkflowHeaderId, COALESCE(NULLIF(JSON_VALUE(h.ConfigData,'$.AdditionalWorkflowDescription'),''), w.Name) AS WorkflowDisplayName, w.Name AS WorkflowName, s.Name AS StepName, s.Action_Roles_Id AS ActionRoleId, ar.RoleName AS ActionRoleName, st.Assigned_Users_Id AS AssignedUserId, NULLIF(TRIM(COALESCE(su.Firstname,'') + ' ' + COALESCE(su.Lastname,'')),'') AS AssignedToName, COALESCE(CASE WHEN st.Assigned_Users_Id IS NOT NULL THEN st.AssignedBy_Users_Time END, st.CreateDate) AS StepCreateDateUtc, COALESCE(TRY_CAST(JSON_VALUE(s.Workflow_StepTypes_ConfigData,'$.EstimatedDaysToComplete') AS int),0) AS EstimatedDaysToComplete, COALESCE(CASE WHEN h.Context_Object_Code='ACCOUNT' THEN h.Object_RefID END, or_obj.ObjectScreen_RefID, or_order.ObjectScreen_RefID) AS AccountId
                         FROM Workflow_StepTransactions st
                         JOIN Workflow_Transactions_Headers h ON h.ID = st.Workflow_Transactions_Headers_ID
                         JOIN Workflow_Steps s ON s.ID = st.Workflow_Steps_ID
@@ -818,8 +818,8 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
 
                 Func<PendingTaskRow, int?> getOwnerUserId = r =>
                 {
-                    if (r.ActionRoleId.HasValue && !implicitOwnerRoleIds.Contains(r.ActionRoleId.Value)) return null;
                     if (r.AssignedUserId.HasValue) return r.AssignedUserId;
+                    if (r.ActionRoleId.HasValue && !implicitOwnerRoleIds.Contains(r.ActionRoleId.Value)) return null;
                     if (r.ActionRoleId.HasValue && implicitOwnerRoleIds.Contains(r.ActionRoleId.Value) && r.AccountManagerUserId.HasValue)
                         return r.AccountManagerUserId;
                     return null;
