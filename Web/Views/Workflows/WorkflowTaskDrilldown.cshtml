@@ -20,6 +20,7 @@
             <div class="col-md-3">
                 <label>Date Range</label>
                 <select id="wfDateRange" class="form-control m-input">
+                    <option value="Lifetime" selected>Lifetime</option>
                     <option value="Last30Days">Last 30 days</option>
                     <option value="CurrentMonth">Current month</option>
                     <option value="CurrentYear">Current year</option>
@@ -61,6 +62,7 @@
                         <th>Assignee / Role</th>
                         <th>Account</th>
                         <th>Account Manager</th>
+                        <th>Step Create Date</th>
                         <th>Days Remaining</th>
                         <th>SLA Breach</th>
                         <th style="width:110px;">Action</th>
@@ -194,7 +196,7 @@
         $('#wfAggTable').hide();
         var $t = $('#wfTaskTable');
         if (!rows || !rows.length){
-            $t.find('tbody').html('<tr><td colspan="8" class="text-muted">No tasks found.</td></tr>');
+            $t.find('tbody').html('<tr><td colspan="9" class="text-muted">No tasks found.</td></tr>');
             $t.show();
             return;
         }
@@ -206,6 +208,7 @@
                 + '<td>'+(r.AssigneeOrRole||'')+'</td>'
                 + '<td>'+(r.AccountName||'')+'</td>'
                 + '<td>'+(r.AccountManagerName||'')+'</td>'
+                + '<td>'+(r.StepCreateDate||'')+'</td>'
                 + '<td>'+(r.BusinessDaysRemaining==null?'N/A':r.BusinessDaysRemaining)+'</td>'
                 + '<td>'+(r.SlaBreach?'<span class="m-badge m-badge--danger m-badge--wide">Yes</span>':'<span class="m-badge m-badge--success m-badge--wide">No</span>')+'</td>'
                 + '<td><button class="btn btn-sm btn-brand js-edit" data-hid="'+r.WorkflowHeaderId+'"><i class="la la-edit"></i> Edit</button></td>'

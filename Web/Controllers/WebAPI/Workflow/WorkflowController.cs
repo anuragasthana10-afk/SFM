@@ -844,29 +844,43 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                     return false;
                 };
 
-                var visible = pendingRows.Where(canSeeRow).ToList();
-
                 var nowUtc = DateTime.UtcNow;
-                DateTime rangeFromUtc;
-                DateTime rangeToUtc = nowUtc;
-                var dateRange = (formData["DateRange"] ?? "Last30Days").Trim();
+                DateTime? rangeFromUtc = null;
+                DateTime? rangeToUtc = null;
+                var dateRange = (formData["DateRange"] ?? "Lifetime").Trim();
                 switch (dateRange)
                 {
+                    case "Lifetime":
+                        break;
                     case "CurrentMonth":
                         rangeFromUtc = new DateTime(nowUtc.Year, nowUtc.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+                        rangeToUtc = nowUtc;
                         break;
                     case "CurrentYear":
                         rangeFromUtc = new DateTime(nowUtc.Year, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+                        rangeToUtc = nowUtc;
                         break;
                     case "Custom":
                         DateTime dt;
                         if (DateTime.TryParse(formData["FromDateUtc"], out dt)) rangeFromUtc = DateTime.SpecifyKind(dt, DateTimeKind.Utc);
                         else rangeFromUtc = nowUtc.AddDays(-30);
                         if (DateTime.TryParse(formData["ToDateUtc"], out dt)) rangeToUtc = DateTime.SpecifyKind(dt, DateTimeKind.Utc).AddDays(1).AddSeconds(-1);
+                        else rangeToUtc = nowUtc;
                         break;
                     default:
                         rangeFromUtc = nowUtc.AddDays(-30);
+                        rangeToUtc = nowUtc;
                         break;
+                }
+
+                var visible = pendingRows.Where(canSeeRow).ToList();
+                if (rangeFromUtc.HasValue)
+                {
+                    visible = visible.Where(r => r.StepCreateDateUtc >= rangeFromUtc.Value).ToList();
+                }
+                if (rangeToUtc.HasValue)
+                {
+                    visible = visible.Where(r => r.StepCreateDateUtc <= rangeToUtc.Value).ToList();
                 }
 
                 var bucket1Label = "1-" + Bucket1MaxBusinessDays + " days";
@@ -934,10 +948,15 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                       AND COALESCE(s.DelFlag,0)=0
                       AND COALESCE(st.StepExecuted,0)=1
                       AND COALESCE(st.ExecutionStopped,0)=0
-                      AND st.ActionedBy_Users_Time IS NOT NULL
-                      AND st.ActionedBy_Users_Time >= @p0
-                      AND st.ActionedBy_Users_Time <= @p1";
-                var completedRows = db.Database.SqlQuery<CompletedTaskRow>(completedSql, rangeFromUtc, rangeToUtc).ToList();
+                      AND st.ActionedBy_Users_Time IS NOT NULL";
+                if (rangeFromUtc.HasValue)
+                {
+                    completedSql += " AND st.ActionedBy_Users_Time >= @p0 AND st.ActionedBy_Users_Time <= @p1";
+                }
+
+                var completedRows = rangeFromUtc.HasValue
+                    ? db.Database.SqlQuery<CompletedTaskRow>(completedSql, rangeFromUtc.Value, rangeToUtc ?? nowUtc).ToList()
+                    : db.Database.SqlQuery<CompletedTaskRow>(completedSql).ToList();
 
                 Func<int?, DrilldownKpiSummary> userCompletionKpi = uid =>
                 {
