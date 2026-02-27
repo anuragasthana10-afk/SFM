@@ -651,6 +651,9 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
             public int Overdue6To25Count { get; set; }
             public int Overdue26PlusCount { get; set; }
             public int CompletedCount { get; set; }
+            public int CompletedDelay1To5Count { get; set; }
+            public int CompletedDelay6To25Count { get; set; }
+            public int CompletedDelay26PlusCount { get; set; }
             public decimal? OnTimeCompletionRatePct { get; set; }
             public decimal? AvgBusinessDaysToComplete { get; set; }
             public decimal? AvgBusinessDaysDelay { get; set; }
@@ -708,7 +711,7 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
         private const int Bucket1MaxBusinessDays = 5;
         private const int Bucket2MaxBusinessDays = 25;
 
-        private static int CountBusinessDays(DateTime startUtc, DateTime endUtc)
+        private static int CountBusinessDays(DateTime startUtc, DateTime endUtc, HashSet<DateTime> holidayDates)
         {
             if (endUtc < startUtc) return 0;
             var s = startUtc.Date;
@@ -716,12 +719,12 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
             int count = 0;
             for (var d = s; d <= e; d = d.AddDays(1))
             {
-                if (d.DayOfWeek != DayOfWeek.Saturday && d.DayOfWeek != DayOfWeek.Sunday) count++;
+                if (d.DayOfWeek != DayOfWeek.Saturday && d.DayOfWeek != DayOfWeek.Sunday && (holidayDates == null || !holidayDates.Contains(d))) count++;
             }
             return count;
         }
 
-        private static DateTime AddBusinessDays(DateTime startUtc, int businessDays)
+        private static DateTime AddBusinessDays(DateTime startUtc, int businessDays, HashSet<DateTime> holidayDates)
         {
             if (businessDays <= 0) return startUtc.Date;
             var d = startUtc.Date;
@@ -729,7 +732,7 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
             while (added < businessDays)
             {
                 d = d.AddDays(1);
-                if (d.DayOfWeek != DayOfWeek.Saturday && d.DayOfWeek != DayOfWeek.Sunday) added++;
+                if (d.DayOfWeek != DayOfWeek.Saturday && d.DayOfWeek != DayOfWeek.Sunday && (holidayDates == null || !holidayDates.Contains(d))) added++;
             }
             return d;
         }
@@ -748,6 +751,9 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
 
                 string level = (formData["Level"] ?? "").Trim();
                 string bucket = (formData["Bucket"] ?? "All").Trim();
+                bool includeCompletedAgingBuckets = string.Equals((formData["IncludeCompletedAgingBuckets"] ?? "").Trim(), "1", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals((formData["IncludeCompletedAgingBuckets"] ?? "").Trim(), "true", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals((formData["IncludeCompletedAgingBuckets"] ?? "").Trim(), "on", StringComparison.OrdinalIgnoreCase);
                 int? selectedUserId = int.TryParse(formData["SelectedUserId"], out tmp) ? (int?)tmp : null;
                 int? selectedWorkflowHeaderId = int.TryParse(formData["SelectedWorkflowHeaderId"], out tmp) ? (int?)tmp : null;
                 int? selectedRoleId = int.TryParse(formData["SelectedRoleId"], out tmp) ? (int?)tmp : null;
@@ -800,8 +806,19 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
 
                 var pendingRows = db.Database.SqlQuery<PendingTaskRow>(pendingSql).ToList();
 
+                HashSet<DateTime> holidayDates;
+                try
+                {
+                    holidayDates = new HashSet<DateTime>(db.Database.SqlQuery<DateTime>(@"SELECT HolidayDate FROM Workflow_BusinessCalendarHolidays WHERE COALESCE(DelFlag,0)=0").Select(x => x.Date));
+                }
+                catch
+                {
+                    holidayDates = new HashSet<DateTime>();
+                }
+
                 Func<PendingTaskRow, int?> getOwnerUserId = r =>
                 {
+                    if (r.ActionRoleId.HasValue && !implicitOwnerRoleIds.Contains(r.ActionRoleId.Value)) return null;
                     if (r.AssignedUserId.HasValue) return r.AssignedUserId;
                     if (r.ActionRoleId.HasValue && implicitOwnerRoleIds.Contains(r.ActionRoleId.Value) && r.AccountManagerUserId.HasValue)
                         return r.AccountManagerUserId;
@@ -859,9 +876,9 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                 Func<PendingTaskRow, int?> businessDaysRemaining = r =>
                 {
                     if (r.EstimatedDaysToComplete <= 0) return Bucket2MaxBusinessDays + 1;
-                    var due = AddBusinessDays(r.StepCreateDateUtc, r.EstimatedDaysToComplete).Date;
-                    if (due >= nowUtc.Date) return CountBusinessDays(nowUtc.Date, due) - 1;
-                    return -CountBusinessDays(due, nowUtc.Date);
+                    var due = AddBusinessDays(r.StepCreateDateUtc, r.EstimatedDaysToComplete, holidayDates).Date;
+                    if (due >= nowUtc.Date) return CountBusinessDays(nowUtc.Date, due, holidayDates) - 1;
+                    return -CountBusinessDays(due, nowUtc.Date, holidayDates);
                 };
 
                 Func<PendingTaskRow, string> bucketFor = r =>
@@ -930,7 +947,7 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                     foreach (var c in data)
                     {
                         if (!c.ActionedByUsersTimeUtc.HasValue) continue;
-                        var bd = CountBusinessDays(c.StepCreateDateUtc, c.ActionedByUsersTimeUtc.Value);
+                        var bd = CountBusinessDays(c.StepCreateDateUtc, c.ActionedByUsersTimeUtc.Value, holidayDates);
                         totalDays += bd;
                         if (c.EstimatedDaysToComplete > 0)
                         {
@@ -942,6 +959,9 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                     return new DrilldownKpiSummary
                     {
                         CompletedCount = data.Count,
+                        CompletedDelay1To5Count = data.Count(c => c.ActionedByUsersTimeUtc.HasValue && c.EstimatedDaysToComplete > 0 && Math.Max(0, CountBusinessDays(c.StepCreateDateUtc, c.ActionedByUsersTimeUtc.Value, holidayDates) - c.EstimatedDaysToComplete) >= 1 && Math.Max(0, CountBusinessDays(c.StepCreateDateUtc, c.ActionedByUsersTimeUtc.Value, holidayDates) - c.EstimatedDaysToComplete) <= Bucket1MaxBusinessDays),
+                        CompletedDelay6To25Count = data.Count(c => c.ActionedByUsersTimeUtc.HasValue && c.EstimatedDaysToComplete > 0 && Math.Max(0, CountBusinessDays(c.StepCreateDateUtc, c.ActionedByUsersTimeUtc.Value, holidayDates) - c.EstimatedDaysToComplete) > Bucket1MaxBusinessDays && Math.Max(0, CountBusinessDays(c.StepCreateDateUtc, c.ActionedByUsersTimeUtc.Value, holidayDates) - c.EstimatedDaysToComplete) <= Bucket2MaxBusinessDays),
+                        CompletedDelay26PlusCount = data.Count(c => c.ActionedByUsersTimeUtc.HasValue && c.EstimatedDaysToComplete > 0 && Math.Max(0, CountBusinessDays(c.StepCreateDateUtc, c.ActionedByUsersTimeUtc.Value, holidayDates) - c.EstimatedDaysToComplete) > Bucket2MaxBusinessDays),
                         OnTimeCompletionRatePct = samples == 0 ? (decimal?)null : Math.Round((ontime * 100m) / samples, 2),
                         AvgBusinessDaysToComplete = data.Count == 0 ? (decimal?)null : Math.Round(totalDays / data.Count, 2),
                         AvgBusinessDaysDelay = samples == 0 ? (decimal?)null : Math.Round(totalDelay / samples, 2)
@@ -979,7 +999,10 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                                 Overdue6To25 = k.Overdue6To25Count,
                                 Overdue26Plus = k.Overdue26PlusCount,
                                 OnTimePct = ck.OnTimeCompletionRatePct,
-                                AvgDelay = ck.AvgBusinessDaysDelay
+                                AvgDelay = ck.AvgBusinessDaysDelay,
+                                CompletedDelay1To5 = includeCompletedAgingBuckets ? (int?)ck.CompletedDelay1To5Count : null,
+                                CompletedDelay6To25 = includeCompletedAgingBuckets ? (int?)ck.CompletedDelay6To25Count : null,
+                                CompletedDelay26Plus = includeCompletedAgingBuckets ? (int?)ck.CompletedDelay26PlusCount : null
                             };
                         });
 
@@ -1002,7 +1025,10 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                                 Overdue6To25 = k.Overdue6To25Count,
                                 Overdue26Plus = k.Overdue26PlusCount,
                                 OnTimePct = (decimal?)null,
-                                AvgDelay = (decimal?)null
+                                AvgDelay = (decimal?)null,
+                                CompletedDelay1To5 = includeCompletedAgingBuckets ? 0 : (int?)null,
+                                CompletedDelay6To25 = includeCompletedAgingBuckets ? 0 : (int?)null,
+                                CompletedDelay26Plus = includeCompletedAgingBuckets ? 0 : (int?)null
                             };
                         });
 
@@ -1016,7 +1042,7 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                         AggregateData = pageRows,
                         TaskData = new List<object>(),
                         UserKpi = null,
-                        Meta = new { page = page, perpage = perPage, total = grouped.Count, pages = (int)Math.Ceiling(grouped.Count / (double)perPage), BucketLabels = new { Due1To5 = "Due: " + bucket1Label, Due6To25 = "Due: " + bucket2Label, Due26Plus = "Due: " + bucket3Label, Overdue1To5 = "Overdue: " + bucket1Label, Overdue6To25 = "Overdue: " + bucket2Label, Overdue26Plus = "Overdue: " + bucket3Label } },
+                        Meta = new { page = page, perpage = perPage, total = grouped.Count, pages = (int)Math.Ceiling(grouped.Count / (double)perPage), IncludeCompletedAgingBuckets = includeCompletedAgingBuckets, BucketLabels = new { Due1To5 = "Due: " + bucket1Label, Due6To25 = "Due: " + bucket2Label, Due26Plus = "Due: " + bucket3Label, Overdue1To5 = "Overdue: " + bucket1Label, Overdue6To25 = "Overdue: " + bucket2Label, Overdue26Plus = "Overdue: " + bucket3Label, CompletedDelay1To5 = "Completed overdue: " + bucket1Label, CompletedDelay6To25 = "Completed overdue: " + bucket2Label, CompletedDelay26Plus = "Completed overdue: " + bucket3Label } },
                         CanExport = canExport,
                         IsGlobalLeader = isGlobalLeader,
                         IsTeamLeader = isTeamLeader
@@ -1060,7 +1086,7 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                         UserKpi = userKpi,
                         AggregateData = pageRows,
                         TaskData = new List<object>(),
-                        Meta = new { page = page, perpage = perPage, total = grouped.Count, pages = (int)Math.Ceiling(grouped.Count / (double)perPage), BucketLabels = new { Due1To5 = "Due: " + bucket1Label, Due6To25 = "Due: " + bucket2Label, Due26Plus = "Due: " + bucket3Label, Overdue1To5 = "Overdue: " + bucket1Label, Overdue6To25 = "Overdue: " + bucket2Label, Overdue26Plus = "Overdue: " + bucket3Label } },
+                        Meta = new { page = page, perpage = perPage, total = grouped.Count, pages = (int)Math.Ceiling(grouped.Count / (double)perPage), IncludeCompletedAgingBuckets = includeCompletedAgingBuckets, BucketLabels = new { Due1To5 = "Due: " + bucket1Label, Due6To25 = "Due: " + bucket2Label, Due26Plus = "Due: " + bucket3Label, Overdue1To5 = "Overdue: " + bucket1Label, Overdue6To25 = "Overdue: " + bucket2Label, Overdue26Plus = "Overdue: " + bucket3Label, CompletedDelay1To5 = "Completed overdue: " + bucket1Label, CompletedDelay6To25 = "Completed overdue: " + bucket2Label, CompletedDelay26Plus = "Completed overdue: " + bucket3Label } },
                         CanExport = canExport,
                         IsGlobalLeader = isGlobalLeader,
                         IsTeamLeader = isTeamLeader
@@ -1076,7 +1102,7 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                 taskScoped = applyBucket(taskScoped, bucket).ToList();
 
                 var taskRows = taskScoped.Select(r => {
-                    DateTime? due = r.EstimatedDaysToComplete > 0 ? AddBusinessDays(r.StepCreateDateUtc, r.EstimatedDaysToComplete) : (DateTime?)null;
+                    DateTime? due = r.EstimatedDaysToComplete > 0 ? AddBusinessDays(r.StepCreateDateUtc, r.EstimatedDaysToComplete, holidayDates) : (DateTime?)null;
                     return new
                     {
                         r.WorkflowHeaderId,
@@ -1086,9 +1112,10 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                         AssigneeOrRole = !string.IsNullOrWhiteSpace(r.AssignedToName) ? r.AssignedToName : (!string.IsNullOrWhiteSpace(r.ActionRoleName) ? r.ActionRoleName : "Unassigned"),
                         r.AccountName,
                         r.AccountManagerName,
-                        BusinessDaysRemaining = due.HasValue ? (due.Value.Date >= nowUtc.Date ? (int?)(CountBusinessDays(nowUtc.Date, due.Value.Date) - 1) : (int?)(-CountBusinessDays(due.Value.Date, nowUtc.Date))) : null,
+                        BusinessDaysRemaining = due.HasValue ? (due.Value.Date >= nowUtc.Date ? (int?)(CountBusinessDays(nowUtc.Date, due.Value.Date, holidayDates) - 1) : (int?)(-CountBusinessDays(due.Value.Date, nowUtc.Date, holidayDates))) : null,
                         SlaBreach = due.HasValue && due.Value.Date < nowUtc.Date,
-                        StepCreateDateUtc = r.StepCreateDateUtc
+                        StepCreateDateUtc = r.StepCreateDateUtc,
+                        StepCreateDate = r.StepCreateDateUtc.ToString("yyyy-MM-dd")
                     };
                 }).OrderByDescending(x => x.SlaBreach).ThenBy(x => x.BusinessDaysRemaining ?? int.MaxValue).ThenBy(x => x.StepCreateDateUtc).ToList();
 
@@ -1097,12 +1124,13 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                 {
                     if (!canExport) return BadRequest("Export is allowed only for Workflow_TeamLeader or Workflow_GlobalLeader.");
                     var sb = new StringBuilder();
-                    sb.AppendLine("WorkflowHeaderId,TaskName,StepName,AssigneeOrRole,AccountName,AccountManagerName,BusinessDaysRemaining,SlaBreach");
+                    sb.AppendLine("WorkflowHeaderId,TaskName,StepName,AssigneeOrRole,AccountName,AccountManagerName,StepCreateDate,BusinessDaysRemaining,SlaBreach");
                     foreach (var r in taskRows)
                     {
                         sb.AppendLine(string.Join(",", new[] {
                             r.WorkflowHeaderId.ToString(), CsvEscape(r.TaskName), CsvEscape(r.StepName), CsvEscape(r.AssigneeOrRole),
                             CsvEscape(r.AccountName), CsvEscape(r.AccountManagerName),
+                            CsvEscape(r.StepCreateDate),
                             r.BusinessDaysRemaining.HasValue ? r.BusinessDaysRemaining.Value.ToString() : "", r.SlaBreach ? "1" : "0"
                         }));
                     }
@@ -1124,7 +1152,7 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                     UserKpi = selectedUserId.HasValue ? userCompletionKpi(selectedUserId.Value) : null,
                     AggregateData = new List<object>(),
                     TaskData = pageTaskRows,
-                    Meta = new { page = page, perpage = perPage, total = taskRows.Count, pages = (int)Math.Ceiling(taskRows.Count / (double)perPage), BucketLabels = new { Due1To5 = "Due: " + bucket1Label, Due6To25 = "Due: " + bucket2Label, Due26Plus = "Due: " + bucket3Label, Overdue1To5 = "Overdue: " + bucket1Label, Overdue6To25 = "Overdue: " + bucket2Label, Overdue26Plus = "Overdue: " + bucket3Label } },
+                    Meta = new { page = page, perpage = perPage, total = taskRows.Count, pages = (int)Math.Ceiling(taskRows.Count / (double)perPage), IncludeCompletedAgingBuckets = includeCompletedAgingBuckets, BucketLabels = new { Due1To5 = "Due: " + bucket1Label, Due6To25 = "Due: " + bucket2Label, Due26Plus = "Due: " + bucket3Label, Overdue1To5 = "Overdue: " + bucket1Label, Overdue6To25 = "Overdue: " + bucket2Label, Overdue26Plus = "Overdue: " + bucket3Label, CompletedDelay1To5 = "Completed overdue: " + bucket1Label, CompletedDelay6To25 = "Completed overdue: " + bucket2Label, CompletedDelay26Plus = "Completed overdue: " + bucket3Label } },
                     CanExport = canExport,
                     IsGlobalLeader = isGlobalLeader,
                     IsTeamLeader = isTeamLeader
