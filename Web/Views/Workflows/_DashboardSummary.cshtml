@@ -1,0 +1,753 @@
+@* ===================== Pending Workflow Accounts (Direct List) ===================== *@
+@using Web.Classes;
+@* ===================== Filters ===================== *@
+@* ===== Filters (no model) ===== *@
+<div class="kt-form kt-form--label-right mb-3">
+    <div class="row align-items-end">
+
+        <div class="col-lg-4">
+            <label class="form-control-label">Assigned User</label>
+            <select id="fltAssignedUser" class="form-control">
+                <option value="">All</option>
+
+            </select>
+        </div>
+
+        <div class="col-lg-4" style="visibility: hidden;">
+            <label class="form-control-label">Assigned Role</label>
+            <select id="fltActionRole" class="form-control">
+                <option value="">All Roles</option>
+            </select>
+        </div>
+
+        <!-- Toggles -->
+        <div class="col-lg-12 mt-3">
+            <div class="d-flex flex-wrap align-items-center">
+
+                <div class="d-inline-flex align-items-center mr-4 mb-2">
+                    <span class="m-switch m-switch--icon m-switch--brand m-switch--sm m-switch--outline">
+                        <label class="mb-0">
+                            <input type="checkbox" id="chkAssignedToMe" checked="checked">
+                            <span></span>
+                        </label>
+                    </span>
+                    <span class="ml-2">Assigned to me</span>
+                </div>
+
+                <div class="d-inline-flex align-items-center mr-4 mb-2">
+                    <span class="m-switch m-switch--icon m-switch--brand m-switch--sm m-switch--outline">
+                        <label class="mb-0">
+                            <input type="checkbox" id="chkMyAccounts" checked="checked">
+                            <span></span>
+                        </label>
+                    </span>
+                    <span class="ml-2">My accounts</span>
+                </div>
+
+                <div class="d-inline-flex align-items-center mr-4 mb-2">
+                    <span class="m-switch m-switch--icon m-switch--brand m-switch--sm m-switch--outline">
+                        <label class="mb-0">
+                            <input type="checkbox" id="chkAssignedToMyTeam" @(CRM.Classes.Helpers.CurrentContext.CurrentUser.HasRole("Workflow Activity Manager") ? "checked=\"checked\"" : "")>
+                            <span></span>
+                        </label>
+                    </span>
+                    <span class="ml-2">Assigned to my team</span>
+                </div>
+
+                <div class="d-inline-flex align-items-center mb-2">
+                    <span class="m-switch m-switch--icon m-switch--brand m-switch--sm m-switch--outline">
+                        <label class="mb-0">
+                            <input type="checkbox" id="fltHideStopped" />
+                            <span></span>
+                        </label>
+                    </span>
+                    <span class="ml-2">Hide stopped tasks</span>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Buttons: bottom-left, matched sizing -->
+        <div class="col-lg-12 mt-2">
+            <div class="kt-form__actions p-0">
+                <button type="button" class="btn btn-brand btn-sm" id="btnApplyFilters">
+                    <i class="la la-filter"></i> Apply
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm ml-2" id="btnResetFilters">
+                    <i class="la la-undo"></i> Reset
+                </button>
+                <!--
+                <a class="btn btn-outline-info btn-sm ml-2" href="@Url.Action("WorkflowTaskDrilldown", "Workflows")" target="_blank">
+                    <i class="la la-list"></i> Task Drilldown
+                </a> -->
+            </div>
+        </div>
+
+    </div>
+</div>
+
+
+
+
+
+
+<div class="row">
+    <div class="col-lg-12">
+        <div class="kt-portlet kt-portlet--height-fluid">
+            <div class="kt-portlet__body">
+
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped mb-0" id="pendingAccountsTable">
+                        <thead class="thead-light">
+                            <tr>
+                                <th style="width:45%;">Account</th>
+                                <th style="width:20%;text-align:center;">Pending Activities</th>
+                                <th style="width: 25%;text-align: center;">Oldest Pending</th>
+                                <th class="text-right" style="width:10%;"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="pendingAccountsTbody">
+                            @* rendered by JS *@
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="d-flex align-items-center justify-content-between mt-3 flex-wrap" id="pendingAccPager">
+                    <div class="text-muted mb-2 mb-md-0" id="pendingAccPagerInfo"></div>
+                    <div class="d-flex align-items-center">
+                        <select class="form-control form-control-sm mr-3" style="width:90px;" id="pendingAccPageSize">
+                            <option value="5">5</option>
+                            <option value="10" selected>10</option>
+                            <option value="25">25</option>
+                        </select>
+                        <ul class="pagination pagination-sm mb-0" id="pendingAccPagination"></ul>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+<div class="mt-3" id="pendingSummary" style="display:none;">
+    <div class="d-flex align-items-center justify-content-between flex-wrap">
+        <div class="text-muted">
+            <span class="m--font-boldest" id="sumWorkflows">0</span> activity(s) pending in
+            <span class="m--font-boldest" id="sumAccounts">0</span> account(s)
+
+        </div>
+        <div class="kt-badge kt-badge--inline kt-badge--warning" id="sumHint">
+
+        </div>
+    </div>
+</div>
+<!-- to be removed-->
+<div class="modal fade" id="taskEditModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Edit Task</h5>
+                <button type="button" class="close" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <div class="modal-body" id="taskEditModalBody">
+                <div class="text-center text-muted">Loading...</div>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- end -->
+<!-- Workflow Status Modal -->
+<div class="modal fade" id="workflowStatusModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <h5 class="modal-title" id>Task Status</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                <div class="m-portlet m-portlet--full-height">
+                    <div class="m-portlet__head">
+                        <div class="m-portlet__head-caption">
+                            <div class="m-portlet__head-title">
+                                <h3 class="m-portlet__head-text" id="workflowHeader">
+                                    Task Details
+                                </h3>
+                            </div>
+                        </div>
+                        <div class="m-portlet__head-tools">
+                        </div>
+                    </div>
+                    <div class="m-portlet__body workflowContainer" data-heder-id="workflowcontainer">
+                        <div class="m-scrollable mCustomScrollbar" data-scrollbar-shown="true" data-scrollable="true" data-max-height="380" style="height: 380px; max-height: 380px; position: relative;">
+                            <div id="mCSB_2" class="mCustomScrollBox" tabindex="0" style="max-height: none;">
+                                <div id="mCSB_2_container" class="mCSB_container" style="position: relative; top: 0px; left: 0px;" dir="ltr">
+                                    <div class="text-muted" id="workflowStatusModalBody">Loading...</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+
+
+<script>
+(function () {
+    // ===== endpoints =====
+    var apiUrl   = '@Url.Content("/api/Workflow/GetWorkflowDashboard")';
+    var usersUrl = '@Url.Content("/api/Accounts/GetActiveUsersDropdown")';
+    var rolesUrl = '@Url.Content("/api/Admin/GetActiveRolesDropdown")'; // <-- change if different
+
+    // ===== dom =====
+    var $summary = $('#pendingSummary'), $sumAccounts = $('#sumAccounts'), $sumWorkflows = $('#sumWorkflows');
+
+    var $fltAssignedUser  = $('#fltAssignedUser');
+    var $fltActionRole    = $('#fltActionRole');
+    var $chkAssignedToMe  = $('#chkAssignedToMe');
+    var $chkMyAccounts    = $('#chkMyAccounts');
+    var $chkMyTeam        = $('#chkAssignedToMyTeam');
+    var $chkHideStopped   = $('#fltHideStopped');
+
+    var $btnApply = $('#btnApplyFilters'), $btnReset = $('#btnResetFilters');
+
+    var $tbody = $('#pendingAccountsTbody'),
+        $pagerWrap = $('#pendingAccPager'),
+        $info = $('#pendingAccPagerInfo'),
+        $ul = $('#pendingAccPagination'),
+        $pageSize = $('#pendingAccPageSize');
+
+    function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
+
+    function setInfo(total, page, size) {
+        var from = total === 0 ? 0 : ((page - 1) * size + 1);
+        var to = Math.min(total, page * size);
+        $info.html('Showing <span class="kt-font-bold">' + from + '</span> to <span class="kt-font-bold">' + to +
+                  '</span> of <span class="kt-font-bold">' + total + '</span> accounts');
+    }
+
+    function renderPager(meta) {
+        $ul.empty();
+        var page = clamp(meta.page || 1, 1, meta.pages || 1),
+            pages = Math.max(1, meta.pages || 1);
+
+        function add(label, target, disabled, active) {
+            var cls = 'page-item' + (disabled ? ' disabled' : '') + (active ? ' active' : '');
+            var $li = $('<li/>', { 'class': cls });
+            var $a  = $('<a/>', { 'class': 'page-link', href: 'javascript:void(0);', text: label }).data('p', target);
+            $li.append($a); $ul.append($li);
+        }
+
+        add('«', 1, page === 1, false);
+        add('‹', page - 1, page === 1, false);
+
+        var win = 5, start = Math.max(1, page - Math.floor(win / 2)), end = Math.min(pages, start + win - 1);
+        start = Math.max(1, end - win + 1);
+        for (var p = start; p <= end; p++) add(String(p), p, false, p === page);
+
+        add('›', page + 1, page === pages, false);
+        add('»', pages, page === pages, false);
+    }
+
+    function badge(n) {
+        return '<span class="kt-badge kt-badge--inline kt-badge--danger">' + n + ' </span>';
+    }
+
+    function renderRows(accounts) {
+        if (!accounts || !accounts.length) {
+            $pagerWrap.hide();
+            $tbody.html('<tr><td colspan="4" class="text-muted">No pending activities</td></tr>');
+            return;
+        }
+
+        var html = '';
+        var alt = false; // <-- added
+
+        accounts.forEach(function (a) {
+            var collapseId = 'wf_' + a.id;
+            alt = !alt; // <-- added (alternates only per account)
+
+            html += ''
+                + '<tr class="wf-row' + (alt ? ' wf-row-alt' : '') + '">'   // <-- changed
+                + ' <td><div class="d-flex flex-column"><span class="kt-font-bold">' + (a.name || '') + '</span>'
+                + (a.accountCode ? '<small class="text-muted"><span class="m-badge m-badge--default m-badge--wide">' + a.accountCode + '</span></small>' : '')
+                + (a.accountManagerName ? '   <small class="text-muted"><span class="m--font-info">' + a.accountManagerName + '</span></small>' : '')
+                + '</div></td>'
+                + ' <td style="text-align:center;"> <span class="m-badge m-badge--warning m-badge--wide">' + badge(a.pendingCount || 0) + '</span></td>'
+                + ' <td style="text-align:center;"><span class="text-muted">' + (a.oldest || '') + '</span></td>'
+                + ' <td class="text-right"><button class="btn btn-sm btn-outline-brand js-view" type="button" data-toggle="collapse" data-target="#' + collapseId + '">View</button></td>'
+                + '</tr>';
+
+            html += ''
+                + '<tr class="wf-detail-row"><td colspan="4" class="bg-light" style="padding:0;">'  // <-- changed
+                + ' <div class="collapse" id="' + collapseId + '"><div style="padding:12px;">'
+                + '  <div class="d-flex align-items-center justify-content-between mb-2">'
+                + '   <span class="kt-font-bold">Pending Activities</span><span class="text-muted"></span>'
+                + '  </div><ul class="list-group">';
+
+            (a.workflows || []).forEach(function (w) {
+                html += ''
+                    + '<li class="list-group-item wf-li" id="listItemWorkflow_' + w.headerId + '">'
+                    + '  <div class="wf-li__left">'
+                    + '    <div class="kt-font-bold wf-li__title">' + (w.name || '') + '</div>'
+                    + '    <div class="wf-li__meta">'
+                    + '      <small class="text-muted">'
+                    + '        Waiting on step: <span class="m-badge m-badge--warning m-badge--wide" id="waitingOn_' + w.headerId + '">' + (w.waitingOn || '') + '</span>'
+                    + '        &nbsp; Assigned to: <span class="m-badge m-badge--info m-badge--wide" id="assignedTo_' + w.headerId + '">' + (w.assigned || '') + '</span>'
+                    + '      </small>'
+                    + '    </div>'
+                    + '  </div>'
+
+                    + '  <div class="wf-li__right">'
+                    + '    <div class="wf-li__status">'
+                    + '      <span class="kt-badge kt-badge--inline kt-badge--warning" id="status_' + w.headerId + '">' + (w.status || '') + '</span>'
+                    + '      <div><span class="kt-badge kt-badge--inline kt-badge--warning" id="extDays_' + w.headerId + '">' + (w.estDays || '') + '</span></div>'
+                    + '      <div><small class="' + (w.dueClass || 'text-muted') + '" id="dueText_' + w.headerId + '">' + (w.dueText || '') + '</small></div>'
+                    + '    </div>'
+
+                    + '    <a href="javascript:void(0);" class="btn btn-sm btn-clean btn-icon js-edit wf-li__edit"'
+                    + '       title="Edit" data-wfhid="' + w.headerId + '"><i class="la la-edit"></i></a>'
+                    + '  </div>'
+                    + '</li>';
+            });
+
+            html += '</ul></div></div></td></tr>';
+        });
+
+        $tbody.html(html);
+    }
+
+
+    // ===== dropdown loaders =====
+    function loadUsers(cb) {
+        $.get(usersUrl).done(function (res) {
+            var items = (res && res.data) ? res.data : res;
+            var current = ($fltAssignedUser.val() || '').toString();
+
+            // keep All + Unassigned
+            $fltAssignedUser.find('option').not('[value=""],[value="UNASSIGNED"]').remove();
+
+            if (items && items.length) {
+                items.forEach(function (u) {
+                    // your API seems to return Key/Value
+                    var id = u.Key ?? u.key ?? u.ID ?? u.Id ?? u.User_Id;
+                    var text = u.Value ?? u.value ?? u.Name ?? u.FullName ?? u.Text;
+                    if (id == null || !text) return;
+                    $fltAssignedUser.append('<option value="' + id + '">' + text + '</option>');
+                });
+            }
+            $fltAssignedUser.val(current);
+            if (typeof cb === 'function') cb();
+        });
+    }
+
+    function loadRoles(cb) {
+        $.get(rolesUrl).done(function (res) {
+            var items = (res && res.data) ? res.data : res;
+            var current = ($fltActionRole.val() || '').toString();
+
+            $fltActionRole.find('option').not('[value=""]').remove(); // keep All Roles
+
+            if (items && items.length) {
+                items.forEach(function (r) {
+                    var id = r.Key ?? r.key ?? r.Role_Id ?? r.ID ?? r.Id;
+                    var text = r.Value ?? r.value ?? r.RoleName ?? r.Name ?? r.Text;
+                    if (id == null || !text) return;
+                    $fltActionRole.append('<option value="' + id + '">' + text + '</option>');
+                });
+            }
+            $fltActionRole.val(current);
+            if (typeof cb === 'function') cb();
+        });
+    }
+
+    // ===== main load =====
+    function load(page) {
+        var perpage = parseInt(($pageSize.val() || '10'), 10);
+        page = clamp(page || 1, 1, 999999);
+
+        // READ FILTERS *HERE* so latest UI values are sent
+        var assignedVal = (($fltAssignedUser.val() || '').toString()).trim();
+        var unassignedOnly = (assignedVal === 'UNASSIGNED') ? "1" : "0";
+        var assignedUserId = (assignedVal && assignedVal !== 'UNASSIGNED') ? assignedVal : "";
+
+        var payload = {
+            "pagination[page]": page,
+            "pagination[perpage]": perpage,
+
+            "Assigned_Users_Id": assignedUserId,
+            "UnassignedOnly": unassignedOnly,
+
+            "HideStopped": ($chkHideStopped.is(':checked') ? "1" : "0"),
+            "AssignedToMe": ($chkAssignedToMe.is(':checked') ? "1" : "0"),
+            "MyAccounts": ($chkMyAccounts.is(':checked') ? "1" : "0"),
+            "AssignedToMyTeam": ($chkMyTeam.is(':checked') ? "1" : "0"),
+            "ActionRoleId": (($fltActionRole.val() || '').toString())
+        };
+
+        $tbody.html('<tr><td colspan="4" class="text-muted">Loading...</td></tr>');
+
+        $.ajax({ url: apiUrl, type: 'POST', data: payload })
+        .done(function (res) {
+            var meta = (res && res.meta) ? res.meta : { page: 1, perpage: perpage, total: 0, pages: 1 };
+            var data = (res && res.data) ? res.data : [];
+
+            if (!meta.total) $pagerWrap.hide();
+            else { $pagerWrap.show(); setInfo(meta.total, meta.page, meta.perpage); renderPager(meta); }
+
+            renderRows(data);
+
+            // summary (keep: accounts total; workflows = sum pendingCount in current page)
+            var accountsCount = meta.total || 0;
+            var workflowsCount = 0;
+            (data || []).forEach(function (a) { workflowsCount += (a.pendingCount || 0); });
+
+            $sumAccounts.text(accountsCount);
+            $sumWorkflows.text(workflowsCount);
+            $summary.toggle(accountsCount > 0);
+        })
+        .fail(function (xhr) {
+            console.log('GetWorkflowDashboard FAILED:', xhr);
+            $pagerWrap.hide();
+            $tbody.html('<tr><td colspan="4" class="text-danger">Failed to load data. Check console/network.</td></tr>');
+        });
+    }
+
+    // ===== events =====
+    $btnApply.on('click', function () { load(1); });
+
+    $btnReset.on('click', function () {
+        $fltAssignedUser.val('');
+        $fltActionRole.val('');
+        $chkHideStopped.prop('checked', true);
+        $chkAssignedToMe.prop('checked', true);
+        $chkMyAccounts.prop('checked', true);
+        $chkMyTeam.prop('checked', false);
+        load(1);
+    });
+
+    $(document).on('click', '#pendingAccPagination .page-link', function (e) {
+        e.preventDefault();
+        var p = $(this).data('p'); if (!p) return;
+        load(parseInt(p, 10));
+    });
+
+    $pageSize.on('change', function () { load(1); });
+
+    // prevent bubbling
+    $(document).on('click', '#pendingAccountsTable .js-view', function (e) { e.stopPropagation(); });
+
+    // ===== init =====
+    $(function () {
+        // Load dropdowns first, then initial data load
+        loadUsers(function () {
+                load(1);
+        });
+    });
+
+})();
+</script>
+<style>
+    /* Metronic-like zebra ONLY on main rows (not the collapse detail rows) */
+    #pendingAccountsTable tbody tr.wf-row {
+        background: #fff;
+    }
+
+        #pendingAccountsTable tbody tr.wf-row.wf-row-alt {
+            background: #f7f6fa;
+        }
+
+        /* Darker hover like datatable */
+        #pendingAccountsTable tbody tr.wf-row:hover {
+            background: #dfe2ea; /* dark grey-ish */
+        }
+
+    /* keep the detail row background stable */
+    #pendingAccountsTable tbody tr.wf-detail-row:hover {
+        background: transparent;
+    }
+    /* Align workflow list items: left content, right status, far-right edit */
+    #pendingAccountsTable .wf-li {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+    }
+
+    #pendingAccountsTable .wf-li__left {
+        flex: 1 1 auto;
+        min-width: 0; /* allows text truncation instead of pushing edit off-screen */
+    }
+
+    #pendingAccountsTable .wf-li__title {
+        line-height: 1.2;
+    }
+
+    #pendingAccountsTable .wf-li__meta small {
+        display: inline-block;
+        line-height: 1.2;
+    }
+
+    #pendingAccountsTable .wf-li__right {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    #pendingAccountsTable .wf-li__status {
+        text-align: right;
+        min-width: 180px; /* keeps status column aligned across items */
+    }
+
+    #pendingAccountsTable .wf-li__edit {
+        flex: 0 0 auto;
+    }
+</style>
+
+<script>
+    function openWorkflowStatusPopup(workflowHeaderID) {
+        // show modal immediately with loader
+        $('#workflowStatusModalBody').html('<div class="text-muted">Loading workflow status...</div>');
+        $('#workflowStatusModal').modal('show');
+
+        // 1) Call WebAPI to get JSON status
+        $.ajax({
+            url: "/api/Workflow/GetWorkflowInstanceStatus",
+            type: "GET",
+            data: { workflowTxnHeaderID: workflowHeaderID }
+        })
+            .done(function (apiRes) {
+                if (!apiRes || apiRes.ResponseCode !== "1") {
+                    $('#workflowStatusModalBody').html(
+                        '<div class="text-danger">' + (apiRes && apiRes.ResponseMessage ? apiRes.ResponseMessage : 'Failed to load workflow status.') + '</div>'
+                    );
+                    return;
+                }
+
+                // AdditionalData1 is JSON string in your API
+                var workflowDataObj = null;
+                try {
+                    workflowDataObj = apiRes.AdditionalData1 ? JSON.parse(apiRes.AdditionalData1) : null;
+                } catch (e) {
+                    workflowDataObj = null;
+                }
+
+                //POST JSON to MVC action that renders the partial
+                $.ajax({
+                    url: "/Workflows/RenderWorkflowView",
+                    type: "POST",
+                    contentType: "application/json; charset=utf-8",
+                    dataType: "html",
+                    data: JSON.stringify({
+                        workflowHeaderID: workflowHeaderID,
+                        workflowData: workflowDataObj // send as object (your action supports object)
+                    })
+                })
+                    .done(function (html) {
+                        $('#workflowStatusModalBody').html('<div id="workflow_' + workflowHeaderID + '">' + html + '</div>');
+                        updateWorkflowHeaders(workflowHeaderID, workflowDataObj);
+
+                    })
+                    .fail(function (xhr) {
+                        $('#workflowStatusModalBody').html(
+                            '<div class="text-danger">Failed to render workflow view. Check console/network.</div>'
+                        );
+                        console.log("RenderWorkflowView failed:", xhr);
+                    });
+            })
+            .fail(function (xhr) {
+                $('#workflowStatusModalBody').html(
+                    '<div class="text-danger">Failed to load workflow status from API. Check console/network.</div>'
+                );
+                console.log("GetWorkflowInstanceStatus failed:", xhr);
+            });
+    }
+
+    function updateWorkflowHeaders(id, data) {
+
+        $('#workflowHeader').text(data.AdditionalWorkflowDescription);
+        $('#workflow_' + id).find('#wfCurrentStep').text(data.CurrentStep?.Name || '');
+    }
+
+    function extractCurrentStep(workflowData) {
+        if (!workflowData || !workflowData.WorkflowStepStatuses) {
+            return null;
+        }
+
+        const steps = workflowData.WorkflowStepStatuses;
+
+        // Prefer explicit current step
+        let step = steps.find(s => s.IsCurrentStep === true);
+
+        // Fallback: last step in array
+        if (!step && steps.length) {
+            step = steps[steps.length - 1];
+        }
+
+        return step || null;
+    }
+
+    function buildWorkflowStatusValues(workflowData) {
+        const step = extractCurrentStep(workflowData);
+        if (!step) return null;
+
+        return {
+            waitingOn: step.StepName || '',
+            assignedTo: step.AssignedUser
+                ? step.AssignedUser
+                : (step.AssignedRole || 'Unassigned'),
+            extDays: step.EstimatedDaysRemaining != null
+                ? step.EstimatedDaysRemaining
+                : ''
+        };
+    }
+    function updateWorkflowListDom(headerId, workflowDataObj) {
+        const values = buildWorkflowStatusValues(workflowDataObj);
+        if (!values) return;
+        $('#waitingOn_' + headerId).text(values.waitingOn);
+        $('#assignedTo_' + headerId).text(values.assignedTo);
+        $('#extDays_' + headerId).text(values.extDays);
+    }
+    //edit action in list, popup opens
+    $(document).on('click', '.js-edit', function () {
+        var workflowHeaderID = $(this).data('wfhid');
+        openWorkflowStatusPopup(workflowHeaderID);
+    });
+
+    //action in popup
+    $(document).on("click", ".workflow-action-btn", function () {
+        let btnId = (this.id);
+        let workflowHeaderID = $(this).prev(".workflow-header-id").val();
+        let url = $(this).data("url") + "?__csc=ACCOUNTS";
+        let params = $(this).data("params");
+        // Convert string params to object if needed
+        params = typeof params === "string" ? JSON.parse(params) : params;
+        $('#workflowStatusModal').modal('hide');
+        Swal.fire({
+            input: "textarea",
+            inputPlaceholder: "Enter message…",
+            inputAttributes: { style: "height:250px;" },
+            showCancelButton: true,
+            confirmButtonText: "Update",
+            cancelButtonText: "Close",
+            customClass: 'wide-swal no-header-swal',
+            width: "900px",
+            html: '<label class="swal-custom-label">Comment</label>'
+        })
+            .then(function (result) {
+                if (!result || result.dismiss || result.escape) {
+                    return Promise.reject("STOP");
+                }
+                mApp.blockPage({
+                    type: "loader",
+                    state: "brand",
+                    message: "Please wait..."
+                });
+
+                params.msg = result.value;
+                return $.ajax({
+                    url: url,
+                    type: "POST",
+                    contentType: "application/json",
+                    data: JSON.stringify(params)
+                });
+            })
+            .then(function (response) {
+                if (!response) {
+                    Swal.fire("Error", "An error occurred.", "error");
+                    return Promise.reject("STOP");
+                }
+                if (response.ResponseCode != 1) {
+                    Swal.fire("Error", response.Message || "An error occurred.", "error");
+                    return Promise.reject("STOP");
+                }
+                let newparams = { workflowTxnHeaderID: workflowHeaderID };
+
+                // get the updated step instance
+                return $.ajax({
+                    url: "/api/Workflow/GetWorkflowInstanceStatus?workflowTxnHeaderID=" + workflowHeaderID,
+                    type: "POST",
+                    contentType: "application/json",
+                    data: JSON.stringify(newparams)
+                });
+            })
+            .then(function (apiData) {
+                if (!apiData) {
+                    Swal.fire("Error", response.Message || "An error occurred.", "error");
+                    return Promise.reject("STOP");
+                }
+                var workflowDataObj = null;
+                try {
+                    workflowDataObj = apiData.AdditionalData1 ? JSON.parse(apiData.AdditionalData1) : null;
+                } catch (e) {
+                    workflowDataObj = null;
+                }
+                //also in main pagecontnt update the workflow it is waiting on
+                // AdditionalData1 is JSON string in your API
+                updateWorkflowListDom(workflowHeaderID, workflowDataObj);
+                return $.ajax({
+                    url: "/Workflows/RenderWorkflowView",
+                    type: "POST",
+                    contentType: "application/json",
+                    data: JSON.stringify({
+                        workflowHeaderID: workflowHeaderID,
+                        workflowData: apiData.AdditionalData1
+                    })
+                });
+            })
+            .then(function (html) {
+                if (!html)
+                    Swal.fire("Error", "View not updated. Please refresh.", "error");
+                // Replace workflow div content
+                $("#workflow_" + workflowHeaderID).html(html);
+
+            })
+            .catch(function (xhr) {
+                //Swal.fire("Error", xhr.responseText || "Workflow not updated", "error"); //handle each error seperately
+            })
+            .finally(function () {
+                $('#workflowStatusModal').modal('show');
+                mApp.unblockPage();
+            });
+    });
+</script>
+
+<script>
+    //this is for the dashboard
+    (function () {
+        // avoid double-binding if partial is injected multiple times
+        $(document).off('click.wfComment', '.wf-comment-more')
+            .on('click.wfComment', '.wf-comment-more', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                // IMPORTANT: read attribute to preserve original spacing exactly
+                var full = $(this).attr('data-comment') || '';
+
+                Swal.fire({
+                    title: 'Comment',
+                    html: '<div style="text-align:left; white-space:pre-wrap;">' + $('<div/>').text(full).html() + '</div>',
+                    confirmButtonText: 'Close'
+                });
+            });
+    })();
+</script>
+<style>
+.wf-comment-line {
+    display: block;
+}
+
+.wf-comment-more {
+    margin-left: 6px;
+    vertical-align: middle;
+}
+</style>

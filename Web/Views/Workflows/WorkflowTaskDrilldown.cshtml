@@ -1,0 +1,295 @@
+@{
+    ViewBag.Title = "Workflow Task Drilldown";
+}
+@{Html.RenderPartial("~/Views/Shared/_CommonCSSAndScriptsPartial.cshtml");}
+
+<div class="m-portlet m-portlet--mobile">
+    <div class="m-portlet__head">
+        <div class="m-portlet__head-caption">
+            <div class="m-portlet__head-title">
+                <h3 class="m-portlet__head-text">Workflow Task Drilldown</h3>
+            </div>
+        </div>
+        <div class="m-portlet__head-tools">
+            <button id="wfBackLevel" class="btn btn-outline-secondary btn-sm" style="display:none;"><i class="la la-arrow-left"></i> Back Level</button>
+            <button id="wfBackBtn" class="btn btn-secondary btn-sm"><i class="la la-arrow-left"></i> Back</button>
+        </div>
+    </div>
+    <div class="m-portlet__body">
+        <div class="row m--margin-bottom-15">
+            <div class="col-md-3">
+                <label>Date Range</label>
+                <select id="wfDateRange" class="form-control m-input">
+                    <option value="Lifetime" selected>Lifetime</option>
+                    <option value="Last30Days">Last 30 days</option>
+                    <option value="CurrentMonth">Current month</option>
+                    <option value="CurrentYear">Current year</option>
+                    <option value="Custom">Custom range</option>
+                </select>
+            </div>
+            <div class="col-md-3 wf-custom-date" style="display:none;">
+                <label>From</label>
+                <input id="wfFromDate" type="date" class="form-control m-input" />
+            </div>
+            <div class="col-md-3 wf-custom-date" style="display:none;">
+                <label>To</label>
+                <input id="wfToDate" type="date" class="form-control m-input" />
+            </div>
+            <div class="col-md-3">
+                <label>&nbsp;</label>
+                <div>
+                    <button id="wfApply" class="btn btn-brand"><i class="la la-filter"></i> Apply</button>
+                    <button id="wfExportCsv" class="btn btn-outline-info" style="display:none;"><i class="la la-download"></i> Export CSV</button>
+                    <button id="wfExportExcel" class="btn btn-outline-success" style="display:none;"><i class="la la-file-excel-o"></i> Export Excel</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="alert alert-info" id="wfBreadcrumb">Loading...</div>
+        <div class="row" id="wfKpiCards"></div>
+
+        <div class="table-responsive m--margin-top-20">
+            <table class="table table-striped table-bordered" id="wfAggTable" style="display:none;">
+                <thead id="wfAggHead"></thead>
+                <tbody></tbody>
+            </table>
+
+            <table class="table table-striped table-bordered" id="wfTaskTable" style="display:none;">
+                <thead>
+                    <tr>
+                        <th>Service / Task</th>
+                        <th>Step</th>
+                        <th>Assignee / Role</th>
+                        <th>Account</th>
+                        <th>Account Manager</th>
+                        <th>Step Create Date</th>
+                        <th>Days Remaining</th>
+                        <th>SLA Breach</th>
+                        <th style="width:110px;">Action</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center">
+            <div id="wfPagerInfo" class="text-muted"></div>
+            <div>
+                <button id="wfPrev" class="btn btn-sm btn-outline-secondary">Prev</button>
+                <button id="wfNext" class="btn btn-sm btn-outline-secondary">Next</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function(){
+    var apiUrl = '@Url.Content("/api/Workflow/GetWorkflowTaskDrilldown")';
+    var state = {
+        page:1, perPage:20, total:0, pages:1,
+        level:'', selectedUserId:null, selectedRoleId:null, selectedWorkflowHeaderId:null, selectedWorkflowName:null,
+        bucket:'All', canExport:false, history:[], bucketLabels:{}
+    };
+
+    function card(label, value, bucket, color){
+        return '<div class="col-md-2 m--margin-bottom-10"><a href="javascript:void(0);" class="m-widget24 m--padding-10 wf-kpi" data-bucket="'+bucket+'" style="display:block;border:1px solid #ececf2;border-radius:6px;text-decoration:none;">'
+            + '<div class="m-widget24__item"><h6 class="m-widget24__title">'+label+'</h6>'
+            + '<span class="m-widget24__desc m--font-'+color+'" style="font-size:22px;">'+value+'</span></div></a></div>';
+    }
+
+    function renderKpis(k){
+        k = k || {};
+        var l = state.bucketLabels || {};
+        var html = '';
+        html += card('Pending', k.PendingCount || 0, 'All', 'brand');
+        html += card(l.Overdue1To5 || 'Overdue: 1-5 days', k.Overdue1To5Count || 0, 'Overdue1To5', 'danger');
+        html += card(l.Overdue6To25 || 'Overdue: 6-25 days', k.Overdue6To25Count || 0, 'Overdue6To25', 'danger');
+        html += card(l.Overdue26Plus || 'Overdue: 26+ days', k.Overdue26PlusCount || 0, 'Overdue26Plus', 'danger');
+        html += card(l.Due1To5 || 'Due: 1-5 days', k.Due1To5Count || 0, 'Due1To5', 'warning');
+        html += card(l.Due6To25 || 'Due: 6-25 days', k.Due6To25Count || 0, 'Due6To25', 'accent');
+        html += card(l.Due26Plus || 'Due: 26+ days', k.Due26PlusCount || 0, 'Due26Plus', 'info');
+        $('#wfKpiCards').html(html);
+    }
+
+    function payload(){
+        var p = {
+            'pagination[page]': state.page,
+            'pagination[perpage]': state.perPage,
+            DateRange: $('#wfDateRange').val(),
+            Level: state.level,
+            Bucket: state.bucket
+        };
+        if (state.selectedUserId) p.SelectedUserId = state.selectedUserId;
+        if (state.selectedRoleId) p.SelectedRoleId = state.selectedRoleId;
+        if (state.selectedWorkflowHeaderId) p.SelectedWorkflowHeaderId = state.selectedWorkflowHeaderId;
+        if (state.selectedWorkflowName) p.SelectedWorkflowName = state.selectedWorkflowName;
+        if (p.DateRange === 'Custom') { p.FromDateUtc = $('#wfFromDate').val(); p.ToDateUtc = $('#wfToDate').val(); }
+        return p;
+    }
+
+    function setBreadcrumb(){
+        var text = 'Level: ' + (state.level || 'Auto') + ' | Filter: ' + state.bucket;
+        if (state.selectedUserId) text += ' | User ID: ' + state.selectedUserId;
+        if (state.selectedRoleId) text += ' | Role ID: ' + state.selectedRoleId;
+        if (state.selectedWorkflowName) text += ' | Workflow: ' + state.selectedWorkflowName;
+        $('#wfBreadcrumb').text(text);
+    }
+
+    function renderAggregate(level, rows){
+        $('#wfTaskTable').hide();
+        var $t = $('#wfAggTable');
+        var head = '';
+        if (level === 'User') {
+            head = '<tr><th>User / Role</th><th>Pending</th><th class="wf-col-over-1"></th><th class="wf-col-over-2"></th><th class="wf-col-over-3"></th><th class="wf-col-due-1"></th><th class="wf-col-due-2"></th><th class="wf-col-due-3"></th><th>On-time %</th><th>Avg Delay</th></tr>';
+        } else {
+            head = '<tr><th>Workflow</th><th>Pending</th><th class="wf-col-over-1"></th><th class="wf-col-over-2"></th><th class="wf-col-over-3"></th><th class="wf-col-due-1"></th><th class="wf-col-due-2"></th><th class="wf-col-due-3"></th></tr>';
+        }
+        $('#wfAggHead').html(head);
+
+        var labels = state.bucketLabels || {};
+        $t.find('.wf-col-over-1').text(labels.Overdue1To5 || 'Overdue: 1-5 days');
+        $t.find('.wf-col-over-2').text(labels.Overdue6To25 || 'Overdue: 6-25 days');
+        $t.find('.wf-col-over-3').text(labels.Overdue26Plus || 'Overdue: 26+ days');
+        $t.find('.wf-col-due-1').text(labels.Due1To5 || 'Due: 1-5 days');
+        $t.find('.wf-col-due-2').text(labels.Due6To25 || 'Due: 6-25 days');
+        $t.find('.wf-col-due-3').text(labels.Due26Plus || 'Due: 26+ days');
+
+        if (!rows || !rows.length){
+            $t.find('tbody').html('<tr><td colspan="10" class="text-muted">No records.</td></tr>');
+            $t.show();
+            return;
+        }
+
+        var html = '';
+        rows.forEach(function(r){
+            if (level === 'User') {
+                html += '<tr>'
+                    + '<td><a href="javascript:void(0);" class="wf-user" data-uid="'+(r.UserId||'')+'" data-rid="'+(r.RoleId||'')+'" data-rt="'+(r.RowType||'User')+'">'+(r.UserName||'')+'</a></td>'
+                    + '<td><a href="javascript:void(0);" class="wf-stat" data-bucket="All" data-uid="'+(r.UserId||'')+'" data-rid="'+(r.RoleId||'')+'" data-rt="'+(r.RowType||'User')+'">'+(r.Pending||0)+'</a></td>'
+                    + '<td><a href="javascript:void(0);" class="wf-stat" data-bucket="Overdue1To5" data-uid="'+(r.UserId||'')+'" data-rid="'+(r.RoleId||'')+'" data-rt="'+(r.RowType||'User')+'">'+(r.Overdue1To5||0)+'</a></td>'
+                    + '<td><a href="javascript:void(0);" class="wf-stat" data-bucket="Overdue6To25" data-uid="'+(r.UserId||'')+'" data-rid="'+(r.RoleId||'')+'" data-rt="'+(r.RowType||'User')+'">'+(r.Overdue6To25||0)+'</a></td>'
+                    + '<td><a href="javascript:void(0);" class="wf-stat" data-bucket="Overdue26Plus" data-uid="'+(r.UserId||'')+'" data-rid="'+(r.RoleId||'')+'" data-rt="'+(r.RowType||'User')+'">'+(r.Overdue26Plus||0)+'</a></td>'
+                    + '<td><a href="javascript:void(0);" class="wf-stat" data-bucket="Due1To5" data-uid="'+(r.UserId||'')+'" data-rid="'+(r.RoleId||'')+'" data-rt="'+(r.RowType||'User')+'">'+(r.Due1To5||0)+'</a></td>'
+                    + '<td><a href="javascript:void(0);" class="wf-stat" data-bucket="Due6To25" data-uid="'+(r.UserId||'')+'" data-rid="'+(r.RoleId||'')+'" data-rt="'+(r.RowType||'User')+'">'+(r.Due6To25||0)+'</a></td>'
+                    + '<td><a href="javascript:void(0);" class="wf-stat" data-bucket="Due26Plus" data-uid="'+(r.UserId||'')+'" data-rid="'+(r.RoleId||'')+'" data-rt="'+(r.RowType||'User')+'">'+(r.Due26Plus||0)+'</a></td>'
+                    + '<td>' + (r.OnTimePct == null ? 'N/A' : r.OnTimePct + '%') + '</td>'
+                    + '<td>' + (r.AvgDelay == null ? 'N/A' : r.AvgDelay) + '</td>'
+                    + '</tr>';
+            } else {
+                html += '<tr>'
+                    + '<td><a href="javascript:void(0);" class="wf-workflow" data-wn="'+(r.WorkflowName||'')+'">'+(r.WorkflowDisplayName||r.WorkflowName||'')+'</a></td>'
+                    + '<td><a href="javascript:void(0);" class="wf-stat-workflow" data-bucket="All" data-wn="'+(r.WorkflowName||'')+'">'+(r.Pending||0)+'</a></td>'
+                    + '<td><a href="javascript:void(0);" class="wf-stat-workflow" data-bucket="Overdue1To5" data-wn="'+(r.WorkflowName||'')+'">'+(r.Overdue1To5||0)+'</a></td>'
+                    + '<td><a href="javascript:void(0);" class="wf-stat-workflow" data-bucket="Overdue6To25" data-wn="'+(r.WorkflowName||'')+'">'+(r.Overdue6To25||0)+'</a></td>'
+                    + '<td><a href="javascript:void(0);" class="wf-stat-workflow" data-bucket="Overdue26Plus" data-wn="'+(r.WorkflowName||'')+'">'+(r.Overdue26Plus||0)+'</a></td>'
+                    + '<td><a href="javascript:void(0);" class="wf-stat-workflow" data-bucket="Due1To5" data-wn="'+(r.WorkflowName||'')+'">'+(r.Due1To5||0)+'</a></td>'
+                    + '<td><a href="javascript:void(0);" class="wf-stat-workflow" data-bucket="Due6To25" data-wn="'+(r.WorkflowName||'')+'">'+(r.Due6To25||0)+'</a></td>'
+                    + '<td><a href="javascript:void(0);" class="wf-stat-workflow" data-bucket="Due26Plus" data-wn="'+(r.WorkflowName||'')+'">'+(r.Due26Plus||0)+'</a></td>'
+                    + '</tr>';
+            }
+        });
+        $t.find('tbody').html(html);
+        $t.show();
+    }
+
+    function renderTasks(rows){
+        $('#wfAggTable').hide();
+        var $t = $('#wfTaskTable');
+        if (!rows || !rows.length){
+            $t.find('tbody').html('<tr><td colspan="9" class="text-muted">No tasks found.</td></tr>');
+            $t.show();
+            return;
+        }
+        var html = '';
+        rows.forEach(function(r){
+            html += '<tr>'
+                + '<td>'+(r.TaskName||'')+'</td>'
+                + '<td>'+(r.StepName||'')+'</td>'
+                + '<td>'+(r.AssigneeOrRole||'')+'</td>'
+                + '<td>'+(r.AccountName||'')+'</td>'
+                + '<td>'+(r.AccountManagerName||'')+'</td>'
+                + '<td>'+(r.StepCreateDate||'')+'</td>'
+                + '<td>'+(r.BusinessDaysRemaining==null?'N/A':r.BusinessDaysRemaining)+'</td>'
+                + '<td>'+(r.SlaBreach?'<span class="m-badge m-badge--danger m-badge--wide">Yes</span>':'<span class="m-badge m-badge--success m-badge--wide">No</span>')+'</td>'
+                + '<td><button class="btn btn-sm btn-brand js-edit" data-hid="'+r.WorkflowHeaderId+'"><i class="la la-edit"></i> Edit</button></td>'
+                + '</tr>';
+        });
+        $t.find('tbody').html(html);
+        $t.show();
+    }
+
+    function exportData(mode){
+        var p = payload();
+        p.ExportMode = mode;
+        var $form = $('<form method="post" target="_blank" style="display:none;"></form>').attr('action', apiUrl);
+        Object.keys(p).forEach(function(k){ $('<input type="hidden"/>').attr('name', k).val(p[k]).appendTo($form); });
+        $('body').append($form); $form.trigger('submit'); $form.remove();
+    }
+
+    function pushHistory(){
+        state.history.push({ level:state.level, selectedUserId:state.selectedUserId, selectedRoleId:state.selectedRoleId, selectedWorkflowHeaderId:state.selectedWorkflowHeaderId, selectedWorkflowName:state.selectedWorkflowName, bucket:state.bucket, page:state.page });
+        $('#wfBackLevel').toggle(state.history.length>0);
+    }
+
+    function load(){
+        setBreadcrumb();
+        var p = payload();
+        $('#wfAggTable tbody, #wfTaskTable tbody').html('<tr><td colspan="10" class="text-muted">Loading...</td></tr>');
+        $.post(apiUrl, p).done(function(res){
+            var level = (res.Level || res.level || state.level || 'Workflow');
+            state.level = level;
+            var meta = res.Meta || res.meta || { page:1, perpage:state.perPage, total:0, pages:1 };
+            state.page = meta.page || 1; state.pages = meta.pages || 1; state.total = meta.total || 0;
+            state.canExport = !!(res.CanExport || res.canExport);
+            state.bucketLabels = (res.Meta && res.Meta.BucketLabels) || (res.meta && res.meta.BucketLabels) || state.bucketLabels || {};
+            $('#wfExportCsv,#wfExportExcel').toggle(state.canExport);
+
+            renderKpis(res.SummaryKpi || res.summaryKpi || {});
+
+            if (level === 'Task') renderTasks(res.TaskData || res.taskData || []);
+            else renderAggregate(level, res.AggregateData || res.aggregateData || []);
+
+            var userKpi = res.UserKpi || res.userKpi;
+            if (userKpi && userKpi.OnTimeCompletionRatePct != null) {
+                $('#wfBreadcrumb').append(' | On-time: ' + userKpi.OnTimeCompletionRatePct + '% | Avg delay: ' + (userKpi.AvgBusinessDaysDelay == null ? 'N/A' : userKpi.AvgBusinessDaysDelay));
+            }
+
+            var from = state.total === 0 ? 0 : ((state.page - 1) * state.perPage + 1);
+            var to = Math.min(state.total, state.page * state.perPage);
+            $('#wfPagerInfo').text('Showing ' + from + ' to ' + to + ' of ' + state.total);
+        }).fail(function(xhr){
+            $('#wfAggTable').show();
+            $('#wfAggTable tbody').html('<tr><td colspan="10" class="text-danger">Failed to load: ' + ((xhr && xhr.responseText) || 'error') + '</td></tr>');
+        });
+    }
+
+    $(document).on('click', '.wf-kpi', function(){ state.bucket = $(this).data('bucket') || 'All'; state.page = 1; load(); });
+    $(document).on('click', '.wf-user', function(){ pushHistory(); var rt=$(this).data('rt'); var uid=parseInt($(this).data('uid'),10); var rid=parseInt($(this).data('rid'),10); state.selectedUserId = isNaN(uid)?null:uid; state.selectedRoleId = (rt==='Role' && !isNaN(rid))?rid:null; state.selectedWorkflowHeaderId = null; state.selectedWorkflowName=null; state.level='Workflow'; state.bucket='All'; state.page=1; load(); });
+    $(document).on('click', '.wf-stat', function(){ pushHistory(); var rt=$(this).data('rt'); var uid=parseInt($(this).data('uid'),10); var rid=parseInt($(this).data('rid'),10); state.selectedUserId = isNaN(uid)?null:uid; state.selectedRoleId = (rt==='Role' && !isNaN(rid))?rid:null; state.selectedWorkflowHeaderId = null; state.selectedWorkflowName=null; state.bucket = $(this).data('bucket') || 'All'; state.level='Task'; state.page=1; load(); });
+    $(document).on('click', '.wf-workflow', function(){ pushHistory(); state.selectedWorkflowName = $(this).data('wn') || null; state.level='Task'; state.bucket='All'; state.page=1; load(); });
+    $(document).on('click', '.wf-stat-workflow', function(){ pushHistory(); state.selectedWorkflowName = $(this).data('wn') || null; state.bucket = $(this).data('bucket') || 'All'; state.level='Task'; state.page=1; load(); });
+
+    $(document).on('click', '.js-edit', function(){
+        var id = $(this).data('hid');
+        if (window.openWorkflowStatusPopup) window.openWorkflowStatusPopup(id);
+    });
+
+    $('#wfBackLevel').on('click', function(){
+        var prev = state.history.pop();
+        if (!prev) return;
+        state.level = prev.level; state.selectedUserId = prev.selectedUserId; state.selectedRoleId = prev.selectedRoleId; state.selectedWorkflowHeaderId = prev.selectedWorkflowHeaderId; state.selectedWorkflowName = prev.selectedWorkflowName; state.bucket = prev.bucket; state.page = prev.page;
+        $('#wfBackLevel').toggle(state.history.length>0);
+        load();
+    });
+
+    $('#wfApply').on('click', function(){ state.page=1; load(); });
+    $('#wfPrev').on('click', function(){ if (state.page>1){ state.page--; load(); } });
+    $('#wfNext').on('click', function(){ if (state.page<state.pages){ state.page++; load(); } });
+    $('#wfDateRange').on('change', function(){ $('.wf-custom-date').toggle($(this).val()==='Custom'); });
+    $('#wfExportCsv').on('click', function(){ exportData('Csv'); });
+    $('#wfExportExcel').on('click', function(){ exportData('Excel'); });
+    $('#wfBackBtn').on('click', function(){ window.history.back(); });
+
+    load();
+})();
+</script>

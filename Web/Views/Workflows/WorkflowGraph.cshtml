@@ -1,0 +1,909 @@
+@model CRM.Classes.Helpers.WorkflowHelpers.WorkflowStepsMap
+@using CRM.Classes.Helpers.WorkflowHelpers
+
+@{
+    var workflowId = (short)(ViewBag.WorkflowID ?? 0);
+    var canEditTemplate = (bool)(ViewBag.CanEditTemplate ?? false);
+}
+@{Html.RenderPartial("~/Views/Shared/_CommonCSSAndScriptsPartial.cshtml");}
+
+<div class="m-portlet m-portlet--mobile">
+    <div class="m-portlet__head">
+        <div class="m-portlet__head-caption">
+            <div class="m-portlet__head-title">
+                <h3 class="m-portlet__head-text">Workflow Template Designer <span id="wfWorkflowNameTitle" class="m--font-info"></span></h3>
+            </div>
+        </div>
+        <div class="m-portlet__head-tools">
+            @if (!canEditTemplate)
+            {
+                <span class="m-badge m-badge--danger m-badge--wide">Read only (Admin only)</span>
+            }
+            else
+            {
+                <span class="m-badge m-badge--success m-badge--wide">Edit enabled</span>
+            }
+            <div id="wfApiStatus" class="m-alert m-alert--outline alert alert-info m--margin-top-10 m--margin-bottom-0" style="min-width:300px;">
+                <i id="wfApiLoader" class="fa fa-spinner fa-spin m--font-brand m--margin-right-5" style="display:none;"></i>
+                <span id="wfApiStatusText">Idle</span>
+            </div>
+        </div>
+    </div>
+    <div class="m-portlet__body">
+        <div class="row">
+            <div class="col-lg-9">
+                <div class="m--padding-10" style="border:1px solid #e7e7ef; border-radius:6px; background:#fbfbfd; overflow:auto; height:75vh; min-height:560px;">
+                    <svg id="wfDesignerSvg" width="1600" height="1200" style="user-select:none;">
+                        <defs>
+                            <marker id="wfArrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                                <polygon points="0 0, 10 3.5, 0 7" fill="#5d78ff"></polygon>
+                            </marker>
+                        </defs>
+                    </svg>
+                </div>
+            </div>
+            <div class="col-lg-3">
+                <div class="m-form m-form--fit" style="height:75vh; min-height:560px; overflow-y:auto; padding-right:6px;">
+                    <div class="form-group">
+                        <label>Selected Step ID</label>
+                        <input id="wfSelStepId" type="text" class="form-control m-input" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>Step Name</label>
+                        <input id="wfStepName" type="text" class="form-control m-input" maxlength="50" @(canEditTemplate ? "" : "disabled")>
+                    </div>
+                    <div class="form-group">
+                        <label>Description</label>
+                        <textarea id="wfStepDesc" class="form-control m-input" rows="2" @(canEditTemplate ? "" : "disabled")></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Step Type <span class="text-danger">*</span></label>
+                        <select id="wfStepType" class="form-control m-input" @(canEditTemplate ? "" : "disabled")>
+                            <option value="">-- Select step type --</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Action Role (optional)</label>
+                        <select id="wfActionRole" class="form-control m-input" @(canEditTemplate ? "" : "disabled")>
+                            <option value="">-- Select action role --</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Task Assigner Role (optional)</label>
+                        <select id="wfTaskAssignerRole" class="form-control m-input" @(canEditTemplate ? "" : "disabled")>
+                            <option value="">-- Select task assigner role --</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="m-checkbox m-checkbox--brand">
+                            <input id="wfIsStartStep" type="checkbox" @(canEditTemplate ? "" : "disabled")> Start Step
+                            <span></span>
+                        </label>
+                    </div>
+
+                    <div class="m-accordion m-accordion--default m-accordion--toggle-arrow m--margin-top-15 m--margin-bottom-15" id="wfStepAdvancedPanels">
+                        <div class="m-accordion__item m-accordion__item--default m--margin-bottom-10">
+                            <div class="m-accordion__item-head wf-accordion-toggle" data-target="#wfPanelGeneralJson" style="cursor:pointer;">
+                                <span class="m-accordion__item-title">General / Step Config JSON</span>
+                                <span class="m-accordion__item-mode"></span>
+                            </div>
+                            <div id="wfPanelGeneralJson" class="m-accordion__item-body" style="display:none;">
+                                <div class="m-accordion__item-content">
+                                    <div class="form-group">
+                                        <label>Workflow_StepTypes_ConfigData (JSON)</label>
+                                        <textarea id="wfWorkflowStepTypesConfigData" class="form-control m-input wf-json-field" rows="4" @(canEditTemplate ? "" : "disabled")></textarea>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>UserStepInstructions</label>
+                                        <textarea id="wfUserStepInstructions" class="form-control m-input" rows="3" @(canEditTemplate ? "" : "disabled")></textarea>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>PreStepCompletion_DataValidation (JSON)</label>
+                                        <textarea id="wfPreStepCompletionDataValidation" class="form-control m-input wf-json-field" rows="4" @(canEditTemplate ? "" : "disabled")></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="m-accordion__item m-accordion__item--default m--margin-bottom-10">
+                            <div class="m-accordion__item-head wf-accordion-toggle" data-target="#wfPanelOnCompletion" style="cursor:pointer;">
+                                <span class="m-accordion__item-title">On Step Completion</span>
+                                <span class="m-accordion__item-mode"></span>
+                            </div>
+                            <div id="wfPanelOnCompletion" class="m-accordion__item-body" style="display:none;">
+                                <div class="m-accordion__item-content">
+                                    <div class="form-group"><label>OnStepCompletion_Notifications (JSON)</label><textarea id="wfOnStepCompletionNotifications" class="form-control m-input wf-json-field" rows="3" @(canEditTemplate ? "" : "disabled")></textarea></div>
+                                    <div class="form-group"><label>OnStepCompletion_FieldUpdates (JSON)</label><textarea id="wfOnStepCompletionFieldUpdates" class="form-control m-input wf-json-field" rows="3" @(canEditTemplate ? "" : "disabled")></textarea></div>
+                                    <div class="form-group"><label>OnStepCompletion_APICalls (JSON)</label><textarea id="wfOnStepCompletionApiCalls" class="form-control m-input wf-json-field" rows="3" @(canEditTemplate ? "" : "disabled")></textarea></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="m-accordion__item m-accordion__item--default m--margin-bottom-10">
+                            <div class="m-accordion__item-head wf-accordion-toggle" data-target="#wfPanelOnReview" style="cursor:pointer;">
+                                <span class="m-accordion__item-title">On Step Review</span>
+                                <span class="m-accordion__item-mode"></span>
+                            </div>
+                            <div id="wfPanelOnReview" class="m-accordion__item-body" style="display:none;">
+                                <div class="m-accordion__item-content">
+                                    <div class="form-group"><label>OnStepReview_Notifications (JSON)</label><textarea id="wfOnStepReviewNotifications" class="form-control m-input wf-json-field" rows="3" @(canEditTemplate ? "" : "disabled")></textarea></div>
+                                    <div class="form-group"><label>OnStepReview_FieldUpdates (JSON)</label><textarea id="wfOnStepReviewFieldUpdates" class="form-control m-input wf-json-field" rows="3" @(canEditTemplate ? "" : "disabled")></textarea></div>
+                                    <div class="form-group"><label>OnStepReview_APICalls (JSON)</label><textarea id="wfOnStepReviewApiCalls" class="form-control m-input wf-json-field" rows="3" @(canEditTemplate ? "" : "disabled")></textarea></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="m-accordion__item m-accordion__item--default m--margin-bottom-10">
+                            <div class="m-accordion__item-head wf-accordion-toggle" data-target="#wfPanelOnRejectError" style="cursor:pointer;">
+                                <span class="m-accordion__item-title">On Step Reject / Error</span>
+                                <span class="m-accordion__item-mode"></span>
+                            </div>
+                            <div id="wfPanelOnRejectError" class="m-accordion__item-body" style="display:none;">
+                                <div class="m-accordion__item-content">
+                                    <div class="form-group"><label>OnStepReject_Notifications (JSON)</label><textarea id="wfOnStepRejectNotifications" class="form-control m-input wf-json-field" rows="3" @(canEditTemplate ? "" : "disabled")></textarea></div>
+                                    <div class="form-group"><label>OnStepReject_FieldUpdates (JSON)</label><textarea id="wfOnStepRejectFieldUpdates" class="form-control m-input wf-json-field" rows="3" @(canEditTemplate ? "" : "disabled")></textarea></div>
+                                    <div class="form-group"><label>OnStepReject_APICalls (JSON)</label><textarea id="wfOnStepRejectApiCalls" class="form-control m-input wf-json-field" rows="3" @(canEditTemplate ? "" : "disabled")></textarea></div>
+                                    <div class="form-group"><label>OnStepError_Notifications (JSON)</label><textarea id="wfOnStepErrorNotifications" class="form-control m-input wf-json-field" rows="3" @(canEditTemplate ? "" : "disabled")></textarea></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="m-accordion__item m-accordion__item--default m--margin-bottom-10">
+                            <div class="m-accordion__item-head wf-accordion-toggle" data-target="#wfPanelOnCreate" style="cursor:pointer;">
+                                <span class="m-accordion__item-title">On Step Create</span>
+                                <span class="m-accordion__item-mode"></span>
+                            </div>
+                            <div id="wfPanelOnCreate" class="m-accordion__item-body" style="display:none;">
+                                <div class="m-accordion__item-content">
+                                    <div class="form-group"><label>OnStepCreate_Notifications (JSON)</label><textarea id="wfOnStepCreateNotifications" class="form-control m-input wf-json-field" rows="3" @(canEditTemplate ? "" : "disabled")></textarea></div>
+                                    <div class="form-group"><label>OnStepCreate_FieldUpdates (JSON)</label><textarea id="wfOnStepCreateFieldUpdates" class="form-control m-input wf-json-field" rows="3" @(canEditTemplate ? "" : "disabled")></textarea></div>
+                                    <div class="form-group"><label>OnStepCreate_APICalls (JSON)</label><textarea id="wfOnStepCreateApiCalls" class="form-control m-input wf-json-field" rows="3" @(canEditTemplate ? "" : "disabled")></textarea></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="m--margin-top-15 m--margin-bottom-10" id="wfStepActionBar">
+                        <button id="wfBtnAddStep" class="btn btn-brand btn-sm" @(canEditTemplate ? "" : "disabled")><i class="la la-plus"></i> Add Step</button>
+                        <button id="wfBtnSaveStep" class="btn btn-success btn-sm" @(canEditTemplate ? "" : "disabled")><i class="la la-save"></i> Save Step</button>
+                        <button id="wfBtnDeleteStep" class="btn btn-danger btn-sm" @(canEditTemplate ? "" : "disabled")><i class="la la-trash"></i> Delete Step</button>
+                        <button id="wfBtnClearStepForm" class="btn btn-secondary btn-sm" @(canEditTemplate ? "" : "disabled")><i class="la la-eraser"></i> Clear Fields</button>
+                    </div>
+
+                    <hr />
+
+                    <div class="form-group">
+                        <label>Transition Mode</label>
+                        <div>
+                            <button id="wfBtnLinkMode" class="btn btn-outline-brand btn-sm" @(canEditTemplate ? "" : "disabled")><i class="la la-link"></i> Link Steps</button>
+                            <span id="wfLinkModeHint" class="m--font-info m--margin-left-10">Off</span>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Condition Expression (optional)</label>
+                        <textarea id="wfTransitionCondition" class="form-control m-input" rows="3" @(canEditTemplate ? "" : "disabled") placeholder="e.g. Context.Amount &gt;= 1000"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Display Label</label>
+                        <input id="wfTransitionLabel" type="text" class="form-control m-input" maxlength="150" @(canEditTemplate ? "" : "disabled")>
+                    </div>
+                    <div class="form-group">
+                        <label>Sort Order</label>
+                        <input id="wfTransitionSort" type="number" class="form-control m-input" value="0" @(canEditTemplate ? "" : "disabled")>
+                    </div>
+                    <div class="form-group">
+                        <label class="m-checkbox m-checkbox--brand">
+                            <input id="wfTransitionDefault" type="checkbox" @(canEditTemplate ? "" : "disabled")> Default path
+                            <span></span>
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <button id="wfBtnUpdateEdge" class="btn btn-info btn-sm" @(canEditTemplate ? "" : "disabled")><i class="la la-pencil"></i> Update Selected Link</button>
+                        <button id="wfBtnDeleteEdge" class="btn btn-danger btn-sm" @(canEditTemplate ? "" : "disabled")><i class="la la-unlink"></i> De-link Selected</button>
+                        <small class="m--font-metal d-block m--margin-top-5">Update Selected Link saves changes made to the selected transition (condition/label/sort/default path).</small>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    var workflowId = @workflowId;
+    var canEdit = @canEditTemplate.ToString().ToLowerInvariant();
+
+    var state = {
+        nodes: [],
+        edges: [],
+        nodeById: {},
+        selectedStepId: null,
+        selectedTransitionId: null,
+        linkMode: false,
+        linkFromStepId: null,
+        draggingStepId: null,
+        dragOffsetX: 0,
+        dragOffsetY: 0,
+        dragBounds: { width: 1600, height: 1200 },
+        stepTypes: [],
+        roles: [],
+        lastLayoutSync: {}
+    };
+
+    function status(msg, type, isLoading) {
+        var $s = $('#wfApiStatus');
+        var css = type || 'alert-info';
+        $s.removeClass('alert-info alert-danger alert-success').addClass(css);
+        $('#wfApiStatusText').text(msg || 'Idle');
+        $('#wfApiLoader').toggle(!!isLoading);
+    }
+
+    function api(url, method, data, done) {
+        status('Working...', 'alert-info', true);
+        $.ajax({
+            url: url,
+            type: method || 'GET',
+            data: data ? JSON.stringify(data) : null,
+            contentType: data ? 'application/json' : undefined
+        }).done(function(res){
+            status('Completed', 'alert-success', false);
+            if (done) done(res);
+        })
+        .fail(function(xhr){
+            status((xhr && xhr.responseText) ? xhr.responseText : 'Request failed', 'alert-danger', false);
+        });
+    }
+
+    function getSvgPoint(evt) {
+        var svg = document.getElementById('wfDesignerSvg');
+        var rect = svg.getBoundingClientRect();
+        return {
+            x: evt.clientX - rect.left + svg.parentElement.scrollLeft,
+            y: evt.clientY - rect.top + svg.parentElement.scrollTop
+        };
+    }
+
+    function clamp(value, min, max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    function normalizeNode(n) {
+        var stepId = parseInt(n.StepId || n.stepId || n.ID || n.id, 10);
+        var stepTypeId = parseInt(n.Workflow_StepTypes_ID || n.workflow_StepTypes_ID || n.WorkflowStepTypesId || n.workflowStepTypesId, 10);
+        return {
+            StepId: stepId,
+            Name: n.Name || n.name || '',
+            Description: n.Description || n.description || '',
+            IsStartStep: !!(n.IsStartStep || n.isStartStep),
+            Workflow_StepTypes_ID: isNaN(stepTypeId) ? null : stepTypeId,
+            IsOrphanChain: !!(n.IsOrphanChain || n.isOrphanChain),
+            X: Number(n.X || n.x || 80),
+            Y: Number(n.Y || n.y || 80),
+            Width: Number(n.Width || n.width || 180),
+            Height: Number(n.Height || n.height || 96),
+            Workflow_StepTypes_ConfigData: n.Workflow_StepTypes_ConfigData || n.workflow_StepTypes_ConfigData || '',
+            UserStepInstructions: n.UserStepInstructions || n.userStepInstructions || '',
+            PreStepCompletion_DataValidation: n.PreStepCompletion_DataValidation || n.preStepCompletion_DataValidation || '',
+            OnStepCompletion_Notifications: n.OnStepCompletion_Notifications || n.onStepCompletion_Notifications || '',
+            OnStepCompletion_FieldUpdates: n.OnStepCompletion_FieldUpdates || n.onStepCompletion_FieldUpdates || '',
+            OnStepCompletion_APICalls: n.OnStepCompletion_APICalls || n.onStepCompletion_APICalls || '',
+            OnStepReview_Notifications: n.OnStepReview_Notifications || n.onStepReview_Notifications || '',
+            OnStepReview_FieldUpdates: n.OnStepReview_FieldUpdates || n.onStepReview_FieldUpdates || '',
+            OnStepReview_APICalls: n.OnStepReview_APICalls || n.onStepReview_APICalls || '',
+            OnStepReject_Notifications: n.OnStepReject_Notifications || n.onStepReject_Notifications || '',
+            OnStepReject_FieldUpdates: n.OnStepReject_FieldUpdates || n.onStepReject_FieldUpdates || '',
+            OnStepReject_APICalls: n.OnStepReject_APICalls || n.onStepReject_APICalls || '',
+            OnStepError_Notifications: n.OnStepError_Notifications || n.onStepError_Notifications || '',
+            OnStepCreate_Notifications: n.OnStepCreate_Notifications || n.onStepCreate_Notifications || '',
+            OnStepCreate_FieldUpdates: n.OnStepCreate_FieldUpdates || n.onStepCreate_FieldUpdates || '',
+            OnStepCreate_APICalls: n.OnStepCreate_APICalls || n.onStepCreate_APICalls || '',
+            Action_Roles_Id: n.Action_Roles_Id || n.action_Roles_Id || n.ActionRolesId || n.actionRolesId || null,
+            TaskAssigner_Roles_Id: n.TaskAssigner_Roles_Id || n.taskAssigner_Roles_Id || n.TaskAssignerRolesId || n.taskAssignerRolesId || null
+        };
+    }
+
+    function normalizeEdge(e) {
+        return {
+            TransitionId: parseInt(e.TransitionId || e.transitionId || e.ID || e.id, 10),
+            FromStepId: parseInt(e.FromStepId || e.fromStepId, 10),
+            ToStepId: parseInt(e.ToStepId || e.toStepId, 10),
+            ConditionExpression: e.ConditionExpression || e.conditionExpression || '',
+            DisplayLabel: e.DisplayLabel || e.displayLabel || '',
+            SortOrder: parseInt(e.SortOrder || e.sortOrder || 0, 10),
+            IsDefaultPath: !!(e.IsDefaultPath || e.isDefaultPath),
+            IsActive: e.IsActive === undefined ? (e.isActive === undefined ? true : !!e.isActive) : !!e.IsActive
+        };
+    }
+
+
+    var SVG_NS = 'http://www.w3.org/2000/svg';
+
+    function createSvgElement(tag, attrs, textValue) {
+        var el = document.createElementNS(SVG_NS, tag);
+        if (attrs) {
+            Object.keys(attrs).forEach(function(key){
+                if (attrs[key] !== undefined && attrs[key] !== null) {
+                    el.setAttribute(key, attrs[key]);
+                }
+            });
+        }
+        if (textValue !== undefined && textValue !== null) {
+            el.textContent = textValue;
+        }
+        return el;
+    }
+
+    function recalcMaps() {
+        state.nodeById = {};
+        state.nodes.forEach(function(n){ state.nodeById[n.StepId] = n; });
+    }
+
+    function updateCanvasSize() {
+        var minWidth = 1600;
+        var minHeight = 1200;
+        var pad = 60;
+
+        var maxX = minWidth;
+        var maxY = minHeight;
+
+        state.nodes.forEach(function(n){
+            maxX = Math.max(maxX, (n.X || 0) + (n.Width || 180) + pad);
+            maxY = Math.max(maxY, (n.Y || 0) + (n.Height || 72) + pad);
+        });
+
+        var svg = $('#wfDesignerSvg');
+        svg.attr('width', Math.ceil(maxX));
+        svg.attr('height', Math.ceil(maxY));
+
+        state.dragBounds.width = Math.ceil(maxX);
+        state.dragBounds.height = Math.ceil(maxY);
+    }
+
+    function renderStepTypeOptions() {
+        var $sel = $('#wfStepType');
+        var current = $sel.val();
+        $sel.empty();
+        $sel.append($('<option value=""></option>').text('-- Select step type --'));
+        state.stepTypes.forEach(function(st){
+            var id = st.ID || st.id;
+            var name = st.Name || st.name;
+            $sel.append($('<option></option>').attr('value', id).text(name || ('Step Type ' + id)));
+        });
+        if (current) {
+            $sel.val(current);
+        }
+    }
+
+    function renderRoleOptions() {
+        var $action = $('#wfActionRole');
+        var $taskAssigner = $('#wfTaskAssignerRole');
+        var currentAction = $action.val();
+        var currentTask = $taskAssigner.val();
+
+        $action.empty().append($('<option value=""></option>').text('-- Select action role --'));
+        $taskAssigner.empty().append($('<option value=""></option>').text('-- Select task assigner role --'));
+
+        state.roles.forEach(function(r){
+            var id = r.Role_Id || r.role_Id || r.RoleId || r.roleId;
+            var name = r.RoleName || r.roleName || ('Role ' + id);
+            $action.append($('<option></option>').attr('value', id).text(name));
+            $taskAssigner.append($('<option></option>').attr('value', id).text(name));
+        });
+
+        if (currentAction) $action.val(currentAction);
+        if (currentTask) $taskAssigner.val(currentTask);
+    }
+
+
+    function resetStepEditor() {
+        $('#wfSelStepId').val('');
+        $('#wfStepName').val('');
+        $('#wfStepDesc').val('');
+        $('#wfStepType').val('');
+        $('#wfActionRole').val('');
+        $('#wfTaskAssignerRole').val('');
+        $('#wfIsStartStep').prop('checked', false);
+        $('#wfWorkflowStepTypesConfigData').val('');
+        $('#wfUserStepInstructions').val('');
+        $('#wfPreStepCompletionDataValidation').val('');
+        $('#wfOnStepCompletionNotifications').val('');
+        $('#wfOnStepCompletionFieldUpdates').val('');
+        $('#wfOnStepCompletionApiCalls').val('');
+        $('#wfOnStepReviewNotifications').val('');
+        $('#wfOnStepReviewFieldUpdates').val('');
+        $('#wfOnStepReviewApiCalls').val('');
+        $('#wfOnStepRejectNotifications').val('');
+        $('#wfOnStepRejectFieldUpdates').val('');
+        $('#wfOnStepRejectApiCalls').val('');
+        $('#wfOnStepErrorNotifications').val('');
+        $('#wfOnStepCreateNotifications').val('');
+        $('#wfOnStepCreateFieldUpdates').val('');
+        $('#wfOnStepCreateApiCalls').val('');
+    }
+
+    function isValidJsonOrEmpty(value) {
+        var v = (value || '').trim();
+        if (!v) return true;
+        try { JSON.parse(v); return true; } catch (e) { return false; }
+    }
+
+    function validateJsonEditors() {
+        var map = [
+            ['#wfWorkflowStepTypesConfigData', 'Workflow_StepTypes_ConfigData'],
+            ['#wfPreStepCompletionDataValidation', 'PreStepCompletion_DataValidation'],
+            ['#wfOnStepCompletionNotifications', 'OnStepCompletion_Notifications'],
+            ['#wfOnStepCompletionFieldUpdates', 'OnStepCompletion_FieldUpdates'],
+            ['#wfOnStepCompletionApiCalls', 'OnStepCompletion_APICalls'],
+            ['#wfOnStepReviewNotifications', 'OnStepReview_Notifications'],
+            ['#wfOnStepReviewFieldUpdates', 'OnStepReview_FieldUpdates'],
+            ['#wfOnStepReviewApiCalls', 'OnStepReview_APICalls'],
+            ['#wfOnStepRejectNotifications', 'OnStepReject_Notifications'],
+            ['#wfOnStepRejectFieldUpdates', 'OnStepReject_FieldUpdates'],
+            ['#wfOnStepRejectApiCalls', 'OnStepReject_APICalls'],
+            ['#wfOnStepErrorNotifications', 'OnStepError_Notifications'],
+            ['#wfOnStepCreateNotifications', 'OnStepCreate_Notifications'],
+            ['#wfOnStepCreateFieldUpdates', 'OnStepCreate_FieldUpdates'],
+            ['#wfOnStepCreateApiCalls', 'OnStepCreate_APICalls']
+        ];
+
+        for (var i = 0; i < map.length; i++) {
+            var selector = map[i][0], field = map[i][1];
+            if (!isValidJsonOrEmpty($(selector).val())) {
+                status(field + ' contains invalid JSON.', 'alert-danger');
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    function buildStepPayloadBase() {
+        return {
+            Name: ($('#wfStepName').val() || '').trim(),
+            Description: $('#wfStepDesc').val(),
+            Workflow_StepTypes_ID: parseInt($('#wfStepType').val(), 10),
+            Action_Roles_Id: $('#wfActionRole').val() ? parseInt($('#wfActionRole').val(), 10) : null,
+            TaskAssigner_Roles_Id: $('#wfTaskAssignerRole').val() ? parseInt($('#wfTaskAssignerRole').val(), 10) : null,
+            IsStartStep: $('#wfIsStartStep').is(':checked'),
+            Workflow_StepTypes_ConfigData: $('#wfWorkflowStepTypesConfigData').val(),
+            UserStepInstructions: $('#wfUserStepInstructions').val(),
+            PreStepCompletion_DataValidation: $('#wfPreStepCompletionDataValidation').val(),
+            OnStepCompletion_Notifications: $('#wfOnStepCompletionNotifications').val(),
+            OnStepCompletion_FieldUpdates: $('#wfOnStepCompletionFieldUpdates').val(),
+            OnStepCompletion_APICalls: $('#wfOnStepCompletionApiCalls').val(),
+            OnStepReview_Notifications: $('#wfOnStepReviewNotifications').val(),
+            OnStepReview_FieldUpdates: $('#wfOnStepReviewFieldUpdates').val(),
+            OnStepReview_APICalls: $('#wfOnStepReviewApiCalls').val(),
+            OnStepReject_Notifications: $('#wfOnStepRejectNotifications').val(),
+            OnStepReject_FieldUpdates: $('#wfOnStepRejectFieldUpdates').val(),
+            OnStepReject_APICalls: $('#wfOnStepRejectApiCalls').val(),
+            OnStepError_Notifications: $('#wfOnStepErrorNotifications').val(),
+            OnStepCreate_Notifications: $('#wfOnStepCreateNotifications').val(),
+            OnStepCreate_FieldUpdates: $('#wfOnStepCreateFieldUpdates').val(),
+            OnStepCreate_APICalls: $('#wfOnStepCreateApiCalls').val()
+        };
+    }
+
+    function getRoleName(roleId) {
+        if (!roleId) return '';
+        var role = state.roles.find(function(r){
+            return (r.Role_Id || r.role_Id || r.RoleId || r.roleId) == roleId;
+        });
+        return role ? (role.RoleName || role.roleName || '') : ('Role #' + roleId);
+    }
+
+    function truncateText(value, maxLen) {
+        var txt = value || '';
+        if (txt.length <= maxLen) return txt;
+        return txt.substring(0, Math.max(0, maxLen - 3)) + '...';
+    }
+
+
+    function getVisualOrphanStepSet() {
+        var adjacency = {};
+        state.nodes.forEach(function(n){ adjacency[n.StepId] = []; });
+
+        state.edges.forEach(function(e){
+            if (adjacency[e.FromStepId]) {
+                adjacency[e.FromStepId].push(e.ToStepId);
+            }
+        });
+
+        var startIds = state.nodes.filter(function(n){ return !!n.IsStartStep; }).map(function(n){ return n.StepId; });
+        if (startIds.length === 0 && state.nodes.length > 0) {
+            startIds.push(state.nodes[0].StepId);
+        }
+
+        var visited = {};
+        var queue = startIds.slice();
+        queue.forEach(function(id){ visited[id] = true; });
+
+        while (queue.length > 0) {
+            var cur = queue.shift();
+            (adjacency[cur] || []).forEach(function(nx){
+                if (!visited[nx]) {
+                    visited[nx] = true;
+                    queue.push(nx);
+                }
+            });
+        }
+
+        var orphanSet = {};
+        state.nodes.forEach(function(n){
+            if (n.IsOrphanChain || !visited[n.StepId]) {
+                orphanSet[n.StepId] = true;
+            }
+        });
+
+        return orphanSet;
+    }
+
+    function draw() {
+        var svg = document.getElementById('wfDesignerSvg');
+        $('#wfDesignerSvg').find('.wf-edge,.wf-node').remove();
+        updateCanvasSize();
+        var orphanSet = getVisualOrphanStepSet();
+
+        state.edges.forEach(function(e){
+            var from = state.nodeById[e.FromStepId];
+            var to = state.nodeById[e.ToStepId];
+            if (!from || !to) return;
+            var isOrphanEdge = !!(orphanSet[from.StepId] || orphanSet[to.StepId]);
+
+            var x1 = from.X + (from.Width / 2);
+            var y1 = from.Y + from.Height;
+            var x2 = to.X + (to.Width / 2);
+            var y2 = to.Y;
+
+            var line = createSvgElement('line', {
+                'class': 'wf-edge',
+                x1: x1,
+                y1: y1,
+                x2: x2,
+                y2: y2,
+                stroke: e.TransitionId === state.selectedTransitionId ? '#f4516c' : (isOrphanEdge ? '#2f74ff' : '#5d78ff'),
+                'stroke-width': e.TransitionId === state.selectedTransitionId ? '2.8' : '2',
+                'stroke-dasharray': isOrphanEdge ? '6,4' : null,
+                'marker-end': 'url(#wfArrow)',
+                'data-transition-id': e.TransitionId,
+                style: 'cursor:pointer;'
+            });
+            svg.appendChild(line);
+
+            if (e.DisplayLabel) {
+                var lx = (x1 + x2) / 2;
+                var ly = (y1 + y2) / 2 - 6;
+                var txt = createSvgElement('text', {
+                    'class': 'wf-edge',
+                    x: lx,
+                    y: ly,
+                    'font-size': '11',
+                    fill: '#5867dd'
+                }, e.DisplayLabel);
+                svg.appendChild(txt);
+            }
+        });
+
+        state.nodes.forEach(function(n){
+            var isSelected = (n.StepId === state.selectedStepId);
+            var isOrphanNode = !!orphanSet[n.StepId];
+            var border = isSelected ? '#f4516c' : (isOrphanNode ? '#2f74ff' : '#1e40af');
+            var actionRoleName = getRoleName(n.Action_Roles_Id);
+            var taskAssignerRoleName = getRoleName(n.TaskAssigner_Roles_Id);
+            var fullTitle = (n.Name || '')
+                + (actionRoleName ? ('\nAction Role: ' + actionRoleName) : '')
+                + (taskAssignerRoleName ? ('\nTask Assigner Role: ' + taskAssignerRoleName) : '');
+
+            var g = createSvgElement('g', {
+                'class': 'wf-node',
+                'data-step-id': n.StepId,
+                style: 'cursor:pointer;'
+            });
+
+            g.appendChild(createSvgElement('title', null, fullTitle));
+
+            g.appendChild(createSvgElement('rect', {
+                x: n.X,
+                y: n.Y,
+                width: n.Width,
+                height: n.Height,
+                rx: 8,
+                ry: 8,
+                fill: '#fff',
+                stroke: border,
+                'stroke-width': isSelected ? 4 : 2,
+                'stroke-dasharray': isOrphanNode ? '6,4' : null
+            }));
+
+            g.appendChild(createSvgElement('text', {
+                x: n.X + 10,
+                y: n.Y + 28,
+                'font-size': 13,
+                fill: '#111'
+            }, truncateText(n.Name, 34)));
+
+            g.appendChild(createSvgElement('text', {
+                x: n.X + 10,
+                y: n.Y + 48,
+                'font-size': 11,
+                fill: '#666'
+            }, 'ID: ' + n.StepId));
+
+            if (actionRoleName) {
+                g.appendChild(createSvgElement('text', {
+                    x: n.X + 10,
+                    y: n.Y + 62,
+                    'font-size': 10,
+                    fill: '#0d6efd'
+                }, 'Action: ' + truncateText(actionRoleName, 28)));
+            }
+
+            if (taskAssignerRoleName) {
+                g.appendChild(createSvgElement('text', {
+                    x: n.X + 10,
+                    y: n.Y + 75,
+                    'font-size': 10,
+                    fill: '#17a2b8'
+                }, 'Assigner: ' + truncateText(taskAssignerRoleName, 25)));
+            }
+
+            svg.appendChild(g);
+        });
+
+        bindEvents();
+    }
+
+    function bindEvents() {
+        $('.wf-node').off('click').on('click', function(e){
+            var stepId = parseInt($(this).data('step-id'), 10);
+            if (state.linkMode) {
+                if (!state.linkFromStepId) {
+                    state.linkFromStepId = stepId;
+                    status('Link mode: now click target step', 'alert-info');
+                } else if (state.linkFromStepId !== stepId) {
+                    var cmd = {
+                        WorkflowId: workflowId,
+                        FromStepId: state.linkFromStepId,
+                        ToStepId: stepId,
+                        ConditionExpression: $('#wfTransitionCondition').val(),
+                        DisplayLabel: $('#wfTransitionLabel').val(),
+                        SortOrder: parseInt($('#wfTransitionSort').val() || '0', 10),
+                        IsDefaultPath: $('#wfTransitionDefault').is(':checked'),
+                        IsActive: true
+                    };
+                    api('/api/Workflow/AddTemplateTransition', 'POST', cmd, function(){
+                        state.linkFromStepId = null;
+                        status('Transition added', 'alert-success');
+                        loadGraph();
+                    });
+                }
+                return;
+            }
+
+            state.selectedStepId = stepId;
+            state.selectedTransitionId = null;
+            var n = state.nodeById[stepId];
+            $('#wfSelStepId').val(stepId);
+            $('#wfStepName').val(n.Name || '');
+            $('#wfStepDesc').val(n.Description || '');
+            $('#wfStepType').val(n.Workflow_StepTypes_ID || '');
+            $('#wfActionRole').val(n.Action_Roles_Id || '');
+            $('#wfTaskAssignerRole').val(n.TaskAssigner_Roles_Id || '');
+            $('#wfIsStartStep').prop('checked', !!n.IsStartStep);
+            $('#wfWorkflowStepTypesConfigData').val(n.Workflow_StepTypes_ConfigData || '');
+            $('#wfUserStepInstructions').val(n.UserStepInstructions || '');
+            $('#wfPreStepCompletionDataValidation').val(n.PreStepCompletion_DataValidation || '');
+            $('#wfOnStepCompletionNotifications').val(n.OnStepCompletion_Notifications || '');
+            $('#wfOnStepCompletionFieldUpdates').val(n.OnStepCompletion_FieldUpdates || '');
+            $('#wfOnStepCompletionApiCalls').val(n.OnStepCompletion_APICalls || '');
+            $('#wfOnStepReviewNotifications').val(n.OnStepReview_Notifications || '');
+            $('#wfOnStepReviewFieldUpdates').val(n.OnStepReview_FieldUpdates || '');
+            $('#wfOnStepReviewApiCalls').val(n.OnStepReview_APICalls || '');
+            $('#wfOnStepRejectNotifications').val(n.OnStepReject_Notifications || '');
+            $('#wfOnStepRejectFieldUpdates').val(n.OnStepReject_FieldUpdates || '');
+            $('#wfOnStepRejectApiCalls').val(n.OnStepReject_APICalls || '');
+            $('#wfOnStepErrorNotifications').val(n.OnStepError_Notifications || '');
+            $('#wfOnStepCreateNotifications').val(n.OnStepCreate_Notifications || '');
+            $('#wfOnStepCreateFieldUpdates').val(n.OnStepCreate_FieldUpdates || '');
+            $('#wfOnStepCreateApiCalls').val(n.OnStepCreate_APICalls || '');
+            draw();
+        });
+
+        $('.wf-edge').off('click').on('click', function(){
+            var id = parseInt($(this).data('transition-id'), 10);
+            if (!id) return;
+            state.selectedTransitionId = id;
+            var edge = state.edges.find(function(x){ return x.TransitionId === id; });
+            if (edge) {
+                $('#wfTransitionCondition').val(edge.ConditionExpression || '');
+                $('#wfTransitionLabel').val(edge.DisplayLabel || '');
+                $('#wfTransitionSort').val(edge.SortOrder || 0);
+                $('#wfTransitionDefault').prop('checked', !!edge.IsDefaultPath);
+                status('Selected transition #' + id, 'alert-info');
+            }
+            draw();
+        });
+
+        if (canEdit) {
+            $('.wf-node').off('mousedown').on('mousedown', function(evt){
+                var stepId = parseInt($(this).data('step-id'), 10);
+                var n = state.nodeById[stepId];
+                state.draggingStepId = stepId;
+                var point = getSvgPoint(evt);
+                state.dragOffsetX = point.x - n.X;
+                state.dragOffsetY = point.y - n.Y;
+            });
+        }
+    }
+
+    $(document).on('mousemove.wfdesigner', function(evt){
+        if (!canEdit || !state.draggingStepId) return;
+        var n = state.nodeById[state.draggingStepId];
+        if (!n) return;
+        var point = getSvgPoint(evt);
+
+        if (point.y > state.dragBounds.height - 120) {
+            state.dragBounds.height += 600;
+            $('#wfDesignerSvg').attr('height', state.dragBounds.height);
+        }
+        if (point.x > state.dragBounds.width - 120) {
+            state.dragBounds.width += 400;
+            $('#wfDesignerSvg').attr('width', state.dragBounds.width);
+        }
+
+        n.X = clamp(point.x - state.dragOffsetX, 10, state.dragBounds.width - (n.Width || 180) - 10);
+        n.Y = clamp(point.y - state.dragOffsetY, 10, state.dragBounds.height - (n.Height || 96) - 10);
+        draw();
+    });
+
+    $(document).on('mouseup.wfdesigner', function(){
+        if (!canEdit || !state.draggingStepId) return;
+        var stepId = state.draggingStepId;
+        state.draggingStepId = null;
+        var n = state.nodeById[stepId];
+        api('/api/Workflow/SaveStepLayout', 'POST', {
+            WorkflowId: workflowId,
+            StepId: stepId,
+            X: n.X,
+            Y: n.Y,
+            LastClientSyncDateUtc: state.lastLayoutSync[stepId] || null
+        }, function(res){
+            if (res && res.LastClientSyncDateUtc) state.lastLayoutSync[stepId] = res.LastClientSyncDateUtc;
+            status('Layout saved', 'alert-success');
+        });
+    });
+
+    function loadGraph() {
+        api('/api/Workflow/GetTemplateGraph?workflowId=' + workflowId, 'GET', null, function(res){
+            var nodes = (res && (res.Nodes || res.nodes)) || [];
+            var edges = (res && (res.Edges || res.edges)) || [];
+            var stepTypes = (res && (res.StepTypes || res.stepTypes)) || [];
+            var roles = (res && (res.Roles || res.roles)) || [];
+            state.nodes = nodes.map(normalizeNode);
+            state.edges = edges.map(normalizeEdge);
+            state.stepTypes = stepTypes;
+            state.roles = roles;
+            renderStepTypeOptions();
+            renderRoleOptions();
+            state.selectedStepId = null;
+            resetStepEditor();
+            state.selectedTransitionId = null;
+            state.linkFromStepId = null;
+            state.lastLayoutSync = {};
+            state.nodes.forEach(function(n){ state.lastLayoutSync[n.StepId] = null; });
+            recalcMaps();
+            draw();
+            canEdit = !!(res && (res.CanEdit !== undefined ? res.CanEdit : res.canEdit));
+            var wfName = ((res && (res.WorkflowName || res.workflowName)) || '');
+            $('#wfWorkflowNameTitle').text(wfName ? ('- ' + wfName) : '');
+            status('Template loaded: ' + wfName, 'alert-success', false);
+        });
+    }
+
+    $('#wfBtnLinkMode').on('click', function(){
+        if (!canEdit) return;
+        state.linkMode = !state.linkMode;
+        state.linkFromStepId = null;
+        $('#wfLinkModeHint').text(state.linkMode ? 'On (select source then target)' : 'Off');
+        status(state.linkMode ? 'Link mode enabled' : 'Link mode disabled', 'alert-info');
+    });
+
+    $('#wfBtnClearStepForm').on('click', function(){
+        if (!canEdit) return;
+        state.selectedStepId = null;
+        resetStepEditor();
+        status('Step editor cleared.', 'alert-info');
+    });
+
+    $('#wfBtnAddStep').on('click', function(){
+        if (!canEdit) return;
+        if (!$('#wfStepType').val()) {
+            status('Step type is required.', 'alert-danger');
+            return;
+        }
+        if (!validateJsonEditors()) return;
+        var cmd = buildStepPayloadBase();
+        cmd.WorkflowId = workflowId;
+        var baseX = 80;
+        var spacingY = 40;
+        var maxBottom = 40;
+        state.nodes.forEach(function(n){
+            var h = n.Height || 96;
+            maxBottom = Math.max(maxBottom, (n.Y || 0) + h);
+        });
+        cmd.X = baseX;
+        cmd.Y = maxBottom + spacingY;
+        api('/api/Workflow/AddTemplateStep', 'POST', cmd, function(){
+            status('Step added', 'alert-success');
+            loadGraph();
+        });
+    });
+
+    $('#wfBtnSaveStep').on('click', function(){
+        if (!canEdit || !state.selectedStepId) return;
+        if (!$('#wfStepType').val()) {
+            status('Step type is required.', 'alert-danger');
+            return;
+        }
+        if (!validateJsonEditors()) return;
+        var cmd = buildStepPayloadBase();
+        cmd.WorkflowId = workflowId;
+        cmd.StepId = state.selectedStepId;
+        api('/api/Workflow/UpdateTemplateStep', 'POST', cmd, function(){
+            status('Step updated', 'alert-success');
+            loadGraph();
+        });
+    });
+
+    $('#wfBtnDeleteStep').on('click', function(){
+        if (!canEdit || !state.selectedStepId) return;
+        if (!confirm('Delete selected step?')) return;
+        api('/api/Workflow/DeleteTemplateStep', 'POST', { WorkflowId: workflowId, StepId: state.selectedStepId }, function(){
+            status('Step deleted', 'alert-success');
+            loadGraph();
+        });
+    });
+
+    $('#wfBtnUpdateEdge').on('click', function(){
+        if (!canEdit || !state.selectedTransitionId) return;
+        var cmd = {
+            WorkflowId: workflowId,
+            TransitionId: state.selectedTransitionId,
+            ConditionExpression: $('#wfTransitionCondition').val(),
+            DisplayLabel: $('#wfTransitionLabel').val(),
+            SortOrder: parseInt($('#wfTransitionSort').val() || '0', 10),
+            IsDefaultPath: $('#wfTransitionDefault').is(':checked'),
+            IsActive: true
+        };
+        api('/api/Workflow/UpdateTemplateTransition', 'POST', cmd, function(){
+            status('Transition updated', 'alert-success');
+            loadGraph();
+        });
+    });
+
+    $('#wfBtnDeleteEdge').on('click', function(){
+        if (!canEdit || !state.selectedTransitionId) return;
+        if (!confirm('Remove selected transition?')) return;
+        api('/api/Workflow/RemoveTemplateTransition', 'POST', { WorkflowId: workflowId, TransitionId: state.selectedTransitionId }, function(){
+            status('Transition removed', 'alert-success');
+            loadGraph();
+        });
+    });
+
+    $(function(){
+        $('.wf-accordion-toggle').on('click', function(){
+            var target = $(this).data('target');
+            if (!target) return;
+            $(target).slideToggle(140);
+            $(this).closest('.m-accordion__item').toggleClass('m-accordion__item--expanded');
+        });
+
+        if (!workflowId) {
+            status('Workflow ID is missing.', 'alert-danger', false);
+            return;
+        }
+        loadGraph();
+    });
+})();
+</script>
