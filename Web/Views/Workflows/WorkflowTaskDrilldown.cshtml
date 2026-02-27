@@ -162,7 +162,7 @@
         rows.forEach(function(r){
             if (level === 'User') {
                 html += '<tr>'
-                    + '<td><a href=\"javascript:void(0);\" class=\"wf-user\" data-uid=\"'+(r.UserId||'')+'\" data-rid=\"'+(r.RoleId||'')+'\" data-rt=\"'+(r.RowType||'User')+'\">'+(r.UserName||'')+'</a></td>'
+                    + '<td><a href="javascript:void(0);" class="wf-user" data-uid="'+(r.UserId||'')+'" data-rid="'+(r.RoleId||'')+'" data-rt="'+(r.RowType||'User')+'">'+(r.UserName||'')+'</a></td>'
                     + '<td><a href="javascript:void(0);" class="wf-stat" data-bucket="All" data-uid="'+(r.UserId||'')+'" data-rid="'+(r.RoleId||'')+'" data-rt="'+(r.RowType||'User')+'">'+(r.Pending||0)+'</a></td>'
                     + '<td><a href="javascript:void(0);" class="wf-stat" data-bucket="Overdue1To5" data-uid="'+(r.UserId||'')+'" data-rid="'+(r.RoleId||'')+'" data-rt="'+(r.RowType||'User')+'">'+(r.Overdue1To5||0)+'</a></td>'
                     + '<td><a href="javascript:void(0);" class="wf-stat" data-bucket="Overdue6To25" data-uid="'+(r.UserId||'')+'" data-rid="'+(r.RoleId||'')+'" data-rt="'+(r.RowType||'User')+'">'+(r.Overdue6To25||0)+'</a></td>'
