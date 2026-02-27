@@ -54,7 +54,7 @@ namespace Web.Controllers.Workflow
             ViewBag.ContextScreenCode = __csc;
             ViewBag.ContextScreen_RefID = __csc_refid;
             var workflow = db.Workflows.Find(ID);
-            if(workflow == null)
+            if (workflow == null)
             {
                 return HttpNotFound();
             }
@@ -79,7 +79,7 @@ namespace Web.Controllers.Workflow
             ViewBag.ContextScreenCode = __csc;
             ViewBag.ContextScreen_RefID = __csc_refid;
             int accountId = Convert.ToInt32(__csc_refid);
-            List <WorkflowStatus>  workflowStatuses= (new Accounts() { ID = accountId }).GetOpenWorkflowsStatus()?? new List<WorkflowStatus>(); 
+            List<WorkflowStatus> workflowStatuses = (new Accounts() { ID = accountId }).GetOpenWorkflowsStatus(__csc) ?? new List<WorkflowStatus>();
 
             return PartialView("WorkflowTransactionHeader", workflowStatuses);
         }
@@ -94,7 +94,7 @@ namespace Web.Controllers.Workflow
             return PartialView("WorkflowTransactionHeader", workflowStatuses);
         }
 
-        
+
         public ActionResult RenderWorkflowView()
         {
             var jsonBody = new StreamReader(Request.InputStream).ReadToEnd();
@@ -155,8 +155,8 @@ namespace Web.Controllers.Workflow
             ViewBag.ContextScreenCode = __csc;
             ViewBag.ContextScreen_RefID = __csc_refid;
             ViewBag.DisplayMode = "WorkflowDashboard";
-           // List<WorkflowStatus> workflowStatuses = (new Accounts() { ID = 1111 }).GetOpenWorkflowsStatus() ?? new List<WorkflowStatus>();
-           List<vwWorkflowStatus> workflowStatuses = new List<vwWorkflowStatus>();
+            // List<WorkflowStatus> workflowStatuses = (new Accounts() { ID = 1111 }).GetOpenWorkflowsStatus() ?? new List<WorkflowStatus>();
+            List<vwWorkflowStatus> workflowStatuses = new List<vwWorkflowStatus>();
             return PartialView("WorkflowDashboard", workflowStatuses);
         }
 
@@ -165,30 +165,30 @@ namespace Web.Controllers.Workflow
             ViewBag.ContextScreenCode = __csc;
             ViewBag.ContextScreen_RefID = __csc_refid;
             ViewBag.DisplayMode = "WorkflowDashboard";
-            return View("WorkflowTaskDrilldown");
+            return PartialView("WorkflowTaskDrilldown");
         }
 
-       /* public ActionResult WorkflowStatusPartial(int workflowTxnHeaderID, string __csc = "",  string __csc_refid = "")
-        {
-            ViewBag.ContextScreenCode = __csc;
-            ViewBag.ContextScreen_RefID = __csc_refid;
-            ViewBag.DisplayMode = "WorkflowStatus";
+        /* public ActionResult WorkflowStatusPartial(int workflowTxnHeaderID, string __csc = "",  string __csc_refid = "")
+         {
+             ViewBag.ContextScreenCode = __csc;
+             ViewBag.ContextScreen_RefID = __csc_refid;
+             ViewBag.DisplayMode = "WorkflowStatus";
 
-            var workflowTransactionHeader = db.Workflow_Transactions_Headers
-                .Where(w => w.ID == workflowTxnHeaderID)
-                .Include(w => w.Workflow)
-                .Include(w => w.Workflow_StepTransactions.Select(t => t.Workflow_Steps))
-                .FirstOrDefault();
+             var workflowTransactionHeader = db.Workflow_Transactions_Headers
+                 .Where(w => w.ID == workflowTxnHeaderID)
+                 .Include(w => w.Workflow)
+                 .Include(w => w.Workflow_StepTransactions.Select(t => t.Workflow_Steps))
+                 .FirstOrDefault();
 
-            if (workflowTransactionHeader == null)
-            {
-                return PartialView("_WorkflowStatusPartial", null);
-            }
+             if (workflowTransactionHeader == null)
+             {
+                 return PartialView("_WorkflowStatusPartial", null);
+             }
 
-            var workflowStatus = workflowTransactionHeader.GetWorkflowStatus();
+             var workflowStatus = workflowTransactionHeader.GetWorkflowStatus();
 
-            return PartialView("_WorkflowStatusPartial", JsonConvert.SerializeObject(workflowStatus));
-        }*/
+             return PartialView("_WorkflowStatusPartial", JsonConvert.SerializeObject(workflowStatus));
+         }*/
 
 
     }
