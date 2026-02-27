@@ -780,52 +780,23 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                     : new HashSet<int>();
 
                 var pendingSql = @";WITH base AS (
-                    SELECT
-                        h.ID WorkflowHeaderId,
-                        COALESCE(NULLIF(JSON_VALUE(h.ConfigData,'$.AdditionalWorkflowDescription'),''), w.Name) WorkflowDisplayName,
-                        w.Name WorkflowName,
-                        s.Name StepName,
-                        s.Action_Roles_Id ActionRoleId,
-                        ar.RoleName ActionRoleName,
-                        st.Assigned_Users_Id AssignedUserId,
-                        NULLIF(LTRIM(RTRIM(COALESCE(su.Firstname,'') + ' ' + COALESCE(su.Lastname,''))), '') AssignedToName,
-                        st.CreateDate StepCreateDateUtc,
-                        COALESCE(TRY_CAST(JSON_VALUE(s.Workflow_StepTypes_ConfigData,'$.EstimatedDaysToComplete') AS int),0) EstimatedDaysToComplete,
-                         COALESCE(CASE WHEN h.Context_Object_Code = 'ACCOUNT' THEN h.Object_RefID   END,  or_obj.ObjectScreen_RefID, or_order.ObjectScreen_RefID) AS AccountId
-                    FROM Workflow_StepTransactions st
-                    JOIN Workflow_Transactions_Headers h ON h.ID = st.Workflow_Transactions_Headers_ID
-                    JOIN Workflow_Steps s ON s.ID = st.Workflow_Steps_ID
-                    JOIN Workflows w ON w.ID = h.Workflows_ID
-                    LEFT JOIN Security_Users su ON su.User_Id = st.Assigned_Users_Id
-                    LEFT JOIN Security_Roles ar ON ar.Role_Id = s.Action_Roles_Id
-                    LEFT JOIN ObjectRelations or_obj
-                    ON h.Context_Object_Code NOT IN ('ACCOUNT','COORDERITEMS')
-                    AND COALESCE(or_obj.DelFlag,0)=0
-                    AND or_obj.ObjectScreen_ObjectCode = 'ACCOUNT'
-                    AND or_obj.ObjectScreen_Code = h.Context_Object_Code
-                    AND or_obj.AssociatedObject_RefID = h.Object_RefID
-                    LEFT JOIN Client_OrderItems coi   ON h.Context_Object_Code = 'COORDERITEMS' AND coi.ID = h.Object_RefID
-                    LEFT JOIN ObjectRelations or_order
-                        ON h.Context_Object_Code = 'COORDERITEMS'
-                        AND COALESCE(or_order.DelFlag,0)=0
-                        AND or_order.ObjectScreen_Code = 'ACCOUNTS'
-                        AND or_order.AssociatedObject_Code = 'ORDER'
-                        AND or_order.AssociatedObject_RefID = coi.Client_Orders_ID
-                    WHERE COALESCE(st.DelFlag,0)=0
-                      AND COALESCE(h.DelFlag,0)=0
-                      AND COALESCE(s.DelFlag,0)=0
-                      AND COALESCE(w.DelFlag,0)=0
-                      AND COALESCE(h.WorkflowComplete,0)=0
-                      AND COALESCE(st.StepExecuted,0)=0
-                      AND COALESCE(st.ExecutionStopped,0)=0
-                )
-                SELECT b.*,
-                       acc.Name AccountName,
-                       acc.AccountManagerUser_ID AccountManagerUserId,
-                       NULLIF(LTRIM(RTRIM(COALESCE(am.Firstname,'') + ' ' + COALESCE(am.Lastname,''))), '') AS AccountManagerName
-                FROM base b
-                LEFT JOIN Accounts acc ON acc.ID = b.AccountId
-                LEFT JOIN Security_Users am ON am.User_Id = acc.AccountManagerUser_ID";
+                        SELECT h.ID AS WorkflowHeaderId, COALESCE(NULLIF(JSON_VALUE(h.ConfigData,'$.AdditionalWorkflowDescription'),''), w.Name) AS WorkflowDisplayName, w.Name AS WorkflowName, s.Name AS StepName, s.Action_Roles_Id AS ActionRoleId, ar.RoleName AS ActionRoleName, st.Assigned_Users_Id AS AssignedUserId, NULLIF(TRIM(COALESCE(su.Firstname,'') + ' ' + COALESCE(su.Lastname,'')),'') AS AssignedToName, st.CreateDate AS StepCreateDateUtc, COALESCE(TRY_CAST(JSON_VALUE(s.Workflow_StepTypes_ConfigData,'$.EstimatedDaysToComplete') AS int),0) AS EstimatedDaysToComplete, COALESCE(CASE WHEN h.Context_Object_Code='ACCOUNT' THEN h.Object_RefID END, or_obj.ObjectScreen_RefID, or_order.ObjectScreen_RefID) AS AccountId
+                        FROM Workflow_StepTransactions st
+                        JOIN Workflow_Transactions_Headers h ON h.ID = st.Workflow_Transactions_Headers_ID
+                        JOIN Workflow_Steps s ON s.ID = st.Workflow_Steps_ID
+                        JOIN Workflows w ON w.ID = h.Workflows_ID
+                        LEFT JOIN Security_Users su ON su.User_Id = st.Assigned_Users_Id
+                        LEFT JOIN Security_Roles ar ON ar.Role_Id = s.Action_Roles_Id
+                        LEFT JOIN ObjectRelations or_obj ON h.Context_Object_Code NOT IN ('ACCOUNT','COORDERITEMS') AND ISNULL(or_obj.DelFlag,0)=0 AND or_obj.ObjectScreen_ObjectCode='ACCOUNT' AND or_obj.ObjectScreen_Code=h.Context_Object_Code AND or_obj.AssociatedObject_RefID=h.Object_RefID
+                        LEFT JOIN Client_OrderItems coi ON h.Context_Object_Code='COORDERITEMS' AND coi.ID=h.Object_RefID
+                        LEFT JOIN Client_Orders co ON co.ID=coi.Client_Orders_ID
+                        LEFT JOIN ObjectRelations or_order ON h.Context_Object_Code='COORDERITEMS' AND ISNULL(or_order.DelFlag,0)=0 AND or_order.ObjectScreen_ObjectCode='ACCOUNT' AND or_order.AssociatedObject_RefID=co.ID AND or_order.AssociatedObject_Code='ORDER'
+                        WHERE ISNULL(st.DelFlag,0)=0 AND ISNULL(h.DelFlag,0)=0 AND ISNULL(s.DelFlag,0)=0 AND ISNULL(w.DelFlag,0)=0 AND ISNULL(h.WorkflowComplete,0)=0 AND ISNULL(st.StepExecuted,0)=0 AND ISNULL(st.ExecutionStopped,0)=0
+                    )
+                    SELECT b.*, acc.Name AS AccountName, acc.AccountManagerUser_ID AS AccountManagerUserId, NULLIF(TRIM(COALESCE(am.Firstname,'') + ' ' + COALESCE(am.Lastname,'')),'') AS AccountManagerName
+                    FROM base b
+                    LEFT JOIN Accounts acc ON acc.ID=b.AccountId
+                    LEFT JOIN Security_Users am ON am.User_Id=acc.AccountManagerUser_ID;";
 
                 var pendingRows = db.Database.SqlQuery<PendingTaskRow>(pendingSql).ToList();
 
