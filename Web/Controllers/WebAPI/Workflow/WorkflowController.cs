@@ -292,8 +292,8 @@ acct AS (
     SELECT o.*,
            COALESCE(CASE WHEN o.Context_Object_Code='ACCOUNT' THEN o.Object_RefID END,or_order.ObjectScreen_RefID,or_obj.ObjectScreen_RefID) AccountId
     FROM obj o
-    LEFT JOIN ObjectRelations or_order ON o.OrderId IS NOT NULL AND COALESCE(or_order.DelFlag,0)=0 AND or_order.ObjectScreen_Code='ACCOUNTS' AND or_order.AssociatedObject_Code IN ('Order','ORDER') AND or_order.AssociatedObject_RefID=o.OrderId
-    LEFT JOIN ObjectRelations or_obj ON o.OrderId IS NULL AND o.Context_Object_Code<>'ACCOUNT' AND COALESCE(or_obj.DelFlag,0)=0 AND or_obj.ObjectScreen_Code='ACCOUNTS' AND or_obj.AssociatedObject_Code=o.Context_Object_Code AND or_obj.AssociatedObject_RefID=o.Object_RefID
+    LEFT JOIN ObjectRelations or_order ON o.OrderId IS NOT NULL AND COALESCE(or_order.DelFlag,0)=0 AND or_order.ObjectScreen_Code in ('ACCOUNTS','OTHERSERVICES') AND or_order.AssociatedObject_Code IN ('Order','ORDER') AND or_order.AssociatedObject_RefID=o.OrderId
+    LEFT JOIN ObjectRelations or_obj ON o.OrderId IS NULL AND o.Context_Object_Code<>'ACCOUNT' AND COALESCE(or_obj.DelFlag,0)=0 AND or_obj.ObjectScreen_Code in ('ACCOUNTS','OTHERSERVICES') AND or_obj.AssociatedObject_Code=o.Context_Object_Code AND or_obj.AssociatedObject_RefID=o.Object_RefID
 )
 SELECT
     a.AccountId,acc.Name AccountName,acc.ClientCode,
@@ -314,7 +314,7 @@ LEFT JOIN Accounts acc ON acc.ID=a.AccountId
 OUTER APPLY (SELECT TOP 1 i.InvoiceNumber FROM Invoices i WHERE (a.InvoiceId IS NOT NULL AND i.ID=a.InvoiceId) OR (a.InvoiceId IS NULL AND a.OrderId IS NOT NULL AND i.Client_Orders_ID=a.OrderId) ORDER BY i.CreateDate DESC) inv
 LEFT JOIN Products prod ON prod.ID=a.Products_ID
 CROSS APPLY (SELECT (a.EstimatedDaysToComplete - DATEDIFF(DAY,a.AssignedFromTime,GETUTCDATE())) DaysRemaining) dr
-CROSS APPLY (select CASE WHEN ISNULL(a.EstimatedDaysToComplete, 0) != 0 THEN ((DATEDIFF(DAY,a.AssignedFromTime,GETUTCDATE()) / a.EstimatedDaysToComplete) * 100 ) ELSE NULL END AS PercentRemaining)  gh 
+CROSS APPLY (select CASE WHEN ISNULL(a.EstimatedDaysToComplete, 0) != 0 THEN ((DATEDIFF(DAY,a.AssignedFromTime,GETUTCDATE()) / a.EstimatedDaysToComplete) * 100 ) ELSE NULL END AS PercentRemaining)  gh
 
 WHERE a.AccountId IS NOT NULL
 ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
@@ -506,7 +506,7 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                     JOIN Workflow_Steps s ON s.ID=st.Workflow_Steps_ID
                     JOIN Workflows w ON w.ID=h.Workflows_ID
                     LEFT JOIN Security_Users su ON su.User_Id=st.Assigned_Users_Id
-                    LEFT JOIN Security_Roles ar ON ar.Role_Id = s.Action_Roles_Id 
+                    LEFT JOIN Security_Roles ar ON ar.Role_Id = s.Action_Roles_Id
 
                     LEFT JOIN Workflow_Transactions_Headers hdep ON hdep.ID=h.DependsOn_WorkFlows_Workflow_Transactions_Headers_ID AND COALESCE(hdep.DelFlag,0)=0
                     LEFT JOIN Workflows wdep ON wdep.ID=hdep.Workflows_ID AND COALESCE(wdep.DelFlag,0)=0
@@ -527,7 +527,7 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                     LEFT JOIN ObjectRelations or_obj
                       ON c.Context_Object_Code<>'ACCOUNT'
                      AND COALESCE(or_obj.DelFlag,0)=0
-                     AND or_obj.ObjectScreen_Code='ACCOUNTS'
+                     AND or_obj.ObjectScreen_Code in ('ACCOUNTS' ,'OTHERSERVICES')
                      AND or_obj.AssociatedObject_Code=c.Context_Object_Code
                      AND or_obj.AssociatedObject_RefID=c.Object_RefID
                 )
@@ -539,7 +539,7 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                     COALESCE(NULLIF(a.DisplayName,''), a.Workflow_Name) WorkflowDisplayName,
                     a.Waiting_On_Step_Name, a.Assigned_To_Name, a.Workflow_Status,
                     dr.DaysRemaining,PercentRemaining,
-    
+
                     CASE WHEN dr.DaysRemaining<0 THEN CONCAT(ABS(dr.DaysRemaining),' days overdue')
                          WHEN dr.DaysRemaining=0 THEN 'Due today'
                          ELSE CONCAT(dr.DaysRemaining,' days remaining') END DaysRemainingText,
@@ -548,7 +548,7 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                 LEFT JOIN Accounts acc ON acc.ID=a.AccountId
                 LEFT JOIN Security_Users am ON am.User_Id = acc.AccountManagerUser_ID
                 CROSS APPLY (SELECT (a.EstimatedDaysToComplete - DATEDIFF(DAY,a.AssignedFromTime,GETUTCDATE())) DaysRemaining) dr
-                CROSS APPLY (select CASE WHEN ISNULL(a.EstimatedDaysToComplete, 0) != 0 THEN (((ISNULL(a.EstimatedDaysToComplete, 0) - DATEDIFF(DAY,a.AssignedFromTime,GETUTCDATE())) / a.EstimatedDaysToComplete) * 100 ) ELSE NULL END AS PercentRemaining)  gh 
+                CROSS APPLY (select CASE WHEN ISNULL(a.EstimatedDaysToComplete, 0) != 0 THEN (((ISNULL(a.EstimatedDaysToComplete, 0) - DATEDIFF(DAY,a.AssignedFromTime,GETUTCDATE())) / a.EstimatedDaysToComplete) * 100 ) ELSE NULL END AS PercentRemaining)  gh
                 WHERE a.AccountId IS NOT NULL
                   {sqlFilterFinal}
                 ORDER BY dr.DaysRemaining ASC, a.Workflow_StartDate DESC, a.Workflow_Steps_ID ASC;";
@@ -780,43 +780,52 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                     : new HashSet<int>();
 
                 var pendingSql = @";WITH base AS (
-                        SELECT
-                            h.ID WorkflowHeaderId,
-                            COALESCE(NULLIF(JSON_VALUE(h.ConfigData,'$.AdditionalWorkflowDescription'),''), w.Name) WorkflowDisplayName,
-                            w.Name WorkflowName,
-                            s.Name StepName,
-                            s.Action_Roles_Id ActionRoleId,
-                            ar.RoleName ActionRoleName,
-                            st.Assigned_Users_Id AssignedUserId,
-                            NULLIF(LTRIM(RTRIM(COALESCE(su.Firstname,'') + ' ' + COALESCE(su.Lastname,''))), '') AssignedToName,
-                            st.CreateDate StepCreateDateUtc,
-                            COALESCE(TRY_CAST(JSON_VALUE(s.Workflow_StepTypes_ConfigData,'$.EstimatedDaysToComplete') AS int),0) EstimatedDaysToComplete,
-                            COALESCE(CASE WHEN h.Context_Object_Code='ACCOUNT' THEN h.Object_RefID END, or_obj.ObjectScreen_RefID) AccountId
-                        FROM Workflow_StepTransactions st
-                        JOIN Workflow_Transactions_Headers h ON h.ID=st.Workflow_Transactions_Headers_ID
-                        JOIN Workflow_Steps s ON s.ID=st.Workflow_Steps_ID
-                        JOIN Workflows w ON w.ID=h.Workflows_ID
-                        LEFT JOIN Security_Users su ON su.User_Id=st.Assigned_Users_Id
-                        LEFT JOIN Security_Roles ar ON ar.Role_Id=s.Action_Roles_Id
-                        LEFT JOIN ObjectRelations or_obj
-                            ON h.Context_Object_Code<>'ACCOUNT'
-                           AND COALESCE(or_obj.DelFlag,0)=0
-                           AND or_obj.ObjectScreen_Code='ACCOUNTS'
-                           AND or_obj.AssociatedObject_Code=h.Context_Object_Code
-                           AND or_obj.AssociatedObject_RefID=h.Object_RefID
-                        WHERE COALESCE(st.DelFlag,0)=0
-                          AND COALESCE(h.DelFlag,0)=0
-                          AND COALESCE(s.DelFlag,0)=0
-                          AND COALESCE(w.DelFlag,0)=0
-                          AND COALESCE(h.WorkflowComplete,0)=0
-                          AND COALESCE(st.StepExecuted,0)=0
-                          AND COALESCE(st.ExecutionStopped,0)=0
-                    )
-                    SELECT b.*, acc.Name AccountName, acc.AccountManagerUser_ID AccountManagerUserId,
-                           NULLIF(LTRIM(RTRIM(COALESCE(am.Firstname,'') + ' ' + COALESCE(am.Lastname,''))), '') AS AccountManagerName
-                    FROM base b
-                    LEFT JOIN Accounts acc ON acc.ID=b.AccountId
-                    LEFT JOIN Security_Users am ON am.User_Id = acc.AccountManagerUser_ID";
+                    SELECT
+                        h.ID WorkflowHeaderId,
+                        COALESCE(NULLIF(JSON_VALUE(h.ConfigData,'$.AdditionalWorkflowDescription'),''), w.Name) WorkflowDisplayName,
+                        w.Name WorkflowName,
+                        s.Name StepName,
+                        s.Action_Roles_Id ActionRoleId,
+                        ar.RoleName ActionRoleName,
+                        st.Assigned_Users_Id AssignedUserId,
+                        NULLIF(LTRIM(RTRIM(COALESCE(su.Firstname,'') + ' ' + COALESCE(su.Lastname,''))), '') AssignedToName,
+                        st.CreateDate StepCreateDateUtc,
+                        COALESCE(TRY_CAST(JSON_VALUE(s.Workflow_StepTypes_ConfigData,'$.EstimatedDaysToComplete') AS int),0) EstimatedDaysToComplete,
+                         COALESCE(CASE WHEN h.Context_Object_Code = 'ACCOUNT' THEN h.Object_RefID   END,  or_obj.ObjectScreen_RefID, or_order.ObjectScreen_RefID) AS AccountId
+                    FROM Workflow_StepTransactions st
+                    JOIN Workflow_Transactions_Headers h ON h.ID = st.Workflow_Transactions_Headers_ID
+                    JOIN Workflow_Steps s ON s.ID = st.Workflow_Steps_ID
+                    JOIN Workflows w ON w.ID = h.Workflows_ID
+                    LEFT JOIN Security_Users su ON su.User_Id = st.Assigned_Users_Id
+                    LEFT JOIN Security_Roles ar ON ar.Role_Id = s.Action_Roles_Id
+                    LEFT JOIN ObjectRelations or_obj
+                    ON h.Context_Object_Code NOT IN ('ACCOUNT','COORDERITEMS')
+                    AND COALESCE(or_obj.DelFlag,0)=0
+                    AND or_obj.ObjectScreen_ObjectCode = 'ACCOUNT'
+                    AND or_obj.ObjectScreen_Code = h.Context_Object_Code
+                    AND or_obj.AssociatedObject_RefID = h.Object_RefID
+                    LEFT JOIN Client_OrderItems coi   ON h.Context_Object_Code = 'COORDERITEMS' AND coi.ID = h.Object_RefID
+                    LEFT JOIN ObjectRelations or_order
+                        ON h.Context_Object_Code = 'COORDERITEMS'
+                        AND COALESCE(or_order.DelFlag,0)=0
+                        AND or_order.ObjectScreen_Code = 'ACCOUNTS'
+                        AND or_order.AssociatedObject_Code = 'ORDER'
+                        AND or_order.AssociatedObject_RefID = coi.Client_Orders_ID
+                    WHERE COALESCE(st.DelFlag,0)=0
+                      AND COALESCE(h.DelFlag,0)=0
+                      AND COALESCE(s.DelFlag,0)=0
+                      AND COALESCE(w.DelFlag,0)=0
+                      AND COALESCE(h.WorkflowComplete,0)=0
+                      AND COALESCE(st.StepExecuted,0)=0
+                      AND COALESCE(st.ExecutionStopped,0)=0
+                )
+                SELECT b.*,
+                       acc.Name AccountName,
+                       acc.AccountManagerUser_ID AccountManagerUserId,
+                       NULLIF(LTRIM(RTRIM(COALESCE(am.Firstname,'') + ' ' + COALESCE(am.Lastname,''))), '') AS AccountManagerName
+                FROM base b
+                LEFT JOIN Accounts acc ON acc.ID = b.AccountId
+                LEFT JOIN Security_Users am ON am.User_Id = acc.AccountManagerUser_ID";
 
                 var pendingRows = db.Database.SqlQuery<PendingTaskRow>(pendingSql).ToList();
 
@@ -985,7 +994,8 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                             var rows = g.Select(x => x.Row);
                             var k = summarize(rows);
                             var ck = userCompletionKpi(g.Key.UserId);
-                            return new {
+                            return new
+                            {
                                 RowType = "User",
                                 UserId = (int?)g.Key.UserId,
                                 RoleId = (int?)null,
@@ -1007,7 +1017,8 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                         .GroupBy(r => new { RoleId = r.ActionRoleId.Value, RoleName = r.ActionRoleName ?? ("Role #" + r.ActionRoleId.Value) })
                         .Select(g => {
                             var k = summarize(g);
-                            return new {
+                            return new
+                            {
                                 RowType = "Role",
                                 UserId = (int?)null,
                                 RoleId = (int?)g.Key.RoleId,
@@ -1053,7 +1064,8 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
                         .GroupBy(r => r.WorkflowName)
                         .Select(g => {
                             var k = summarize(g);
-                            return new {
+                            return new
+                            {
                                 WorkflowName = g.Key,
                                 WorkflowDisplayName = g.Key,
                                 Pending = k.PendingCount,
@@ -1094,7 +1106,8 @@ ORDER BY dr.DaysRemaining ASC,a.Workflow_StartDate DESC,a.Workflow_Steps_ID ASC;
 
                 var taskRows = taskScoped.Select(r => {
                     DateTime? due = r.EstimatedDaysToComplete > 0 ? AddBusinessDays(r.StepCreateDateUtc, r.EstimatedDaysToComplete) : (DateTime?)null;
-                    return new {
+                    return new
+                    {
                         r.WorkflowHeaderId,
                         TaskName = r.WorkflowDisplayName,
                         r.WorkflowName,
